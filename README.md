@@ -3,41 +3,41 @@ AI Feedback Platform
 A voice-powered customer feedback system that rewards quality insights with instant cashback
 
 🎯 Overview
-The AI Feedback Platform enables retail customers to provide voice feedback through QR code scanning and receive cashback rewards based on feedback quality. Businesses gain valuable, categorized customer insights while customers earn up to 1000 SEK/hour for exceptional feedback.
+The AI Feedback Platform enables retail customers to provide voice feedback through QR code scanning and receive cashback rewards based on feedback quality. Businesses gain valuable, categorized customer insights while customers earn up to 12% cashback for exceptional feedback.
+
 Core Value Proposition
+- **Customers**: Earn 1-12% cashback on purchases through quality voice feedback
+- **Businesses**: Actionable, AI-categorized insights with trend analysis
+- **Platform**: 20% commission on all distributed rewards
 
-Customers: Earn 1-12% cashback on purchases through quality voice feedback
-Businesses: Actionable, AI-categorized insights with trend analysis
-Platform: 20% commission on all distributed rewards
+## 🚀 Quick Start
 
-🚀 Quick Start
-Prerequisites
+### Prerequisites
+- Node.js 18+
+- npm 8+ or yarn
+- Docker & Docker Compose (optional)
+- Supabase account (for database)
 
-Node.js 20+
-pnpm 8+
-Docker & Docker Compose
-PostgreSQL (via Supabase)
-
-Installation
-bash# Clone the repository
+### Installation
+```bash
+# Clone the repository
 git clone https://github.com/your-org/ai-feedback-platform.git
 cd ai-feedback-platform
 
 # Install dependencies
-pnpm install
+npm install
 
 # Set up environment variables
 cp .env.example .env.local
 # Edit .env.local with your configuration
 
-# Start development services
-docker-compose up -d
-
-# Run database migrations
-pnpm db:migrate
+# Set up Supabase database
+npx supabase init
+npx supabase start
+npx supabase db push
 
 # Start development servers
-pnpm dev
+npm run dev
 🏗️ Architecture
 Monorepo Structure
 ai-feedback-platform/

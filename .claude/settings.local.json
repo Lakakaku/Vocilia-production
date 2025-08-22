@@ -21,7 +21,8 @@
       "Bash(gh issue view:*)",
       "WebFetch(domain:docs.anthropic.com)",
       "Bash(clear)",
-      "Bash(claude mcp:*)"
+      "Bash(claude mcp:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   },
