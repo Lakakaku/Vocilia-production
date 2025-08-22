@@ -1,0 +1,72 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(source:*)",
+      "Bash(find:*)",
+      "Bash(mv:*)",
+      "Bash(mkdir:*)",
+      "Bash(tree:*)",
+      "Bash(ruff:*)",
+      "Bash(touch:*)",
+      "Bash(chmod:*)",
+      "Bash(cat:*)",
+      "Bash(ruff check:*)",
+      "Bash(pytest:*)",
+      "Bash(python:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(python3 -m pytest:*)",
+      "WebFetch(domain:*)",
+      "Bash(gh issue view:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(clear)",
+      "Bash(claude mcp:*)"
+    ],
+    "deny": []
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"[HOOK] About to modify files. Creating backup...\" && mkdir -p \"$CLAUDE_PROJECT_DIR/.claude/backups/$(date +%Y%m%d_%H%M%S)\" && find \"$CLAUDE_PROJECT_DIR\" -name '*.py' -o -name '*.js' -o -name '*.ts' -o -name '*.json' -o -name '*.md' | grep -v '.claude' | head -10 | xargs -I {} cp {} \"$CLAUDE_PROJECT_DIR/.claude/backups/$(date +%Y%m%d_%H%M%S)/\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"[HOOK] File modification complete. Running syntax checks...\" && if [ -f \"$CLAUDE_PROJECT_DIR/package.json\" ]; then cd \"$CLAUDE_PROJECT_DIR\" && npm run lint 2>/dev/null || echo \"No lint script found\"; elif find \"$CLAUDE_PROJECT_DIR\" -name '*.py' | head -1 | grep -q .; then cd \"$CLAUDE_PROJECT_DIR\" && python -m py_compile **/*.py 2>/dev/null || echo \"Python syntax check complete\"; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash\\(git.*commit.*\\)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"[HOOK] Git commit detected. Running pre-commit validations...\" && cd \"$CLAUDE_PROJECT_DIR\" && git diff --cached --name-only | head -5 | xargs -I {} echo \"Modified: {}\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"[HOOK] Session timestamp: $(date '+%Y-%m-%d %H:%M:%S')\" >> \"$CLAUDE_PROJECT_DIR/.claude/session.log\""
+          }
+        ]
+      }
+    ]
+  }
+}
