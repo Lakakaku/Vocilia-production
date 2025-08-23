@@ -1,0 +1,257 @@
+version: '3.8'
+
+services:
+  # Nginx Reverse Proxy for Staging
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.staging.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - api-gateway
+      - customer-pwa
+      - business-dashboard
+      - admin-dashboard
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Redis for staging
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.staging.conf:/etc/redis/redis.conf:ro
+    command: redis-server /etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # API Gateway - Staging Configuration
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+    environment:
+      - NODE_ENV=staging
+      - DATABASE_URL=${STAGING_DATABASE_URL}
+      - REDIS_URL=redis://redis:6379
+      - OLLAMA_ENDPOINT=${STAGING_OLLAMA_ENDPOINT}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - JWT_SECRET=${STAGING_JWT_SECRET}
+      - SESSION_SECRET=${STAGING_SESSION_SECRET}
+      - STRIPE_SECRET_KEY=${STAGING_STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STAGING_STRIPE_WEBHOOK_SECRET}
+      - SENTRY_DSN=${STAGING_SENTRY_DSN}
+      - LOG_LEVEL=debug
+      - API_PORT=3001
+      # Pilot-specific configuration
+      - PILOT_MODE=true
+      - PILOT_BUSINESSES=${PILOT_BUSINESS_IDS}
+      - PILOT_FEEDBACK_LIMIT=100
+      - PILOT_MONITORING_ENHANCED=true
+    expose:
+      - "3001"
+    volumes:
+      - app_logs:/app/logs
+      - ./pilot-configs:/app/pilot-configs:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
+      interval: 15s  # More frequent for pilot monitoring
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # Customer PWA - Pilot Optimized
+  customer-pwa:
+    build:
+      context: .
+      dockerfile: apps/customer-pwa/Dockerfile
+    environment:
+      - NODE_ENV=staging
+      - NEXT_PUBLIC_API_URL=https://staging.feedbackai.se
+      - NEXT_PUBLIC_WS_URL=wss://staging.feedbackai.se
+      - NEXT_PUBLIC_PILOT_MODE=true
+      - NEXT_PUBLIC_ANALYTICS_ENHANCED=true
+    expose:
+      - "3000"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # Business Dashboard - Pilot Analytics Enhanced
+  business-dashboard:
+    build:
+      context: .
+      dockerfile: apps/business-dashboard/Dockerfile
+    environment:
+      - NODE_ENV=staging
+      - NEXT_PUBLIC_API_URL=https://staging.feedbackai.se
+      - NEXT_PUBLIC_PILOT_ANALYTICS=true
+      - NEXT_PUBLIC_ENHANCED_MONITORING=true
+    expose:
+      - "3002"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3002/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G  # Enhanced for analytics workload
+          cpus: "0.5"
+        reservations:
+          memory: 512M
+          cpus: "0.25"
+
+  # Admin Dashboard - Pilot Management
+  admin-dashboard:
+    build:
+      context: .
+      dockerfile: apps/admin-dashboard/Dockerfile
+    environment:
+      - NODE_ENV=staging
+      - NEXT_PUBLIC_API_URL=https://staging.feedbackai.se
+      - NEXT_PUBLIC_PILOT_MANAGEMENT=true
+    expose:
+      - "3003"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3003/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # Pilot-Specific Monitoring Stack
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.pilot.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'  # Extended retention for pilot
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.wal-compression'
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Grafana - Pilot Dashboards
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3100:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/pilot:/etc/grafana/provisioning:ro
+      - ./monitoring/dashboards/pilot:/var/lib/grafana/dashboards/pilot:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-pilot_admin_2024}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_INSTALL_PLUGINS=redis-datasource,grafana-piechart-panel
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Alert Manager for Pilot
+  alertmanager:
+    image: prom/alertmanager:latest
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager.pilot.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://staging.feedbackai.se:9093'
+    restart: unless-stopped
+
+  # Log aggregation for pilot
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3101:3100"
+    volumes:
+      - ./monitoring/loki.pilot.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/loki.yml
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Enhanced log shipping for pilot
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - ./monitoring/promtail.pilot.yml:/etc/promtail/promtail.yml:ro
+      - app_logs:/var/log/app:ro
+      - nginx_logs:/var/log/nginx:ro
+    command: -config.file=/etc/promtail/promtail.yml
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  alertmanager_data:
+  app_logs:
+  nginx_logs:
+
+networks:
+  default:
+    name: ai-feedback-staging
+    driver: bridge

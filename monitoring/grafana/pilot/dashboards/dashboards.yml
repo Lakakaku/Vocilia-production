@@ -1,0 +1,24 @@
+apiVersion: 1
+
+providers:
+  - name: 'Swedish Pilot Program'
+    orgId: 1
+    folder: 'Pilot Program'
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/pilot
+
+  - name: 'Business KPIs'
+    orgId: 1
+    folder: 'Business Analytics'
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/pilot

@@ -22,9 +22,37 @@
       "WebFetch(domain:docs.anthropic.com)",
       "Bash(clear)",
       "Bash(claude mcp:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(ollama list:*)",
+      "mcp__serena__write_memory",
+      "Bash(npm run build:*)",
+      "Bash(npm install)",
+      "Bash(npx tsc:*)",
+      "Bash(npx typescript:*)",
+      "Bash(node:*)",
+      "Bash(pip3 list:*)",
+      "mcp__serena__search_for_pattern",
+      "mcp__serena__list_dir",
+      "mcp__serena__find_symbol",
+      "mcp__serena__replace_symbol_body",
+      "mcp__serena__find_file",
+      "mcp__serena__read_memory",
+      "mcp__serena__get_symbols_overview",
+      "mcp__serena__check_onboarding_performed",
+      "Bash(npm run dev:*)",
+      "Bash(npm install:*)",
+      "Bash(npm init:*)",
+      "Bash(cp:*)",
+      "Bash(curl:*)",
+      "Bash(scripts/deploy-dev.sh:*)",
+      "Bash(open:*)",
+      "Bash(docker:*)"
     ],
-    "deny": []
+    "deny": [],
+    "additionalDirectories": [
+      "/Users/lucasjenner"
+    ]
   },
   "hooks": {
     "PreToolUse": [

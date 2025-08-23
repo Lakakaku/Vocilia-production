@@ -1,0 +1,200 @@
+{
+  "notifiers": [
+    {
+      "uid": "pilot-slack-critical",
+      "name": "Pilot Critical - Slack",
+      "type": "slack",
+      "settings": {
+        "url": "${SLACK_WEBHOOK_URL}",
+        "channel": "#incident-response",
+        "title": "🚨 Critical Pilot Alert",
+        "text": "Critical issue detected in Swedish Pilot Program\n\n**Alert:** {{ .CommonAnnotations.summary }}\n**Component:** {{ .CommonLabels.component }}\n**Café:** {{ .CommonLabels.cafe_name }}\n**Description:** {{ .CommonAnnotations.description }}\n**Runbook:** {{ .CommonAnnotations.runbook_url }}",
+        "username": "Grafana-Pilot",
+        "iconEmoji": ":rotating_light:",
+        "mentionChannel": "channel"
+      },
+      "sendReminder": true,
+      "frequency": "10m"
+    },
+    {
+      "uid": "pilot-email-critical",
+      "name": "Pilot Critical - Email",
+      "type": "email",
+      "settings": {
+        "addresses": "pilot-critical@feedbackai.se;pilot-manager@feedbackai.se",
+        "subject": "🚨 CRITICAL: Swedish Pilot Alert - {{ .CommonAnnotations.summary }}",
+        "message": "Critical alert for Swedish Pilot Program:\n\nAlert: {{ .CommonAnnotations.summary }}\nSeverity: {{ .CommonLabels.severity }}\nComponent: {{ .CommonLabels.component }}\nCafé: {{ .CommonLabels.cafe_name }}\nDescription: {{ .CommonAnnotations.description }}\n\nRunbook: {{ .CommonAnnotations.runbook_url }}\n\nTime: {{ .Alerts.Firing | len }} firing, {{ .Alerts.Resolved | len }} resolved"
+      }
+    },
+    {
+      "uid": "pilot-sms-critical",
+      "name": "Pilot Critical - SMS",
+      "type": "webhook",
+      "settings": {
+        "url": "${SMS_WEBHOOK_URL}",
+        "httpMethod": "POST",
+        "username": "${SMS_USERNAME}",
+        "password": "${SMS_PASSWORD}",
+        "title": "Swedish Pilot Critical Alert",
+        "message": "CRITICAL: {{ .CommonAnnotations.summary }} - {{ .CommonLabels.cafe_name }}"
+      }
+    },
+    {
+      "uid": "pilot-business-slack",
+      "name": "Business Team - Slack",
+      "type": "slack",
+      "settings": {
+        "url": "${SLACK_WEBHOOK_URL}",
+        "channel": "#pilot-business-metrics",
+        "title": "📊 Business Metrics Alert",
+        "text": "Business metrics alert for Swedish Pilot Program:\n\n**Café:** {{ .CommonLabels.cafe_name }}\n**Metric:** {{ .CommonAnnotations.summary }}\n**Value:** {{ .CommonAnnotations.description }}\n**Action Required:** Review café operations and customer experience",
+        "username": "Business-Metrics",
+        "iconEmoji": ":chart_with_upwards_trend:"
+      }
+    },
+    {
+      "uid": "pilot-voice-slack",
+      "name": "Voice Team - Slack",
+      "type": "slack",
+      "settings": {
+        "url": "${SLACK_WEBHOOK_URL}",
+        "channel": "#voice-processing-alerts",
+        "title": "🎙️ Voice Processing Alert",
+        "text": "Voice processing alert for Swedish Pilot Program:\n\n**Alert:** {{ .CommonAnnotations.summary }}\n**Café:** {{ .CommonLabels.cafe_name }}\n**Description:** {{ .CommonAnnotations.description }}\n**Impact:** Customer experience degraded",
+        "username": "Voice-Processing",
+        "iconEmoji": ":microphone:"
+      }
+    },
+    {
+      "uid": "pilot-payment-slack",
+      "name": "Payment Team - Slack", 
+      "type": "slack",
+      "settings": {
+        "url": "${SLACK_WEBHOOK_URL}",
+        "channel": "#payment-processing",
+        "title": "💳 Payment Processing Alert",
+        "text": "Payment processing alert for Swedish Pilot Program:\n\n**Alert:** {{ .CommonAnnotations.summary }}\n**Café:** {{ .CommonLabels.cafe_name }}\n**Description:** {{ .CommonAnnotations.description }}\n**Impact:** Customer rewards affected",
+        "username": "Payment-Processing",
+        "iconEmoji": ":credit_card:"
+      }
+    },
+    {
+      "uid": "pilot-pagerduty",
+      "name": "Pilot PagerDuty",
+      "type": "pagerduty",
+      "settings": {
+        "integrationKey": "${PAGERDUTY_INTEGRATION_KEY}",
+        "autoResolve": true,
+        "severity": "critical",
+        "component": "swedish-pilot",
+        "group": "pilot-program",
+        "summary": "Swedish Pilot: {{ .CommonAnnotations.summary }}"
+      }
+    },
+    {
+      "uid": "pilot-general-slack",
+      "name": "General Pilot - Slack",
+      "type": "slack",
+      "settings": {
+        "url": "${SLACK_WEBHOOK_URL}",
+        "channel": "#pilot-program-alerts",
+        "title": "🇸🇪 Pilot Program Alert",
+        "text": "**Alert:** {{ .CommonAnnotations.summary }}\n**Severity:** {{ .CommonLabels.severity }}\n**Component:** {{ .CommonLabels.component }}\n**Café:** {{ .CommonLabels.cafe_name }}\n**Description:** {{ .CommonAnnotations.description }}",
+        "username": "Pilot-Monitor",
+        "iconEmoji": ":sweden:"
+      }
+    },
+    {
+      "uid": "pilot-fraud-slack",
+      "name": "Fraud Detection - Slack",
+      "type": "slack",
+      "settings": {
+        "url": "${SLACK_WEBHOOK_URL}",
+        "channel": "#fraud-detection",
+        "title": "🛡️ Fraud Detection Alert",
+        "text": "Fraud detection alert for Swedish Pilot Program:\n\n**Alert:** {{ .CommonAnnotations.summary }}\n**Risk Level:** {{ .CommonLabels.severity }}\n**Description:** {{ .CommonAnnotations.description }}\n**Action Required:** Review fraud patterns and implement countermeasures",
+        "username": "Fraud-Detection",
+        "iconEmoji": ":shield:"
+      }
+    }
+  ],
+  "notification_policies": [
+    {
+      "name": "Critical Voice Processing",
+      "conditions": {
+        "severity": "critical",
+        "component": "voice"
+      },
+      "notifications": [
+        "pilot-slack-critical",
+        "pilot-email-critical", 
+        "pilot-sms-critical",
+        "pilot-voice-slack"
+      ],
+      "frequency": "10m"
+    },
+    {
+      "name": "Critical Payment Processing", 
+      "conditions": {
+        "severity": "critical",
+        "component": "payments"
+      },
+      "notifications": [
+        "pilot-slack-critical",
+        "pilot-email-critical",
+        "pilot-sms-critical", 
+        "pilot-payment-slack",
+        "pilot-pagerduty"
+      ],
+      "frequency": "10m"
+    },
+    {
+      "name": "Critical System Down",
+      "conditions": {
+        "severity": "critical",
+        "component": "system"
+      },
+      "notifications": [
+        "pilot-slack-critical",
+        "pilot-email-critical",
+        "pilot-sms-critical",
+        "pilot-pagerduty"
+      ],
+      "frequency": "5m"
+    },
+    {
+      "name": "High Priority Business KPIs",
+      "conditions": {
+        "severity": "high",
+        "component": "business"
+      },
+      "notifications": [
+        "pilot-business-slack",
+        "pilot-general-slack"
+      ],
+      "frequency": "1h"
+    },
+    {
+      "name": "High Priority Fraud",
+      "conditions": {
+        "severity": "high", 
+        "component": "fraud"
+      },
+      "notifications": [
+        "pilot-fraud-slack",
+        "pilot-general-slack"
+      ],
+      "frequency": "30m"
+    },
+    {
+      "name": "Medium Priority General",
+      "conditions": {
+        "severity": "medium"
+      },
+      "notifications": [
+        "pilot-general-slack"
+      ],
+      "frequency": "4h"
+    }
+  ]
+}

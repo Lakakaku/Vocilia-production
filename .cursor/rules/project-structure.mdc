@@ -1,0 +1,34 @@
+---
+alwaysApply: true
+---
+### AI Feedback Platform – Project Structure Guide
+
+Use this as a quick navigation and convention reference when working in this monorepo.
+
+- Core apps
+  - API Gateway (Node/Express): [apps/api-gateway/src/index.ts](mdc:apps/api-gateway/src/index.ts)
+  - Business Dashboard (Next.js App Router): [apps/business-dashboard/src/app/page.tsx](mdc:apps/business-dashboard/src/app/page.tsx)
+  - Customer PWA (Next.js Pages Router): [apps/customer-pwa/src/pages/index.tsx](mdc:apps/customer-pwa/src/pages/index.tsx)
+
+- Packages
+  - AI Evaluator: [packages/ai-evaluator/src/index.ts](mdc:packages/ai-evaluator/src/index.ts)
+  - Shared Types: [packages/shared-types/src/index.ts](mdc:packages/shared-types/src/index.ts)
+  - Database: [packages/database/src/index.ts](mdc:packages/database/src/index.ts)
+
+- Services (reserved/expanding)
+  - Fraud Detector: [services/fraud-detector/src/ContentDuplicateDetector.ts](mdc:services/fraud-detector/src/ContentDuplicateDetector.ts)
+
+- Testing & iOS Safari
+  - Playwright iOS config: [playwright.ios.config.js](mdc:playwright.ios.config.js)
+  - Global setup: [tests/ios-safari/global-setup.js](mdc:tests/ios-safari/global-setup.js)
+
+- Documentation & Specs
+  - High-level standards: [CLAUDE.md](mdc:CLAUDE.md)
+  - Tasks & phase progress: [TASKS.md](mdc:TASKS.md)
+  - Roadmap: [ROADMAP.md](mdc:ROADMAP.md)
+  - DB schema: [docs/database-schema.sql](mdc:docs/database-schema.sql)
+
+Conventions
+- Follow standards in [CLAUDE.md](mdc:CLAUDE.md) for imports, types, security, performance, and testing.
+- Prefer referencing types from `packages/shared-types` across apps/services.
+- Keep voice pipeline performance <2s latency and API <500ms targets in mind for changes.

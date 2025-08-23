@@ -62,6 +62,41 @@ export interface Database {
           updated_at?: string
         }
       }
+      business_locations: {
+        Row: {
+          id: string
+          business_id: string
+          name: string
+          address: string | null
+          pos_location_id: string | null
+          qr_code_url: string | null
+          qr_code_expires_at: string
+          active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          business_id: string
+          name: string
+          address?: string | null
+          pos_location_id?: string | null
+          qr_code_url?: string | null
+          qr_code_expires_at?: string
+          active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          business_id?: string
+          name?: string
+          address?: string | null
+          pos_location_id?: string | null
+          qr_code_url?: string | null
+          qr_code_expires_at?: string
+          active?: boolean
+          created_at?: string
+        }
+      }
       feedback_sessions: {
         Row: {
           id: string

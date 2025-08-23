@@ -77,6 +77,28 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
           if (message.type === 'error') {
             setError(message.message);
             setState('error');
+          } else if (message.type === 'partial_transcript') {
+            // Surface partial transcripts in UI for real-time feedback
+            console.log('Partial transcript:', message.text);
+          } else if (message.type === 'processing_started') {
+            // Show optimized processing started
+            console.log('Optimized processing started, estimated latency:', message.estimatedLatency + 'ms');
+          } else if (message.type === 'transcription_complete') {
+            // Show transcription completed - fast feedback to user
+            console.log('Transcription complete:', message.text);
+          } else if (message.type === 'quality_evaluation_complete') {
+            // Show quality evaluation results
+            console.log('Quality evaluation complete:', message.qualityScore);
+          } else if (message.type === 'conversation_response') {
+            // Show AI conversation response
+            console.log('AI response:', message.response);
+          } else if (message.type === 'processing_complete') {
+            // Show final completion with performance metrics
+            console.log('Processing complete. Total time:', message.totalProcessingTimeMs + 'ms');
+            console.log('Latency breakdown:', message.latencyBreakdown);
+          } else if (message.type === 'ai_response') {
+            // Legacy AI response handling
+            console.log('AI response (legacy):', message.response);
           }
         } catch (err) {
           console.error('WebSocket message parse error:', err);
@@ -99,6 +121,9 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
 
   const startRecording = async () => {
     setState('requesting');
+    if (typeof window !== 'undefined') {
+      window.__VOICE_RECORDING_ACTIVE__ = true;
+    }
     setError(null);
     setDuration(0);
     chunksRef.current = [];
@@ -283,6 +308,11 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
       setError('Kunde inte stoppa inspelningen');
       setState('error');
     }
+    finally {
+      if (typeof window !== 'undefined') {
+        window.__VOICE_RECORDING_ACTIVE__ = false;
+      }
+    }
   }, [state, sessionId]);
 
   const floatArrayToWavBlob = (floatArray: Float32Array, sampleRate: number): Blob => {
@@ -351,6 +381,9 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
     setDuration(0);
     setIsPlaying(false);
     chunksRef.current = [];
+    if (typeof window !== 'undefined') {
+      window.__VOICE_RECORDING_ACTIVE__ = false;
+    }
   };
 
   const submitRecording = () => {

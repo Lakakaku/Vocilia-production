@@ -4,6 +4,7 @@ import { UniversalAIService } from '@feedback-platform/ai-evaluator';
 import { VoiceProcessor, BusinessContext, ContextManager } from '@feedback-platform/ai-evaluator';
 import { ConversationStateManager, ConversationState, ConversationEvent } from './ConversationStateManager';
 import { ConversationHandler, AdvancedVoiceSession } from './ConversationHandler';
+import { OptimizedVoiceProcessor, createOptimizedVoiceProcessor } from './OptimizedVoiceProcessor';
 
 interface VoiceSession {
   sessionId: string;
@@ -115,6 +116,14 @@ const voiceProcessor = new VoiceProcessor({
 const contextManager = new ContextManager();
 const conversationHandler = new ConversationHandler(aiService, voiceProcessor, contextManager);
 
+// Initialize optimized voice processor for <2 second response latency
+const optimizedProcessor = createOptimizedVoiceProcessor(voiceProcessor, aiService);
+
+// Warm up services for optimal performance
+optimizedProcessor.warmupServices().catch(error => {
+  console.warn('Service warmup failed:', error);
+});
+
 export function setupWebSocket(wss: WebSocketServer) {
   wss.on('connection', (ws: WebSocket, req) => {
     console.log('🎤 New WebSocket connection established');
@@ -176,7 +185,20 @@ export function setupWebSocket(wss: WebSocketServer) {
 export function getActiveVoiceSessionStats() {
   return {
     activeCount: activeSessions.size,
-    activeSessionIds: Array.from(activeSessions.keys())
+    activeSessionIds: Array.from(activeSessions.keys()),
+    optimizedProcessor: optimizedProcessor.getPerformanceStats()
+  };
+}
+
+export function getVoiceProcessorPerformance() {
+  return {
+    ...getVoiceAnalytics(),
+    optimizedProcessor: optimizedProcessor.getPerformanceStats(),
+    systemHealth: {
+      memoryUsage: process.memoryUsage(),
+      uptime: process.uptime(),
+      activeConnections: activeSessions.size
+    }
   };
 }
 
@@ -216,10 +238,10 @@ async function startRecording(ws: WebSocket, sessionId: string) {
       return;
     }
 
-    if (session.status !== 'qr_scanned' && session.status !== 'recording') {
+    if (session.status !== 'transaction_verified' && session.status !== 'recording') {
       ws.send(JSON.stringify({
         type: 'error',
-        message: 'Session is not ready for recording'
+        message: 'Session must have verified transaction before recording'
       }));
       return;
     }
@@ -318,10 +340,10 @@ async function stopRecording(ws: WebSocket, sessionId: string) {
     // Trigger real AI processing pipeline
     console.log(`🎤 Recording completed for session ${sessionId}, ${totalDuration}s, ${totalAudioData.length} bytes`);
 
-    // Process audio with real AI services
+    // Process audio with optimized AI services for <2 second latency
     const history = voiceSession.state.getHistoryStrings();
-    processAudioWithAI(sessionId, totalAudioData, history).catch(error => {
-      console.error('AI processing failed:', error);
+    processAudioWithOptimizedAI(sessionId, totalAudioData, history, ws).catch(error => {
+      console.error('Optimized AI processing failed:', error);
     });
 
   } catch (error) {
@@ -415,7 +437,103 @@ function cleanupConnectionSessions(ws: WebSocket) {
   }
 }
 
-// Real AI processing with Ollama and voice transcription
+// Optimized AI processing for <2 second response latency
+async function processAudioWithOptimizedAI(sessionId: string, audioBuffer: Buffer, history: string[] = [], ws?: WebSocket) {
+  const startTime = Date.now();
+  
+  try {
+    console.log(`🚀 Starting OPTIMIZED AI processing for session ${sessionId}...`);
+
+    // Step 1: Get session details
+    const session = await db.getFeedbackSession(sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    // Step 2: Get business context for AI evaluation
+    const businessContext = await getBusinessContext(session.business_id);
+
+    // Step 3: Get purchase items (mock for now - should come from POS integration)
+    const purchaseItems = ['kaffe', 'smörgås']; // Mock items
+
+    // Step 4: Use optimized processing with streaming results
+    const result = await optimizedProcessor.processAudioOptimized(
+      sessionId,
+      audioBuffer,
+      businessContext,
+      purchaseItems,
+      ws
+    );
+
+    const processingTime = Date.now() - startTime;
+
+    // Step 5: Update session with results (if we have them)
+    if (result.qualityScore) {
+      const { rewardTier, rewardPercentage, rewardAmount } = calculateReward(
+        result.qualityScore.total,
+        session.purchase_amount || 150 // Default amount if not available
+      );
+
+      await db.updateFeedbackSession(sessionId, {
+        transcript: result.transcription.text,
+        transcriptLanguage: result.transcription.language,
+        aiEvaluation: {
+          ...result.qualityScore,
+          processingTimeMs: processingTime,
+          modelUsed: 'llama3.2',
+          transcriptionConfidence: result.transcription.confidence,
+          optimized: true,
+          latencyBreakdown: result.latencyBreakdown
+        },
+        qualityScore: result.qualityScore.total,
+        authenticityScore: result.qualityScore.authenticity,
+        concretenessScore: result.qualityScore.concreteness,
+        depthScore: result.qualityScore.depth,
+        sentimentScore: result.qualityScore.sentiment,
+        feedbackCategories: result.qualityScore.categories,
+        rewardTier,
+        rewardAmount,
+        rewardPercentage,
+        fraudRiskScore: 0.1, // TODO: Implement proper fraud detection
+        status: 'completed',
+        completedAt: new Date().toISOString()
+      });
+
+      console.log(`✅ OPTIMIZED AI processing completed for session ${sessionId}: ${result.qualityScore.total}/100 score, ${rewardAmount} SEK reward (${processingTime}ms)`);
+      console.log(`🚀 Latency breakdown - Transcription: ${result.latencyBreakdown.transcriptionMs}ms, Evaluation: ${result.latencyBreakdown.evaluationMs}ms, Response: ${result.latencyBreakdown.responseMs}ms`);
+    } else {
+      // Partial completion - only transcription succeeded
+      await db.updateFeedbackSession(sessionId, {
+        transcript: result.transcription.text,
+        transcriptLanguage: result.transcription.language,
+        status: 'processing', // Still processing quality score
+        aiEvaluation: {
+          processingTimeMs: processingTime,
+          partialResult: true,
+          latencyBreakdown: result.latencyBreakdown
+        }
+      });
+
+      console.log(`⏳ Partial processing completed for session ${sessionId}: transcription done in ${result.latencyBreakdown.transcriptionMs}ms`);
+    }
+
+  } catch (error) {
+    const processingTime = Date.now() - startTime;
+    console.error('Optimized AI processing error:', error);
+    
+    await db.updateFeedbackSession(sessionId, {
+      status: 'failed',
+      errorMessage: `Optimized AI processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      aiEvaluation: {
+        processingTimeMs: processingTime,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        optimized: true
+      }
+    });
+  }
+}
+
+// Legacy AI processing function (kept as fallback)
 async function processAudioWithAI(sessionId: string, audioBuffer: Buffer, history?: string[]) {
   const startTime = Date.now();
   

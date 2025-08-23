@@ -1,0 +1,14 @@
+---
+globs: *.ts,*.tsx
+---
+### TypeScript and React Standards
+
+- Imports order: React/Next → external libs → shared packages → relative modules. See examples in [CLAUDE.md](mdc:CLAUDE.md).
+- Use explicit types for function signatures and exported APIs; avoid `any`.
+- Prefer meaningful names: avoid 1–2 character identifiers; capture intent.
+- Control flow: early returns, handle edge cases first, avoid deep nesting.
+- Errors: never swallow errors; use structured error responses where applicable.
+- Comments: only for complex logic; explain "why"; no inline noise.
+- Formatting: match existing style; wrap long lines; avoid unrelated reformatting.
+- Testing: for new logic, colocate `*.test.ts(x)` with ≥80% coverage for core logic.
+- Security: sanitize inputs and validate with schemas where appropriate.

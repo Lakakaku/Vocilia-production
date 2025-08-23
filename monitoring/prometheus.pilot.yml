@@ -1,0 +1,168 @@
+global:
+  scrape_interval: 10s  # More frequent for pilot monitoring
+  evaluation_interval: 10s
+  external_labels:
+    environment: 'pilot-staging'
+    cluster: 'swedish-cafes-pilot'
+    pilot_program: 'swedish-cafes-2024'
+
+rule_files:
+  - "/etc/prometheus/rules/pilot-alerts.yml"
+  - "/etc/prometheus/rules/business-kpis.yml"
+  - "/etc/prometheus/rules/voice-quality.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Enhanced API Gateway metrics for pilot
+  - job_name: 'api-gateway-pilot'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics'
+    scrape_interval: 5s  # High frequency for voice monitoring
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'api-gateway'
+      - target_label: pilot_program
+        replacement: 'swedish-cafes'
+
+  # Voice processing metrics (critical for pilot)
+  - job_name: 'voice-processing'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics/voice'
+    scrape_interval: 2s  # Very high frequency
+    relabel_configs:
+      - target_label: component
+        replacement: 'voice-pipeline'
+
+  # AI evaluation metrics
+  - job_name: 'ai-evaluation'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics/ai'
+    scrape_interval: 5s
+    relabel_configs:
+      - target_label: component
+        replacement: 'ai-evaluation'
+
+  # Business KPI metrics
+  - job_name: 'business-kpis'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics/business'
+    scrape_interval: 15s
+    relabel_configs:
+      - target_label: component
+        replacement: 'business-analytics'
+
+  # Fraud detection metrics
+  - job_name: 'fraud-detection'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics/fraud'
+    scrape_interval: 10s
+    relabel_configs:
+      - target_label: component
+        replacement: 'fraud-detection'
+
+  # Customer PWA metrics
+  - job_name: 'customer-pwa'
+    static_configs:
+      - targets: ['customer-pwa:3000']
+    metrics_path: '/api/metrics'
+    relabel_configs:
+      - target_label: service
+        replacement: 'customer-pwa'
+
+  # Business Dashboard metrics (enhanced for pilot)
+  - job_name: 'business-dashboard-pilot'
+    static_configs:
+      - targets: ['business-dashboard:3002']
+    metrics_path: '/api/metrics'
+    scrape_interval: 10s
+    relabel_configs:
+      - target_label: service
+        replacement: 'business-dashboard'
+      - target_label: pilot_program
+        replacement: 'swedish-cafes'
+
+  # Admin Dashboard metrics
+  - job_name: 'admin-dashboard'
+    static_configs:
+      - targets: ['admin-dashboard:3003']
+    metrics_path: '/api/metrics'
+    relabel_configs:
+      - target_label: service
+        replacement: 'admin-dashboard'
+
+  # Redis metrics
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    relabel_configs:
+      - target_label: service
+        replacement: 'redis'
+
+  # Nginx metrics with pilot café tracking
+  - job_name: 'nginx-pilot'
+    static_configs:
+      - targets: ['nginx:80']
+    metrics_path: '/nginx-health'
+    relabel_configs:
+      - target_label: service
+        replacement: 'nginx'
+      - target_label: pilot_program
+        replacement: 'swedish-cafes'
+
+  # Pilot-specific café metrics
+  - job_name: 'pilot-cafe-aurora'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics/cafe/aurora'
+    scrape_interval: 5s
+    relabel_configs:
+      - target_label: cafe_name
+        replacement: 'aurora'
+      - target_label: cafe_location
+        replacement: 'stockholm'
+
+  - job_name: 'pilot-cafe-malmohuset'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics/cafe/malmohuset'
+    scrape_interval: 5s
+    relabel_configs:
+      - target_label: cafe_name
+        replacement: 'malmohuset'
+      - target_label: cafe_location
+        replacement: 'malmo'
+
+  - job_name: 'pilot-cafe-goteborg'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics/cafe/goteborg'
+    scrape_interval: 5s
+    relabel_configs:
+      - target_label: cafe_name
+        replacement: 'goteborg'
+      - target_label: cafe_location
+        replacement: 'goteborg'
+
+  # System metrics (if node_exporter is available)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    relabel_configs:
+      - target_label: service
+        replacement: 'system'

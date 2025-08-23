@@ -15,6 +15,8 @@
     "dev:api": "cd apps/api-gateway && npm run dev",
     "dev:business": "cd apps/business-dashboard && npm run dev",
     "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "lint:check": "eslint . --ext .ts,.tsx,.js,.jsx",
     "test": "turbo run test",
     "test:ios": "playwright test --config=playwright.ios.config.js",
     "test:ios:headed": "playwright test --config=playwright.ios.config.js --headed",
@@ -24,13 +26,23 @@
     "clean": "turbo run clean",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "typecheck": "turbo run typecheck"
+    "prepare": "husky install",
+    "typecheck": "turbo run typecheck",
+    "db:seed": "npx tsc -p packages/database/tsconfig.json && node packages/database/dist/seed.js"
   },
   "devDependencies": {
     "@turbo/gen": "^1.12.4",
     "@types/node": "^20.11.24",
     "@playwright/test": "^1.40.0",
     "eslint": "^8.57.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint-config-next": "^14.1.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-jest": "^27.9.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
     "prettier": "^3.2.5",
     "turbo": "^1.12.4",
     "typescript": "^5.3.3"
@@ -38,5 +50,14 @@
   "packageManager": "npm@10.2.4",
   "engines": {
     "node": ">=18.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
   }
 }

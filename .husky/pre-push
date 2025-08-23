@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🧪 Running tests before push..."
+
+# Run all tests
+npm run test
+
+# Run specific tests for critical functionality
+echo "🎤 Testing voice processing..."
+node test-end-to-end-journey.js
+
+# Run iOS Safari tests if available
+if [ -f "playwright.ios.config.js" ]; then
+  echo "📱 Running iOS Safari compatibility tests..."
+  npm run test:ios
+fi
+
+echo "✅ Pre-push checks passed!"

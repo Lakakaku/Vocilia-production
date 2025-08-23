@@ -1,0 +1,387 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "🇸🇪 Swedish Pilot Program - Overview",
+    "tags": ["pilot", "swedish-cafes", "overview"],
+    "style": "dark",
+    "timezone": "Europe/Stockholm",
+    "editable": true,
+    "hideControls": false,
+    "graphTooltip": 1,
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m"],
+      "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d"]
+    },
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "🏪 Pilot Café Status",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"options": {"0": {"text": "Offline", "color": "red"}}, "type": "value"},
+              {"options": {"1": {"text": "Online", "color": "green"}}, "type": "value"}
+            ],
+            "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]},
+            "unit": "none"
+          }
+        },
+        "options": {
+          "reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""},
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "background",
+          "graphMode": "none"
+        },
+        "targets": [
+          {
+            "expr": "up{job=~\"pilot-cafe-.*\"}",
+            "legendFormat": "{{cafe_name}} - {{cafe_location}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "📊 Today's Feedback Sessions",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 50}, {"color": "red", "value": 100}]},
+            "unit": "short"
+          }
+        },
+        "options": {
+          "reduceOptions": {"values": false, "calcs": ["lastNotNull"]},
+          "textMode": "auto",
+          "colorMode": "background"
+        },
+        "targets": [
+          {
+            "expr": "increase(feedback_sessions_total{pilot_program=\"swedish-cafes\"}[1d])",
+            "legendFormat": "Total Sessions",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "💰 Rewards Distributed Today",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {"steps": [{"color": "green", "value": null}]},
+            "unit": "currencySEK"
+          }
+        },
+        "options": {
+          "reduceOptions": {"values": false, "calcs": ["lastNotNull"]},
+          "textMode": "auto",
+          "colorMode": "background"
+        },
+        "targets": [
+          {
+            "expr": "increase(rewards_distributed_sek_total{pilot_program=\"swedish-cafes\"}[1d])",
+            "legendFormat": "SEK Distributed",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "🎤 Voice Processing Latency (Critical KPI)",
+        "type": "graph",
+        "gridPos": {"h": 9, "w": 12, "x": 0, "y": 8},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {"legend": false, "tooltip": false, "vis": false},
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {"type": "linear"},
+              "showPoints": "never",
+              "spanNulls": true,
+              "stacking": {"group": "A", "mode": "none"},
+              "thresholdsStyle": {"mode": "line"}
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 1.5},
+                {"color": "red", "value": 2.0}
+              ]
+            },
+            "unit": "s"
+          }
+        },
+        "options": {
+          "legend": {"calcs": [], "displayMode": "list", "placement": "bottom"},
+          "tooltip": {"mode": "single"}
+        },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(voice_processing_duration_seconds_bucket{pilot_program=\"swedish-cafes\"}[5m]))",
+            "legendFormat": "95th percentile",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(voice_processing_duration_seconds_bucket{pilot_program=\"swedish-cafes\"}[5m]))",
+            "legendFormat": "50th percentile",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "🤖 AI Quality Score Distribution",
+        "type": "piechart",
+        "gridPos": {"h": 9, "w": 12, "x": 12, "y": 8},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "hideFrom": {"tooltip": false, "vis": false, "legend": false}
+            },
+            "mappings": []
+          }
+        },
+        "options": {
+          "reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""},
+          "pieType": "pie",
+          "tooltip": {"mode": "single"}
+        },
+        "targets": [
+          {
+            "expr": "increase(quality_score_tier_total{tier=\"exceptional\",pilot_program=\"swedish-cafes\"}[1h])",
+            "legendFormat": "Exceptional (90-100)",
+            "refId": "A"
+          },
+          {
+            "expr": "increase(quality_score_tier_total{tier=\"very_good\",pilot_program=\"swedish-cafes\"}[1h])",
+            "legendFormat": "Very Good (75-89)",
+            "refId": "B"
+          },
+          {
+            "expr": "increase(quality_score_tier_total{tier=\"acceptable\",pilot_program=\"swedish-cafes\"}[1h])",
+            "legendFormat": "Acceptable (60-74)",
+            "refId": "C"
+          },
+          {
+            "expr": "increase(quality_score_tier_total{tier=\"insufficient\",pilot_program=\"swedish-cafes\"}[1h])",
+            "legendFormat": "Insufficient (<60)",
+            "refId": "D"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "🏪 Per-Café Performance",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 17},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            },
+            "thresholds": {"steps": [{"color": "green", "value": null}]}
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Sessions"},
+              "properties": [{"id": "thresholds", "value": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 10}, {"color": "red", "value": 25}]}}]
+            }
+          ]
+        },
+        "options": {
+          "showHeader": true
+        },
+        "targets": [
+          {
+            "expr": "increase(feedback_sessions_total{pilot_program=\"swedish-cafes\"}[1h])",
+            "legendFormat": "{{cafe_name}}",
+            "refId": "A",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {},
+              "indexByName": {},
+              "renameByName": {
+                "cafe_name": "Café",
+                "cafe_location": "Location",
+                "Value": "Sessions (Last Hour)"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "⚠️ System Alerts & Issues",
+        "type": "logs",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 25},
+        "targets": [
+          {
+            "expr": "{job=\"api-gateway\",level=\"error\",pilot_program=\"swedish-cafes\"}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showTime": true,
+          "showLabels": false,
+          "showCommonLabels": false,
+          "wrapLogMessage": false,
+          "prettifyLogMessage": false,
+          "enableLogDetails": true,
+          "dedupStrategy": "none",
+          "sortOrder": "Descending"
+        }
+      },
+      {
+        "id": 8,
+        "title": "📈 Hourly Feedback Volume",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 33},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "bars",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "fillOpacity": 80,
+              "gradientMode": "none",
+              "hideFrom": {"legend": false, "tooltip": false, "vis": false},
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {"type": "linear"},
+              "showPoints": "never",
+              "spanNulls": true,
+              "stacking": {"group": "A", "mode": "normal"},
+              "thresholdsStyle": {"mode": "off"}
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [{"color": "green", "value": null}]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "legend": {"calcs": [], "displayMode": "list", "placement": "bottom"},
+          "tooltip": {"mode": "single"}
+        },
+        "targets": [
+          {
+            "expr": "increase(feedback_sessions_total{pilot_program=\"swedish-cafes\"}[1h])",
+            "legendFormat": "{{cafe_name}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "💳 Payment Success Rate",
+        "type": "gauge",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 33},
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "yellow", "value": 95},
+                {"color": "green", "value": 98}
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "orientation": "auto",
+          "reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""},
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "targets": [
+          {
+            "expr": "(increase(payments_successful_total{pilot_program=\"swedish-cafes\"}[1h]) / increase(payments_total{pilot_program=\"swedish-cafes\"}[1h])) * 100",
+            "legendFormat": "Success Rate",
+            "refId": "A"
+          }
+        ]
+      }
+    ],
+    "annotations": {
+      "list": [
+        {
+          "name": "Pilot Events",
+          "datasource": "Prometheus-Pilot",
+          "enable": true,
+          "expr": "pilot_event_total{pilot_program=\"swedish-cafes\"}",
+          "iconColor": "blue",
+          "titleFormat": "Pilot Event: {{event_type}}",
+          "textFormat": "{{description}}"
+        }
+      ]
+    },
+    "templating": {
+      "list": [
+        {
+          "allValue": null,
+          "current": {"text": "All", "value": "$__all"},
+          "datasource": "Prometheus-Pilot",
+          "definition": "label_values(feedback_sessions_total{pilot_program=\"swedish-cafes\"}, cafe_name)",
+          "hide": 0,
+          "includeAll": true,
+          "multi": true,
+          "name": "cafe",
+          "options": [],
+          "query": "label_values(feedback_sessions_total{pilot_program=\"swedish-cafes\"}, cafe_name)",
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1,
+          "tagValuesQuery": "",
+          "tagsQuery": "",
+          "type": "query",
+          "useTags": false
+        }
+      ]
+    }
+  },
+  "folderId": null,
+  "overwrite": true
+}

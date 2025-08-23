@@ -1,0 +1,223 @@
+# Critical Business Alerts for Swedish Pilot Program
+groups:
+  - name: pilot.critical
+    rules:
+      # Voice Processing Critical
+      - alert: VoiceProcessingDown
+        expr: up{job="api-gateway", pilot_program="swedish-cafes"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: pilot-support
+          component: voice
+        annotations:
+          summary: "Voice processing service down"
+          description: "Voice processing for Swedish pilot has been down for {{ $value }}m"
+          runbook_url: "https://docs.feedbackai.se/runbooks/voice-processing-down"
+          
+      - alert: VoiceLatencyHigh
+        expr: histogram_quantile(0.95, rate(voice_processing_duration_seconds_bucket{pilot_program="swedish-cafes"}[5m])) > 3
+        for: 3m
+        labels:
+          severity: critical
+          team: pilot-support
+          component: voice
+        annotations:
+          summary: "Voice processing latency too high"
+          description: "95th percentile voice response time is {{ $value }}s (target: <2s)"
+          runbook_url: "https://docs.feedbackai.se/runbooks/voice-latency-high"
+
+      # Payment Processing Critical
+      - alert: PaymentProcessingFailure
+        expr: rate(payment_failures_total{pilot_program="swedish-cafes"}[5m]) > 0.02
+        for: 1m
+        labels:
+          severity: critical
+          team: pilot-support
+          component: payments
+        annotations:
+          summary: "Payment processing failure rate too high"
+          description: "Payment failure rate: {{ $value | humanizePercentage }} (threshold: 2%)"
+          runbook_url: "https://docs.feedbackai.se/runbooks/payment-failures"
+
+      - alert: StripeWebhookDown
+        expr: increase(stripe_webhook_failures_total{pilot_program="swedish-cafes"}[10m]) > 5
+        for: 2m
+        labels:
+          severity: critical
+          team: pilot-support
+          component: payments
+        annotations:
+          summary: "Stripe webhooks failing"
+          description: "{{ $value }} Stripe webhook failures in last 10 minutes"
+          runbook_url: "https://docs.feedbackai.se/runbooks/stripe-webhook-failures"
+
+      # System Availability Critical
+      - alert: SystemDowntime
+        expr: (1 - rate(http_requests_total{status=~"5..", pilot_program="swedish-cafes"}[5m]) / rate(http_requests_total{pilot_program="swedish-cafes"}[5m])) * 100 < 99.5
+        for: 5m
+        labels:
+          severity: critical
+          team: pilot-support
+          component: system
+        annotations:
+          summary: "System availability below target"
+          description: "System uptime: {{ $value | humanizePercentage }} (target: >99.5%)"
+          runbook_url: "https://docs.feedbackai.se/runbooks/system-downtime"
+
+      # Database Critical
+      - alert: DatabaseConnectionsHigh
+        expr: sum(pg_stat_activity_count{pilot_program="swedish-cafes"}) > 80
+        for: 3m
+        labels:
+          severity: critical
+          team: pilot-support
+          component: database
+        annotations:
+          summary: "Database connection pool near exhaustion"
+          description: "Active database connections: {{ $value }} (limit: 100)"
+          runbook_url: "https://docs.feedbackai.se/runbooks/database-connections"
+
+  - name: pilot.high
+    rules:
+      # Business KPI High Priority
+      - alert: CustomerParticipationLow
+        expr: (increase(feedback_sessions_completed_total{pilot_program="swedish-cafes"}[1h]) / increase(qr_scans_total{pilot_program="swedish-cafes"}[1h])) * 100 < 8
+        for: 30m
+        labels:
+          severity: high
+          team: pilot-support
+          component: business
+        annotations:
+          summary: "Customer participation rate below target for {{ $labels.cafe_name }}"
+          description: "Completion rate: {{ $value | humanizePercentage }} (target: >10%)"
+          runbook_url: "https://docs.feedbackai.se/runbooks/low-participation"
+
+      - alert: QualityScoreLow
+        expr: avg_over_time(quality_score_average{pilot_program="swedish-cafes"}[2h]) < 65
+        for: 1h
+        labels:
+          severity: high
+          team: pilot-support
+          component: business
+        annotations:
+          summary: "Quality score average below target for {{ $labels.cafe_name }}"
+          description: "Average quality score: {{ $value }} (target: >70)"
+          runbook_url: "https://docs.feedbackai.se/runbooks/low-quality-score"
+
+      # Performance High Priority
+      - alert: APILatencyHigh
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{pilot_program="swedish-cafes"}[5m])) > 1
+        for: 10m
+        labels:
+          severity: high
+          team: pilot-support
+          component: api
+        annotations:
+          summary: "API response time degraded"
+          description: "95th percentile API latency: {{ $value }}s (target: <500ms)"
+          runbook_url: "https://docs.feedbackai.se/runbooks/api-latency-high"
+
+      - alert: QueueDepthHigh
+        expr: feedback_processing_queue_depth{pilot_program="swedish-cafes"} > 50
+        for: 5m
+        labels:
+          severity: high
+          team: pilot-support
+          component: processing
+        annotations:
+          summary: "Feedback processing queue backing up"
+          description: "Queue depth: {{ $value }} items (threshold: 50)"
+          runbook_url: "https://docs.feedbackai.se/runbooks/queue-depth-high"
+
+  - name: pilot.medium
+    rules:
+      # Resource Monitoring Medium Priority
+      - alert: MemoryUsageHigh
+        expr: (1 - (node_memory_MemAvailable_bytes{pilot_program="swedish-cafes"} / node_memory_MemTotal_bytes{pilot_program="swedish-cafes"})) * 100 > 85
+        for: 15m
+        labels:
+          severity: medium
+          team: pilot-support
+          component: infrastructure
+        annotations:
+          summary: "Memory usage high on {{ $labels.instance }}"
+          description: "Memory usage: {{ $value | humanizePercentage }} (threshold: 85%)"
+          runbook_url: "https://docs.feedbackai.se/runbooks/high-memory-usage"
+
+      - alert: DiskSpaceHigh
+        expr: (1 - (node_filesystem_avail_bytes{pilot_program="swedish-cafes"} / node_filesystem_size_bytes{pilot_program="swedish-cafes"})) * 100 > 80
+        for: 30m
+        labels:
+          severity: medium
+          team: pilot-support
+          component: infrastructure
+        annotations:
+          summary: "Disk usage high on {{ $labels.instance }}"
+          description: "Disk usage: {{ $value | humanizePercentage }} (threshold: 80%)"
+          runbook_url: "https://docs.feedbackai.se/runbooks/high-disk-usage"
+
+      # SSL Certificate Monitoring
+      - alert: SSLCertificateExpiring
+        expr: (ssl_certificate_expiry_seconds{pilot_program="swedish-cafes"} - time()) / 86400 < 7
+        for: 1h
+        labels:
+          severity: medium
+          team: pilot-support
+          component: security
+        annotations:
+          summary: "SSL certificate expiring soon for {{ $labels.domain }}"
+          description: "Certificate expires in {{ $value }} days"
+          runbook_url: "https://docs.feedbackai.se/runbooks/ssl-certificate-renewal"
+
+      # Business Anomaly Detection
+      - alert: FeedbackVolumeAnomaly
+        expr: abs(increase(feedback_sessions_total{pilot_program="swedish-cafes"}[1h]) - increase(feedback_sessions_total{pilot_program="swedish-cafes"}[1h] offset 1w)) / increase(feedback_sessions_total{pilot_program="swedish-cafes"}[1h] offset 1w) > 0.5
+        for: 2h
+        labels:
+          severity: medium
+          team: pilot-support
+          component: business
+        annotations:
+          summary: "Unusual feedback volume for {{ $labels.cafe_name }}"
+          description: "Volume deviation from weekly average: {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.feedbackai.se/runbooks/volume-anomaly"
+
+  - name: pilot.fraud
+    rules:
+      # Fraud Detection Alerts
+      - alert: FraudScoreHigh
+        expr: avg_over_time(fraud_risk_score{pilot_program="swedish-cafes"}[10m]) > 0.7
+        for: 5m
+        labels:
+          severity: high
+          team: pilot-support
+          component: fraud
+        annotations:
+          summary: "High fraud risk detected"
+          description: "Average fraud score: {{ $value }} (threshold: 0.7)"
+          runbook_url: "https://docs.feedbackai.se/runbooks/fraud-detection"
+
+      - alert: DuplicateFeedbackPattern
+        expr: increase(duplicate_feedback_attempts_total{pilot_program="swedish-cafes"}[30m]) > 10
+        for: 5m
+        labels:
+          severity: medium
+          team: pilot-support
+          component: fraud
+        annotations:
+          summary: "Duplicate feedback pattern detected"
+          description: "{{ $value }} duplicate attempts in 30 minutes"
+          runbook_url: "https://docs.feedbackai.se/runbooks/duplicate-feedback"
+
+      - alert: SuspiciousDeviceActivity
+        expr: increase(suspicious_device_flags_total{pilot_program="swedish-cafes"}[1h]) > 5
+        for: 10m
+        labels:
+          severity: medium
+          team: pilot-support
+          component: fraud
+        annotations:
+          summary: "Suspicious device activity detected"
+          description: "{{ $value }} suspicious devices flagged in last hour"
+          runbook_url: "https://docs.feedbackai.se/runbooks/suspicious-devices"

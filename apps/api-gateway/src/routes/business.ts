@@ -1,17 +1,38 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { body, param, query, validationResult } from 'express-validator';
 import { db } from '@ai-feedback/database';
 import type { APIResponse, Business, POSConnection } from '@ai-feedback/shared-types';
 
 const router = Router();
 
+/**
+ * @openapi
+ * /api/business/{businessId}/dashboard:
+ *   get:
+ *     summary: Business dashboard data
+ *     tags: [Business]
+ *     parameters:
+ *       - in: path
+ *         name: businessId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Dashboard data
+ */
 // Get business dashboard data
 router.get('/:businessId/dashboard',
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   [
     param('businessId').isUUID('4').withMessage('Valid business ID required'),
     query('days').optional().isInt({ min: 1, max: 365 }).withMessage('Days must be between 1-365')
   ],
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -100,6 +121,16 @@ router.get('/:businessId/dashboard',
   }
 );
 
+/**
+ * @openapi
+ * /api/business:
+ *   post:
+ *     summary: Create business
+ *     tags: [Business]
+ *     responses:
+ *       201:
+ *         description: Business created
+ */
 // Create new business
 router.post('/',
   [
@@ -109,7 +140,7 @@ router.post('/',
     body('phone').optional().isMobilePhone('sv-SE').withMessage('Valid Swedish phone number required'),
     body('address').optional().isObject().withMessage('Address must be an object')
   ],
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -163,6 +194,22 @@ router.post('/',
   }
 );
 
+/**
+ * @openapi
+ * /api/business/{businessId}:
+ *   put:
+ *     summary: Update business
+ *     tags: [Business]
+ *     parameters:
+ *       - in: path
+ *         name: businessId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Business updated
+ */
 // Update business settings
 router.put('/:businessId',
   [
@@ -172,7 +219,7 @@ router.put('/:businessId',
     body('address').optional().isObject().withMessage('Address must be an object'),
     body('rewardSettings').optional().isObject().withMessage('Reward settings must be an object')
   ],
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -210,12 +257,28 @@ router.put('/:businessId',
   }
 );
 
+/**
+ * @openapi
+ * /api/business/{businessId}/pos:
+ *   get:
+ *     summary: Get POS connections
+ *     tags: [Business]
+ *     parameters:
+ *       - in: path
+ *         name: businessId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: POS connections
+ */
 // Get POS connections
 router.get('/:businessId/pos',
   [
     param('businessId').isUUID('4').withMessage('Valid business ID required')
   ],
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -257,6 +320,16 @@ router.get('/:businessId/pos',
   }
 );
 
+/**
+ * @openapi
+ * /api/business/{businessId}/pos:
+ *   post:
+ *     summary: Add POS connection
+ *     tags: [Business]
+ *     responses:
+ *       201:
+ *         description: Connection created
+ */
 // Add POS connection
 router.post('/:businessId/pos',
   [
@@ -265,7 +338,7 @@ router.post('/:businessId/pos',
     body('providerAccountId').trim().notEmpty().withMessage('Provider account ID required'),
     body('credentials').isObject().withMessage('Credentials object required')
   ],
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -333,13 +406,23 @@ router.post('/:businessId/pos',
   }
 );
 
+/**
+ * @openapi
+ * /api/business/{businessId}/qr:
+ *   post:
+ *     summary: Generate QR for business
+ *     tags: [Business]
+ *     responses:
+ *       200:
+ *         description: QR URL
+ */
 // Generate QR code for business
 router.post('/:businessId/qr',
   [
     param('businessId').isUUID('4').withMessage('Valid business ID required'),
     body('locationId').optional().isUUID('4').withMessage('Valid location ID required')
   ],
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({

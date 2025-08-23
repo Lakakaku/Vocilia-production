@@ -1,0 +1,17 @@
+---
+globs: tests/ios-safari/**,playwright.*.config.js
+description: iOS Safari Playwright testing conventions and environment expectations
+---
+### iOS Safari Testing Guidelines
+
+- Global setup: [tests/ios-safari/global-setup.js](mdc:tests/ios-safari/global-setup.js)
+- Expect servers available locally:
+  - PWA at http://localhost:3000
+  - API at http://localhost:3001
+  - WebSocket at ws://localhost:3001
+- Pre-warm connectivity and write env info under `test-results/ios-safari`.
+
+Conventions
+- Use `data-testid` where selectors are brittle.
+- Prefer timeouts tuned for mobile devices.
+- Ensure WebSocket fallback behavior is covered when connection fails.

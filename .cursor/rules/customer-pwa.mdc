@@ -1,0 +1,16 @@
+---
+globs: apps/customer-pwa/**
+description: Customer PWA (Next.js Pages Router) patterns and iOS considerations
+---
+### Customer PWA Guidelines
+
+- Pages Router entry: [apps/customer-pwa/src/pages/_app.tsx](mdc:apps/customer-pwa/src/pages/_app.tsx)
+- Home: [apps/customer-pwa/src/pages/index.tsx](mdc:apps/customer-pwa/src/pages/index.tsx)
+- Core components: [apps/customer-pwa/src/components](mdc:apps/customer-pwa/src/components)
+
+Conventions
+- Optimize for iOS Safari: test with real device; handle WebKit quirks.
+- Voice flow: `VoiceRecorder` → WebSocket → server → responses.
+- Ensure PWA metadata and manifest are correct; respect offline behavior.
+- Prefer Tailwind utility classes; keep UI minimal and fast.
+- Add `data-testid` attributes for iOS Playwright tests where relevant.

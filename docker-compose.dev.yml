@@ -1,0 +1,207 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (using Supabase would be external in production)
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ai_feedback_platform
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./supabase/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Ollama for local AI processing
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_ORIGINS=*
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # API Gateway (Backend)
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+      target: base  # Use base stage for development
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/ai_feedback_platform
+      - REDIS_URL=redis://redis:6379
+      - OLLAMA_ENDPOINT=http://ollama:11434
+      - JWT_SECRET=development-jwt-secret
+      - SESSION_SECRET=development-session-secret
+      - LOG_LEVEL=debug
+      - API_PORT=3001
+    volumes:
+      - ./apps/api-gateway:/app/apps/api-gateway
+      - ./packages:/app/packages
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    command: npm run dev --workspace=@ai-feedback/api-gateway
+    develop:
+      watch:
+        - action: sync
+          path: ./apps/api-gateway/src
+          target: /app/apps/api-gateway/src
+        - action: sync
+          path: ./packages
+          target: /app/packages
+
+  # Customer PWA
+  customer-pwa:
+    build:
+      context: .
+      dockerfile: apps/customer-pwa/Dockerfile
+      target: base
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:3001
+      - NEXT_PUBLIC_WS_URL=ws://localhost:3001
+    volumes:
+      - ./apps/customer-pwa:/app/apps/customer-pwa
+      - ./packages:/app/packages
+      - /app/node_modules
+      - /app/apps/customer-pwa/node_modules
+    depends_on:
+      - api-gateway
+    command: npm run dev --workspace=@ai-feedback/customer-pwa
+    develop:
+      watch:
+        - action: sync
+          path: ./apps/customer-pwa/src
+          target: /app/apps/customer-pwa/src
+        - action: sync
+          path: ./packages
+          target: /app/packages
+
+  # Business Dashboard
+  business-dashboard:
+    build:
+      context: .
+      dockerfile: apps/business-dashboard/Dockerfile
+      target: base
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:3001
+    volumes:
+      - ./apps/business-dashboard:/app/apps/business-dashboard
+      - ./packages:/app/packages
+      - /app/node_modules
+      - /app/apps/business-dashboard/node_modules
+    depends_on:
+      - api-gateway
+    command: npm run dev --workspace=@ai-feedback/business-dashboard
+    develop:
+      watch:
+        - action: sync
+          path: ./apps/business-dashboard/src
+          target: /app/apps/business-dashboard/src
+        - action: sync
+          path: ./packages
+          target: /app/packages
+
+  # Admin Dashboard
+  admin-dashboard:
+    build:
+      context: .
+      dockerfile: apps/admin-dashboard/Dockerfile
+      target: base
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:3001
+    volumes:
+      - ./apps/admin-dashboard:/app/apps/admin-dashboard
+      - ./packages:/app/packages
+      - /app/node_modules
+      - /app/apps/admin-dashboard/node_modules
+    depends_on:
+      - api-gateway
+    command: npm run dev --workspace=@ai-feedback/admin-dashboard
+    develop:
+      watch:
+        - action: sync
+          path: ./apps/admin-dashboard/src
+          target: /app/apps/admin-dashboard/src
+        - action: sync
+          path: ./packages
+          target: /app/packages
+
+  # WhisperX for speech-to-text (optional local service)
+  whisperx:
+    image: python:3.11-slim
+    working_dir: /app
+    volumes:
+      - ./services/voice-processing:/app
+      - whisper_models:/models
+    environment:
+      - PYTHONPATH=/app
+      - WHISPER_MODEL_PATH=/models/whisper-large-v2
+    ports:
+      - "8000:8000"
+    command: |
+      bash -c "
+        pip install whisperx fastapi uvicorn &&
+        python -m uvicorn main:app --host 0.0.0.0 --port 8000
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+  ollama_data:
+  whisper_models:
+
+networks:
+  default:
+    name: ai-feedback-dev
+    driver: bridge

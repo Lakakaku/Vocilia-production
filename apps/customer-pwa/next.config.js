@@ -1,7 +1,9 @@
 const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
-  skipWaiting: true,
+  // Allow app to control when to apply updates via toast/UI
+  skipWaiting: false,
+  clientsClaim: true,
   disable: process.env.NODE_ENV === 'development',
   buildExcludes: [/middleware-manifest.json$/],
   runtimeCaching: [
@@ -57,6 +59,7 @@ const withPWA = require('next-pwa')({
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  output: 'standalone',
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion'],
   },

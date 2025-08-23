@@ -2,8 +2,14 @@ import type { AppProps } from 'next/app';
 import Head from 'next/head';
 import { useEffect } from 'react';
 import '../styles/globals.css';
+import { InstallPrompt } from '../components/InstallPrompt';
+import { usePWAInstall } from '../components/usePWAInstall';
+import { useServiceWorkerUpdate } from '../components/useServiceWorkerUpdate';
+import { UpdateToast } from '../components/UpdateToast';
 
 export default function App({ Component, pageProps }: AppProps) {
+  const { shouldShow, isIOS, promptInstall, dismiss } = usePWAInstall();
+  const { updateAvailable, isApplying, applyUpdate } = useServiceWorkerUpdate();
   useEffect(() => {
     // Register service worker for PWA
     if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
@@ -50,6 +56,13 @@ export default function App({ Component, pageProps }: AppProps) {
         <link rel="dns-prefetch" href={process.env.NEXT_PUBLIC_API_URL} />
       </Head>
       <Component {...pageProps} />
+      <UpdateToast visible={updateAvailable} applying={isApplying} onReload={applyUpdate} isIOS={isIOS} />
+      <InstallPrompt
+        isVisible={shouldShow}
+        isIOS={isIOS}
+        onInstall={() => { promptInstall(); }}
+        onDismiss={dismiss}
+      />
     </>
   );
 }

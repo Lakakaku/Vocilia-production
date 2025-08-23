@@ -133,6 +133,24 @@ pnpm db:studio       # Open Prisma Studio
 # Production
 pnpm build           # Build all apps
 pnpm start           # Start production servers
+
+### Seeding Development Data
+
+Use the workspace script to populate baseline demo data (businesses, locations, sessions):
+
+```bash
+# Ensure environment variables are set (service role required for seeding)
+export SUPABASE_URL="https://<your-project>.supabase.co"
+export SUPABASE_SERVICE_ROLE_KEY="<your-service-role-key>"
+
+# Run seeding
+npm run db:seed
+```
+
+Notes:
+- Uses service role client to bypass RLS during seed.
+- Idempotent upserts keyed by `org_number` and `qr_token`.
+- Seeds: two businesses (Cafe Aurora, NordMart), multiple locations, and a few completed sessions.
 Environment Variables
 bash# Database
 DATABASE_URL="postgresql://..."

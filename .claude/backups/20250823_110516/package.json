@@ -1,0 +1,25 @@
+{
+  "name": "@ai-feedback/database",
+  "version": "1.0.0",
+  "description": "Database package with Supabase client and schemas",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "db:migrate": "supabase db push",
+    "db:reset": "supabase db reset",
+    "db:seed": "node dist/seed.js",
+    "db:types": "supabase gen types typescript --local > src/types.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.3",
+    "@ai-feedback/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "supabase": "^1.142.2",
+    "typescript": "^5.3.3"
+  }
+}

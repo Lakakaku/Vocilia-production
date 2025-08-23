@@ -1,0 +1,18 @@
+---
+globs: apps/api-gateway/**
+description: Rules for API Gateway code structure, error handling, and WebSocket voice pipeline
+---
+### API Gateway Guidelines
+
+- Entry point: [apps/api-gateway/src/index.ts](mdc:apps/api-gateway/src/index.ts)
+- Routes live under [apps/api-gateway/src/routes](mdc:apps/api-gateway/src/routes)
+- Middleware: [apps/api-gateway/src/middleware/errorHandler.ts](mdc:apps/api-gateway/src/middleware/errorHandler.ts)
+- Utilities: [apps/api-gateway/src/utils](mdc:apps/api-gateway/src/utils)
+- WebSocket voice handler: [apps/api-gateway/src/websocket/voiceHandler.ts](mdc:apps/api-gateway/src/websocket/voiceHandler.ts)
+
+Conventions
+- Keep endpoints fast (<500ms non-AI). Defer heavy work to services/queues.
+- Validate inputs; prefer Zod (or express-validator where already used).
+- Return structured errors aligned with `FeedbackError` style in [CLAUDE.md](mdc:CLAUDE.md).
+- WebSocket: implement heartbeat, reconnection logic, and backpressure handling.
+- Security: rate limit QR scanning and feedback submission per [CLAUDE.md](mdc:CLAUDE.md).

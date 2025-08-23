@@ -1,0 +1,11 @@
+---
+alwaysApply: true
+description: Security, compliance, and performance guardrails applied across the repo
+---
+### Security & Compliance Guardrails
+
+- Follow GDPR defaults: minimize data, no voice storage, 90-day retention.
+- Validate and sanitize all inputs; enforce rate limits per [CLAUDE.md](mdc:CLAUDE.md).
+- Prefer structured error responses; never leak stack traces to clients.
+- Keep performance targets in mind: voice <2s, API <500ms, PWA <3s.
+- When editing auth, payments, or PII handling, document changes in [CLAUDE.md](mdc:CLAUDE.md) and `docs/`.

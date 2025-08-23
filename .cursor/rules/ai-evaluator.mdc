@@ -1,0 +1,17 @@
+---
+globs: packages/ai-evaluator/**
+description: AI Evaluator package standards (scoring, providers, TTS/STT helpers)
+---
+### AI Evaluator Guidelines
+
+- Public entry: [packages/ai-evaluator/src/index.ts](mdc:packages/ai-evaluator/src/index.ts)
+- Core services: [packages/ai-evaluator/src/UniversalAIService.ts](mdc:packages/ai-evaluator/src/UniversalAIService.ts)
+- Scoring: [packages/ai-evaluator/src/ScoringEngine.ts](mdc:packages/ai-evaluator/src/ScoringEngine.ts)
+- Types: [packages/ai-evaluator/src/types.ts](mdc:packages/ai-evaluator/src/types.ts)
+- Voice processors: [packages/ai-evaluator/src/VoiceProcessor.ts](mdc:packages/ai-evaluator/src/VoiceProcessor.ts)
+
+Conventions
+- Keep provider abstraction clean; support local Ollama with fallbacks.
+- Preserve Swedish language optimizations in prompts and STT/TTS.
+- Follow weights: authenticity 40%, concreteness 30%, depth 30%.
+- Ensure deterministic JSON outputs for scoring/explanations where consumed downstream.

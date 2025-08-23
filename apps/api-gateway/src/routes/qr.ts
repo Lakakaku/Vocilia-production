@@ -6,6 +6,18 @@ import type { QRPayload, APIResponse, FeedbackSession } from '@ai-feedback/share
 
 const router = Router();
 
+/**
+ * @openapi
+ * /api/qr/generate:
+ *   post:
+ *     summary: Generate QR for business/location
+ *     tags: [QR]
+ *     requestBody:
+ *       required: true
+ *     responses:
+ *       200:
+ *         description: QR URL returned
+ */
 // Generate QR code for business location
 router.post('/generate',
   [
@@ -74,6 +86,16 @@ router.post('/generate',
   }
 );
 
+/**
+ * @openapi
+ * /api/qr/scan:
+ *   post:
+ *     summary: Validate QR scan and create session
+ *     tags: [QR]
+ *     responses:
+ *       200:
+ *         description: Session created
+ */
 // Validate QR scan and create feedback session
 router.post('/scan',
   [
@@ -189,6 +211,22 @@ router.post('/scan',
   }
 );
 
+/**
+ * @openapi
+ * /api/qr/session/{sessionId}/validate:
+ *   get:
+ *     summary: Validate session token
+ *     tags: [QR]
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Session validity info
+ */
 // Validate session token
 router.get('/session/:sessionId/validate',
   [
@@ -221,7 +259,7 @@ router.get('/session/:sessionId/validate',
       }
 
       // Check session is still valid for recording
-      const validStatuses = ['qr_scanned', 'recording'];
+      const validStatuses = ['qr_scanned', 'transaction_verified', 'recording'];
       if (!validStatuses.includes(session.status)) {
         return res.status(410).json({
           success: false,

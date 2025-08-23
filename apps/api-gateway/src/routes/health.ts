@@ -1,10 +1,20 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { db } from '@ai-feedback/database';
 
 const router = Router();
 
+/**
+ * @openapi
+ * /health:
+ *   get:
+ *     summary: Health status
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: Health information
+ */
 // Basic health check
-router.get('/', async (req, res) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     // Test database connection
     const result = await db.client.from('businesses').select('count').limit(1);
@@ -33,8 +43,18 @@ router.get('/', async (req, res) => {
   }
 });
 
+/**
+ * @openapi
+ * /health/detailed:
+ *   get:
+ *     summary: Detailed health status
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: Detailed health information
+ */
 // Detailed health check for monitoring
-router.get('/detailed', async (req, res) => {
+router.get('/detailed', async (req: Request, res: Response) => {
   const checks = {
     database: false,
     memory: false,

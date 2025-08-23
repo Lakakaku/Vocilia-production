@@ -1,0 +1,287 @@
+# AlertManager Configuration for Swedish Pilot Program
+global:
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'pilot-alerts@feedbackai.se'
+  smtp_auth_username: '${SMTP_USERNAME}'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  smtp_require_tls: true
+
+# Routing tree for pilot program alerts
+route:
+  group_by: ['alertname', 'cluster', 'service', 'cafe_name']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'pilot-default'
+  
+  routes:
+    # Critical alerts - immediate response
+    - match:
+        severity: critical
+      receiver: 'pilot-critical'
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 10m
+      routes:
+        # Voice processing critical - SMS + Slack + Email
+        - match:
+            component: voice
+          receiver: 'pilot-voice-critical'
+        # Payment processing critical - SMS + Slack + PagerDuty
+        - match:
+            component: payments
+          receiver: 'pilot-payment-critical'
+        # System downtime - All channels + PagerDuty
+        - match:
+            component: system
+          receiver: 'pilot-system-critical'
+
+    # High priority alerts - 1 hour response
+    - match:
+        severity: high
+      receiver: 'pilot-high'
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 1h
+      routes:
+        # Business KPI issues - Business team + Slack
+        - match:
+            component: business
+          receiver: 'pilot-business-high'
+        # Fraud detection - Security team + Slack
+        - match:
+            component: fraud
+          receiver: 'pilot-fraud-high'
+
+    # Medium priority alerts - 4 hour response
+    - match:
+        severity: medium
+      receiver: 'pilot-medium'
+      group_wait: 5m
+      group_interval: 30m
+      repeat_interval: 4h
+
+    # Business hours only alerts
+    - match:
+        severity: low
+      receiver: 'pilot-business-hours'
+      group_wait: 10m
+      group_interval: 1h
+      repeat_interval: 24h
+      active_time_intervals:
+        - business_hours_cet
+
+# Time intervals for business hours alerting
+time_intervals:
+  - name: business_hours_cet
+    time_intervals:
+      - times:
+          - start_time: '08:00'
+            end_time: '18:00'
+        weekdays: ['monday:friday']
+        location: 'Europe/Stockholm'
+
+# Inhibition rules to prevent alert spam
+inhibit_rules:
+  # If system is down, don't alert on individual service issues
+  - source_matchers:
+      - alertname="SystemDowntime"
+    target_matchers:
+      - component=~"voice|payments|api"
+    equal: ['cafe_name', 'environment']
+
+  # If voice processing is down, don't alert on voice latency
+  - source_matchers:
+      - alertname="VoiceProcessingDown"
+    target_matchers:
+      - alertname="VoiceLatencyHigh"
+    equal: ['cafe_name']
+
+  # If payment processing is failing, don't alert on individual payment issues
+  - source_matchers:
+      - alertname="PaymentProcessingFailure"
+    target_matchers:
+      - alertname="StripeWebhookDown"
+    equal: ['cafe_name']
+
+# Alert receivers and notification channels
+receivers:
+  # Default receiver
+  - name: 'pilot-default'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#pilot-program-alerts'
+        title: '🇸🇪 Pilot Alert: {{ .CommonAnnotations.summary }}'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Severity:* {{ .Labels.severity }}
+          *Component:* {{ .Labels.component }}
+          *Café:* {{ .Labels.cafe_name }}
+          *Description:* {{ .Annotations.description }}
+          *Runbook:* {{ .Annotations.runbook_url }}
+          {{ end }}
+
+  # Critical alerts - all channels
+  - name: 'pilot-critical'
+    email_configs:
+      - to: 'pilot-critical@feedbackai.se'
+        subject: '🚨 CRITICAL: {{ .CommonAnnotations.summary }}'
+        body: |
+          Critical alert for Swedish Pilot Program:
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Severity: {{ .Labels.severity }}
+          Component: {{ .Labels.component }}
+          Café: {{ .Labels.cafe_name }}
+          Description: {{ .Annotations.description }}
+          
+          Runbook: {{ .Annotations.runbook_url }}
+          
+          Started: {{ .StartsAt }}
+          {{ end }}
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#incident-response'
+        title: '🚨 CRITICAL PILOT ALERT'
+        text: |
+          <!channel> Critical issue detected in Swedish Pilot Program
+          
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Component:* {{ .Labels.component }}
+          *Café:* {{ .Labels.cafe_name }}
+          *Description:* {{ .Annotations.description }}
+          *Runbook:* <{{ .Annotations.runbook_url }}|View Runbook>
+          {{ end }}
+        actions:
+          - type: button
+            text: 'Acknowledge'
+            url: '{{ .GeneratorURL }}'
+          - type: button
+            text: 'View Dashboard'
+            url: 'https://staging.feedbackai.se:3100/d/pilot-overview'
+
+  # Voice processing critical
+  - name: 'pilot-voice-critical'
+    email_configs:
+      - to: 'pilot-voice-team@feedbackai.se'
+        subject: '🎙️ VOICE CRITICAL: {{ .CommonAnnotations.summary }}'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#voice-processing-alerts'
+        title: '🎙️ Voice Processing Critical Alert'
+    # SMS for voice issues (high customer impact)
+    webhook_configs:
+      - url: '${SMS_WEBHOOK_URL}'
+        send_resolved: false
+        http_config:
+          basic_auth:
+            username: '${SMS_USERNAME}'
+            password: '${SMS_PASSWORD}'
+        body: |
+          {
+            "to": "+46701234567",
+            "message": "CRITICAL: Voice processing issue in Swedish pilot - {{ .CommonAnnotations.summary }}"
+          }
+
+  # Payment processing critical
+  - name: 'pilot-payment-critical'
+    email_configs:
+      - to: 'pilot-payments@feedbackai.se'
+        subject: '💳 PAYMENT CRITICAL: {{ .CommonAnnotations.summary }}'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#payment-processing'
+        title: '💳 Payment Processing Critical'
+    # PagerDuty for payment issues
+    pagerduty_configs:
+      - routing_key: '${PAGERDUTY_INTEGRATION_KEY}'
+        description: 'Swedish Pilot Payment Critical: {{ .CommonAnnotations.summary }}'
+        severity: 'critical'
+        details:
+          component: '{{ .CommonLabels.component }}'
+          cafe_name: '{{ .CommonLabels.cafe_name }}'
+
+  # System critical
+  - name: 'pilot-system-critical'
+    email_configs:
+      - to: 'pilot-system-team@feedbackai.se, pilot-manager@feedbackai.se'
+        subject: '⚠️ SYSTEM DOWN: {{ .CommonAnnotations.summary }}'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#incident-response'
+        title: '⚠️ System Critical Alert'
+    # SMS + PagerDuty for system downtime
+    webhook_configs:
+      - url: '${SMS_WEBHOOK_URL}'
+        body: |
+          {
+            "to": ["+46701234567", "+46701234568"],
+            "message": "SYSTEM DOWN: Swedish pilot system critical issue - {{ .CommonAnnotations.summary }}"
+          }
+    pagerduty_configs:
+      - routing_key: '${PAGERDUTY_INTEGRATION_KEY}'
+        description: 'Swedish Pilot System Down: {{ .CommonAnnotations.summary }}'
+        severity: 'critical'
+
+  # High priority alerts
+  - name: 'pilot-high'
+    email_configs:
+      - to: 'pilot-support@feedbackai.se'
+        subject: '⚡ HIGH: {{ .CommonAnnotations.summary }}'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#pilot-program-alerts'
+        title: '⚡ High Priority Pilot Alert'
+
+  # Business KPI high priority
+  - name: 'pilot-business-high'
+    email_configs:
+      - to: 'pilot-business-team@feedbackai.se, pilot-manager@feedbackai.se'
+        subject: '📊 BUSINESS KPI ALERT: {{ .CommonAnnotations.summary }}'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#pilot-business-metrics'
+        title: '📊 Business KPI Alert'
+        text: |
+          Business metrics alert for Swedish Pilot Program:
+          
+          {{ range .Alerts }}
+          *Café:* {{ .Labels.cafe_name }}
+          *Metric:* {{ .Annotations.summary }}
+          *Value:* {{ .Annotations.description }}
+          *Action Required:* Review café operations and customer experience
+          {{ end }}
+
+  # Fraud detection high priority
+  - name: 'pilot-fraud-high'
+    email_configs:
+      - to: 'pilot-security@feedbackai.se'
+        subject: '🛡️ FRAUD ALERT: {{ .CommonAnnotations.summary }}'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#fraud-detection'
+        title: '🛡️ Fraud Detection Alert'
+
+  # Medium priority alerts
+  - name: 'pilot-medium'
+    email_configs:
+      - to: 'pilot-support@feedbackai.se'
+        subject: 'ℹ️ MEDIUM: {{ .CommonAnnotations.summary }}'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#pilot-program-alerts'
+        title: 'ℹ️ Medium Priority Alert'
+
+  # Business hours only alerts
+  - name: 'pilot-business-hours'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#pilot-program-alerts'
+        title: 'ℹ️ Business Hours Alert'
+
+# Templates for custom alert formatting
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'

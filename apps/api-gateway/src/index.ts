@@ -10,8 +10,12 @@ import { feedbackRoutes } from './routes/feedback';
 import { businessRoutes } from './routes/business';
 import { qrRoutes } from './routes/qr';
 import { healthRoutes } from './routes/health';
+import { adminRoutes } from './routes/admin';
 import { errorHandler } from './middleware/errorHandler';
+import { optionalAuth, createUserRateLimit } from './middleware/auth';
 import { setupWebSocket } from './websocket/voiceHandler';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './docs/openapi';
 
 const app = express();
 const server = createServer(app);
@@ -20,9 +24,20 @@ const wss = new WebSocketServer({ server });
 // Basic middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.NEXT_PUBLIC_APP_URL!, process.env.NEXT_PUBLIC_BUSINESS_DASHBOARD_URL!]
-    : true,
+  origin: (origin, callback) => {
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    const allowlist = [
+      process.env.NEXT_PUBLIC_APP_URL,
+      process.env.NEXT_PUBLIC_BUSINESS_DASHBOARD_URL,
+      process.env.NEXT_PUBLIC_ADMIN_DASHBOARD_URL
+    ].filter(Boolean);
+    if (!origin || allowlist.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
 app.use(compression());
@@ -39,6 +54,13 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+// Optional authentication middleware - sets user context if available
+app.use(optionalAuth);
+
+// User-based rate limiting (more sophisticated than IP-based)
+const userRateLimit = createUserRateLimit(15 * 60 * 1000, 500); // 500 requests per 15 minutes per user
+app.use(userRateLimit);
+
 // Stricter rate limiting for voice endpoints
 const voiceLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
@@ -46,11 +68,17 @@ const voiceLimiter = rateLimit({
   message: 'Voice rate limit exceeded, please try again later.',
 });
 
+// Voice-specific user rate limiting
+const voiceUserLimit = createUserRateLimit(60 * 1000, 5); // 5 voice requests per minute per user
+
 // Routes
 app.use('/health', healthRoutes);
 app.use('/api/qr', qrRoutes);
-app.use('/api/feedback', voiceLimiter, feedbackRoutes);
+app.use('/api/feedback', voiceLimiter, voiceUserLimit, feedbackRoutes);
 app.use('/api/business', businessRoutes);
+app.get('/openapi.json', (req, res) => res.json(swaggerSpec));
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/api/admin', adminRoutes);
 
 // WebSocket setup for voice streaming
 setupWebSocket(wss);

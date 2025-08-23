@@ -1,0 +1,18 @@
+---
+globs: apps/business-dashboard/**
+description: Business Dashboard (Next.js App Router) conventions and entry points
+---
+### Business Dashboard Guidelines
+
+- App Router root: [apps/business-dashboard/src/app/layout.tsx](mdc:apps/business-dashboard/src/app/layout.tsx)
+- Main page: [apps/business-dashboard/src/app/page.tsx](mdc:apps/business-dashboard/src/app/page.tsx)
+- Auth pages: [apps/business-dashboard/src/app/login/page.tsx](mdc:apps/business-dashboard/src/app/login/page.tsx)
+- Feedback view: [apps/business-dashboard/src/app/feedback/page.tsx](mdc:apps/business-dashboard/src/app/feedback/page.tsx)
+- Components: [apps/business-dashboard/src/components](mdc:apps/business-dashboard/src/components)
+
+Conventions
+- Keep UI responsive and mobile-friendly; prioritize readability of insights.
+- Use components under `components/dashboard` and `components/feedback` for composition.
+- Protect pages with `auth/ProtectedRoute` and `auth/AuthProvider` where needed.
+- Follow Tailwind class conventions in `globals.css`; avoid inline styles.
+- Add client/server boundaries explicitly ("use client") when needed.

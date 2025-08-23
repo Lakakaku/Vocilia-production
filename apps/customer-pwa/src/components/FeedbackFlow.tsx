@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VoiceRecorder } from './VoiceRecorder';
 import { FeedbackResult } from './FeedbackResult';
+import { TransactionVerification } from './TransactionVerification';
 import { Store, Clock, DollarSign } from 'lucide-react';
 
 interface FeedbackFlowProps {
@@ -10,7 +11,7 @@ interface FeedbackFlowProps {
   onComplete: () => void;
 }
 
-type FlowStep = 'loading' | 'intro' | 'recording' | 'processing' | 'result' | 'error';
+type FlowStep = 'loading' | 'verification' | 'intro' | 'recording' | 'processing' | 'result' | 'error';
 
 export function FeedbackFlow({ qrToken, sessionData, onComplete }: FeedbackFlowProps) {
   const [currentStep, setCurrentStep] = useState<FlowStep>('loading');
@@ -20,7 +21,12 @@ export function FeedbackFlow({ qrToken, sessionData, onComplete }: FeedbackFlowP
 
   useEffect(() => {
     if (sessionData) {
-      setCurrentStep('intro');
+      // Check if transaction is already verified
+      if (sessionData.status === 'transaction_verified') {
+        setCurrentStep('intro');
+      } else {
+        setCurrentStep('verification');
+      }
     } else if (qrToken) {
       validateQRToken();
     } else {
@@ -51,7 +57,7 @@ export function FeedbackFlow({ qrToken, sessionData, onComplete }: FeedbackFlowP
       }
 
       setSession(data.data);
-      setCurrentStep('intro');
+      setCurrentStep('verification');
     } catch (err) {
       console.error('QR validation error:', err);
       setError(err instanceof Error ? err.message : 'Okänt fel');
@@ -70,6 +76,17 @@ export function FeedbackFlow({ qrToken, sessionData, onComplete }: FeedbackFlowP
       doNotTrack: navigator.doNotTrack,
       touchSupport: 'ontouchstart' in window,
     };
+  };
+
+  const handleTransactionVerified = (transactionData: any) => {
+    // Update session data with transaction verification
+    setSession(prev => ({
+      ...prev,
+      transactionId: transactionData.transactionId,
+      transactionAmount: transactionData.amount,
+      transactionVerified: true
+    }));
+    setCurrentStep('intro');
   };
 
   const handleRecordingComplete = async (audioBlob: Blob, duration: number) => {
@@ -144,12 +161,22 @@ export function FeedbackFlow({ qrToken, sessionData, onComplete }: FeedbackFlowP
       <AnimatePresence mode="wait">
         {currentStep === 'loading' && <LoadingScreen key="loading" />}
         
+        {currentStep === 'verification' && (
+          <TransactionVerification
+            key="verification"
+            sessionId={session?.sessionId}
+            businessName={session?.businessName}
+            onVerified={handleTransactionVerified}
+            onBack={onComplete}
+          />
+        )}
+        
         {currentStep === 'intro' && (
           <IntroScreen
             key="intro"
             session={session}
             onStartRecording={() => setCurrentStep('recording')}
-            onBack={onComplete}
+            onBack={() => setCurrentStep('verification')}
           />
         )}
 

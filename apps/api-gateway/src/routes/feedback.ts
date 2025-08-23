@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { body, param, validationResult } from 'express-validator';
 import multer from 'multer';
 import { db } from '@ai-feedback/database';
@@ -12,7 +12,7 @@ const upload = multer({
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     // Accept audio files and webm
     if (file.mimetype.startsWith('audio/') || file.mimetype === 'video/webm') {
       cb(null, true);
@@ -22,12 +22,187 @@ const upload = multer({
   }
 });
 
+/**
+ * @openapi
+ * /api/feedback/verify-transaction/{sessionId}:
+ *   post:
+ *     summary: Verify transaction for feedback session
+ *     tags: [Feedback]
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               transactionId:
+ *                 type: string
+ *               amount:
+ *                 type: number
+ *               timestamp:
+ *                 type: string
+ *                 format: date-time
+ *     responses:
+ *       200:
+ *         description: Transaction verified
+ */
+// Verify transaction for feedback session
+router.post('/verify-transaction/:sessionId',
+  [
+    param('sessionId').isUUID('4').withMessage('Valid session ID required'),
+    body('transactionId').notEmpty().withMessage('Transaction ID is required'),
+    body('amount').isFloat({ min: 10, max: 100000 }).withMessage('Amount must be between 10-100,000 SEK'),
+    body('timestamp').isISO8601().withMessage('Valid timestamp is required')
+  ],
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid input parameters',
+          details: errors.array()
+        }
+      });
+    }
+
+    try {
+      const { sessionId } = req.params;
+      const { transactionId, amount, timestamp } = req.body;
+
+      const session = await db.getFeedbackSession(sessionId);
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'SESSION_NOT_FOUND',
+            message: 'Session not found'
+          }
+        });
+      }
+
+      if (session.status !== 'qr_scanned') {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_SESSION_STATUS',
+            message: 'Session is not ready for transaction verification'
+          }
+        });
+      }
+
+      // Validate transaction timestamp is within 15-minute window
+      const transactionTime = new Date(timestamp);
+      const currentTime = new Date();
+      const timeDiff = currentTime.getTime() - transactionTime.getTime();
+      const fifteenMinutes = 15 * 60 * 1000;
+
+      if (timeDiff > fifteenMinutes) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'TRANSACTION_TOO_OLD',
+            message: 'Transaction is older than 15 minutes. Feedback must be provided within 15 minutes of purchase.'
+          }
+        });
+      }
+
+      if (timeDiff < 0) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'FUTURE_TRANSACTION',
+            message: 'Transaction cannot be in the future'
+          }
+        });
+      }
+
+      // Check for duplicate transaction verification within the business
+      const existingSession = await db.client
+        .from('feedback_sessions')
+        .select('id')
+        .eq('business_id', session.businessId)
+        .eq('transaction_id', transactionId)
+        .neq('id', sessionId)
+        .single();
+
+      if (existingSession.data) {
+        return res.status(409).json({
+          success: false,
+          error: {
+            code: 'DUPLICATE_TRANSACTION',
+            message: 'This transaction has already been used for feedback'
+          }
+        });
+      }
+
+      // TODO: In a real implementation, validate with POS system if integrated
+      // For now, we accept all transactions that pass basic validation
+
+      // Update session with transaction details
+      const updatedSession = await db.updateFeedbackSession(sessionId, {
+        transactionId,
+        transactionAmount: amount,
+        transactionMatchedAt: new Date().toISOString(),
+        status: 'transaction_verified'
+      });
+
+      const response: APIResponse<{
+        sessionId: string;
+        status: string;
+        transactionVerified: boolean;
+      }> = {
+        success: true,
+        data: {
+          sessionId: updatedSession.id,
+          status: updatedSession.status,
+          transactionVerified: true
+        }
+      };
+
+      res.json(response);
+    } catch (error) {
+      console.error('Transaction verification error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'TRANSACTION_VERIFICATION_ERROR',
+          message: 'Failed to verify transaction'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * @openapi
+ * /api/feedback/start/{sessionId}:
+ *   post:
+ *     summary: Start recording session
+ *     tags: [Feedback]
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Session set to recording
+ */
 // Start recording session
 router.post('/start/:sessionId',
   [
     param('sessionId').isUUID('4').withMessage('Valid session ID required')
   ],
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -53,12 +228,12 @@ router.post('/start/:sessionId',
         });
       }
 
-      if (session.status !== 'qr_scanned') {
+      if (session.status !== 'transaction_verified') {
         return res.status(400).json({
           success: false,
           error: {
             code: 'INVALID_SESSION_STATUS',
-            message: 'Session is not ready for recording'
+            message: 'Session must have verified transaction before recording'
           }
         });
       }
@@ -90,6 +265,22 @@ router.post('/start/:sessionId',
   }
 );
 
+/**
+ * @openapi
+ * /api/feedback/submit/{sessionId}:
+ *   post:
+ *     summary: Submit audio feedback
+ *     tags: [Feedback]
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Feedback submitted
+ */
 // Submit audio feedback
 router.post('/submit/:sessionId',
   upload.single('audio'),
@@ -99,7 +290,7 @@ router.post('/submit/:sessionId',
     body('transactionAmount').optional().isNumeric().withMessage('Transaction amount must be numeric'),
     body('transactionId').optional().isString().withMessage('Transaction ID must be a string')
   ],
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -194,12 +385,28 @@ router.post('/submit/:sessionId',
   }
 );
 
+/**
+ * @openapi
+ * /api/feedback/status/{sessionId}:
+ *   get:
+ *     summary: Get session status and results
+ *     tags: [Feedback]
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Status and results
+ */
 // Get session status and results
 router.get('/status/:sessionId',
   [
     param('sessionId').isUUID('4').withMessage('Valid session ID required')
   ],
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -264,12 +471,28 @@ router.get('/status/:sessionId',
   }
 );
 
+/**
+ * @openapi
+ * /api/feedback/history/{customerHash}:
+ *   get:
+ *     summary: Get feedback history by customer hash
+ *     tags: [Feedback]
+ *     parameters:
+ *       - in: path
+ *         name: customerHash
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: History
+ */
 // Get feedback history for a customer (by hash)
 router.get('/history/:customerHash',
   [
     param('customerHash').isHexadecimal().isLength({ min: 64, max: 64 }).withMessage('Valid customer hash required')
   ],
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({

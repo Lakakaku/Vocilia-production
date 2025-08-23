@@ -1,0 +1,85 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: 'production'
+    cluster: 'ai-feedback-platform'
+
+rule_files:
+  - "/etc/prometheus/rules/*.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Nginx metrics
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx:80']
+    metrics_path: '/nginx-health'
+
+  # API Gateway metrics
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+
+  # Customer PWA metrics
+  - job_name: 'customer-pwa'
+    static_configs:
+      - targets: ['customer-pwa:3000']
+    metrics_path: '/api/metrics'
+
+  # Business Dashboard metrics
+  - job_name: 'business-dashboard'
+    static_configs:
+      - targets: ['business-dashboard:3002']
+    metrics_path: '/api/metrics'
+
+  # Admin Dashboard metrics
+  - job_name: 'admin-dashboard'
+    static_configs:
+      - targets: ['admin-dashboard:3003']
+    metrics_path: '/api/metrics'
+
+  # Redis metrics
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+
+  # Container metrics (if using cAdvisor)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  # Node exporter for system metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # Custom application metrics
+  - job_name: 'voice-metrics'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics/voice'
+    scrape_interval: 5s
+
+  - job_name: 'ai-metrics'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics/ai'
+    scrape_interval: 10s
+
+  - job_name: 'fraud-metrics'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics/fraud'

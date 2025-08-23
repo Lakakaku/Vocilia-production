@@ -140,6 +140,7 @@ export interface AIEvaluation {
 
 export type FeedbackSessionStatus = 
   | 'qr_scanned' 
+  | 'transaction_verified'
   | 'recording' 
   | 'processing' 
   | 'completed' 
