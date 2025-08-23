@@ -1,0 +1,39 @@
+{
+  "name": "@feedback-platform/fraud-detector",
+  "version": "1.0.0",
+  "description": "Fraud detection service for AI Feedback Platform",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/**/*.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@feedback-platform/shared-types": "workspace:*",
+    "@feedback-platform/database": "workspace:*",
+    "crypto": "^1.0.1",
+    "natural": "^6.12.0",
+    "fast-levenshtein": "^3.0.0",
+    "ml-distance": "^4.0.1",
+    "string-similarity": "^4.0.1",
+    "stemmer": "^2.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.0.0"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "testMatch": ["**/__tests__/**/*.test.ts"]
+  }
+}

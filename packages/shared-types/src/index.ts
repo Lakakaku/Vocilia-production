@@ -158,6 +158,8 @@ export interface FraudFlag {
 
 export type FraudType = 
   | 'voice_duplicate'
+  | 'voice_synthetic'
+  | 'voice_pattern'
   | 'device_abuse'
   | 'location_mismatch'
   | 'content_duplicate'
@@ -260,6 +262,9 @@ export interface AdminUser {
 }
 
 export type AdminRole = 'admin' | 'super_admin';
+
+// Analytics types
+export * from './analytics';
 
 // Utility types
 export type Nullable<T> = T | null;
