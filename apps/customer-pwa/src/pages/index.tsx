@@ -5,6 +5,7 @@ import { QrCode, Mic, Gift, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { QRScanner } from '../components/QRScanner';
 import { FeedbackFlow } from '../components/FeedbackFlow';
+import { NetworkStatus } from '../components/NetworkStatus';
 
 export default function HomePage() {
   const router = useRouter();
@@ -32,7 +33,10 @@ export default function HomePage() {
         <meta name="description" content="Scan QR, share feedback, earn up to 12% cashback" />
       </Head>
 
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50" data-testid="app-container">
+        {/* Network status indicator for testing */}
+        <NetworkStatus />
+        
         {currentStep === 'welcome' && (
           <WelcomeScreen onStartScan={() => setCurrentStep('scan')} />
         )}
@@ -55,7 +59,7 @@ export default function HomePage() {
 
 function WelcomeScreen({ onStartScan }: { onStartScan: () => void }) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" data-testid="welcome-screen">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -80,6 +84,7 @@ function WelcomeScreen({ onStartScan }: { onStartScan: () => void }) {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
           className="text-3xl font-bold text-gray-900 mb-4"
+          data-testid="welcome-headline"
         >
           Få betalt för din åsikt
         </motion.h1>
@@ -132,6 +137,7 @@ function WelcomeScreen({ onStartScan }: { onStartScan: () => void }) {
           whileTap={{ scale: 0.95 }}
           onClick={onStartScan}
           className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
+          data-testid="start-scan-button"
         >
           Scanna QR-kod för att börja
         </motion.button>

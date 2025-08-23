@@ -388,7 +388,7 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50" data-testid="voice-recorder">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-100">
         <div className="px-4 py-6">
@@ -420,6 +420,7 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
                 <button
                   onClick={startRecording}
                   className="w-32 h-32 bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-full shadow-2xl flex items-center justify-center mb-6 mx-auto"
+                  data-testid="start-recording-button"
                 >
                   <Mic className="w-12 h-12" />
                 </button>
@@ -480,14 +481,15 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
                 </div>
               </motion.div>
 
-              <div className="text-3xl font-mono font-bold text-gray-900 mb-2">
+              <div className="text-3xl font-mono font-bold text-gray-900 mb-2" data-testid="recording-timer">
                 {formatTime(duration)}
               </div>
-              <p className="text-gray-600 mb-6">Inspelning pågår...</p>
+              <p className="text-gray-600 mb-6" data-testid="recording-status">Inspelning pågår...</p>
 
               <button
                 onClick={stopRecording}
                 className="w-16 h-16 bg-gray-800 text-white rounded-full shadow-lg flex items-center justify-center"
+                data-testid="stop-recording-button"
               >
                 <Square className="w-6 h-6" />
               </button>
@@ -525,6 +527,7 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
                 <button
                   onClick={playRecording}
                   className="w-full flex items-center justify-center space-x-2 py-3 px-4 bg-gray-100 text-gray-700 rounded-xl font-medium"
+                  data-testid="play-recording-button"
                 >
                   {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
                   <span>{isPlaying ? 'Pausa' : 'Spela upp'}</span>
@@ -534,6 +537,7 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
                   <button
                     onClick={retryRecording}
                     className="flex-1 flex items-center justify-center space-x-2 py-3 px-4 border border-gray-300 text-gray-700 rounded-xl font-medium"
+                    data-testid="retry-recording-button"
                   >
                     <RotateCcw className="w-4 h-4" />
                     <span>Spela in igen</span>
@@ -542,6 +546,7 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
                   <button
                     onClick={submitRecording}
                     className="flex-1 py-3 px-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-semibold shadow-lg"
+                    data-testid="submit-recording-button"
                   >
                     Skicka feedback
                   </button>
