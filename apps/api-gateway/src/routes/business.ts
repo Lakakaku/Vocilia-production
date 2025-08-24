@@ -138,7 +138,8 @@ router.post('/',
     body('email').isEmail().withMessage('Valid email address required'),
     body('orgNumber').optional().matches(/^\d{6}-\d{4}$/).withMessage('Valid Swedish organization number required (XXXXXX-XXXX)'),
     body('phone').optional().isMobilePhone('sv-SE').withMessage('Valid Swedish phone number required'),
-    body('address').optional().isObject().withMessage('Address must be an object')
+    body('address').optional().isObject().withMessage('Address must be an object'),
+    body('createStripeAccount').optional().isBoolean().withMessage('Create Stripe account flag must be boolean')
   ],
   async (req: Request, res: Response) => {
     const errors = validationResult(req);
@@ -154,7 +155,7 @@ router.post('/',
     }
 
     try {
-      const businessData = req.body;
+      const { createStripeAccount = true, ...businessData } = req.body;
 
       // Check if business with this email already exists
       const { data: existingBusiness } = await db.client
@@ -173,11 +174,93 @@ router.post('/',
         });
       }
 
+      // Create business first
       const business = await db.createBusiness(businessData);
 
-      const response: APIResponse<{ business: Business }> = {
+      // Create Stripe Connect TEST account if requested
+      let stripeAccountId = null;
+      let onboardingUrl = null;
+      
+      if (createStripeAccount) {
+        try {
+          const { stripeService, SwedishBusinessAccount } = await import('../services/stripe-connect');
+          
+          const testBusinessData: SwedishBusinessAccount = {
+            businessId: business.id,
+            orgNumber: business.org_number || '556123-4567', // TEST org number
+            businessName: business.name,
+            email: business.email,
+            phone: business.phone || '+46701234567',
+            address: {
+              line1: business.address?.street || 'Drottninggatan 123',
+              city: business.address?.city || 'Stockholm',
+              postal_code: business.address?.postal_code || '11151',
+              country: 'SE',
+            },
+            representative: {
+              first_name: 'Test',
+              last_name: 'Representative',
+              email: business.email,
+              phone: business.phone || '+46701234567',
+              dob: {
+                day: 15,
+                month: 6,
+                year: 1980,
+              },
+            },
+          };
+
+          // Create Stripe Express account
+          const account = await stripeService.createExpressAccount(testBusinessData);
+          stripeAccountId = account.id;
+
+          // Update business with Stripe account ID
+          await db.updateBusiness(business.id, {
+            stripe_account_id: account.id,
+            updated_at: new Date().toISOString()
+          });
+
+          // Create onboarding link for immediate use
+          const accountLink = await stripeService.createAccountLink(
+            account.id,
+            `${process.env.NEXT_PUBLIC_BUSINESS_URL}/onboarding/refresh`,
+            `${process.env.NEXT_PUBLIC_BUSINESS_URL}/onboarding/complete`
+          );
+          onboardingUrl = accountLink.url;
+
+          console.log(`✅ Created Stripe TEST account ${account.id} for business ${business.id}`);
+        } catch (stripeError) {
+          console.error('Stripe account creation failed:', stripeError);
+          // Continue without Stripe - can be set up later
+        }
+      }
+
+      const response: APIResponse<{ 
+        business: Business; 
+        stripeAccountId?: string;
+        onboardingUrl?: string;
+        verification: {
+          required: boolean;
+          status: string;
+          documents: string[];
+        };
+      }> = {
         success: true,
-        data: { business }
+        data: { 
+          business,
+          stripeAccountId: stripeAccountId || undefined,
+          onboardingUrl: onboardingUrl || undefined,
+          verification: {
+            required: true,
+            status: 'pending',
+            documents: [
+              'business_registration',
+              'tax_document',
+              'id_verification',
+              'bank_statement'
+            ]
+          }
+        }
       };
 
       res.status(201).json(response);
@@ -460,6 +543,384 @@ router.post('/:businessId/qr',
         error: {
           code: 'GENERATE_QR_ERROR',
           message: 'Failed to generate QR code'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * @openapi
+ * /api/business/{businessId}/verification:
+ *   get:
+ *     summary: Get business verification status
+ *     tags: [Business]
+ *     parameters:
+ *       - in: path
+ *         name: businessId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Verification status
+ */
+// Get business verification status
+router.get('/:businessId/verification',
+  [
+    param('businessId').isUUID('4').withMessage('Valid business ID required')
+  ],
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid business ID'
+        }
+      });
+    }
+
+    try {
+      const { businessId } = req.params;
+
+      // Mock verification data - in real implementation, this would come from database
+      const mockVerification = {
+        id: `verification-${businessId}`,
+        businessId,
+        status: 'pending',
+        documents: [],
+        businessInfo: {
+          legalName: 'Test Business AB',
+          organizationNumber: '556123-4567',
+          registeredAddress: 'Testgatan 123, 111 11 Stockholm',
+          contactPerson: 'Test Person',
+          contactEmail: 'test@example.com',
+          contactPhone: '+46 8 123 456',
+          businessDescription: 'Test business for development',
+          website: 'https://test.example.com',
+          expectedMonthlyFeedbacks: 100
+        },
+        requiredDocuments: [
+          'business_registration',
+          'tax_document', 
+          'id_verification',
+          'bank_statement'
+        ],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      const response: APIResponse<{
+        verification: typeof mockVerification;
+        canSubmit: boolean;
+        isComplete: boolean;
+      }> = {
+        success: true,
+        data: {
+          verification: mockVerification,
+          canSubmit: mockVerification.documents.length === mockVerification.requiredDocuments.length,
+          isComplete: mockVerification.status === 'approved'
+        }
+      };
+
+      res.json(response);
+    } catch (error) {
+      console.error('Get verification error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'VERIFICATION_ERROR',
+          message: 'Failed to get verification status'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * @openapi
+ * /api/business/{businessId}/verification/documents:
+ *   post:
+ *     summary: Upload verification document (MOCK)
+ *     tags: [Business]
+ *     parameters:
+ *       - in: path
+ *         name: businessId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               documentType:
+ *                 type: string
+ *                 enum: [business_registration, tax_document, id_verification, bank_statement]
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Document uploaded
+ */
+// Upload verification document (MOCK)
+router.post('/:businessId/verification/documents',
+  [
+    param('businessId').isUUID('4').withMessage('Valid business ID required'),
+    body('documentType').isIn(['business_registration', 'tax_document', 'id_verification', 'bank_statement']).withMessage('Valid document type required'),
+    body('fileName').notEmpty().withMessage('File name required'),
+    body('fileSize').isNumeric().withMessage('File size required')
+  ],
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid document upload data',
+          details: errors.array()
+        }
+      });
+    }
+
+    try {
+      const { businessId } = req.params;
+      const { documentType, fileName, fileSize } = req.body;
+
+      // Validate file requirements (MOCK)
+      const documentRequirements = {
+        business_registration: { maxSize: 5, formats: ['pdf', 'jpg', 'png'] },
+        tax_document: { maxSize: 5, formats: ['pdf', 'jpg', 'png'] },
+        id_verification: { maxSize: 3, formats: ['jpg', 'png', 'pdf'] },
+        bank_statement: { maxSize: 5, formats: ['pdf', 'jpg', 'png'] }
+      };
+
+      const requirements = documentRequirements[documentType as keyof typeof documentRequirements];
+      const fileExtension = fileName.split('.').pop()?.toLowerCase();
+
+      if (!requirements.formats.includes(fileExtension || '')) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_FILE_FORMAT',
+            message: `Filformatet ${fileExtension} stöds inte. Tillåtna format: ${requirements.formats.join(', ')}`
+          }
+        });
+      }
+
+      if (fileSize > requirements.maxSize * 1024 * 1024) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'FILE_TOO_LARGE',
+            message: `Filen är för stor. Max storlek: ${requirements.maxSize}MB`
+          }
+        });
+      }
+
+      // Simulate document processing
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const mockDocument = {
+        id: Date.now().toString(),
+        type: documentType,
+        name: fileName,
+        url: `https://mock-storage.example.com/documents/${businessId}/${documentType}/${fileName}`,
+        uploadedAt: new Date().toISOString(),
+        status: 'uploaded'
+      };
+
+      const response: APIResponse<{
+        document: typeof mockDocument;
+        message: string;
+      }> = {
+        success: true,
+        data: {
+          document: mockDocument,
+          message: 'Dokument uppladdades framgångsrikt'
+        }
+      };
+
+      console.log(`📄 Mock document uploaded: ${documentType} for business ${businessId}`);
+      res.json(response);
+    } catch (error) {
+      console.error('Document upload error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'DOCUMENT_UPLOAD_ERROR',
+          message: 'Failed to upload document'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * @openapi
+ * /api/business/{businessId}/verification/submit:
+ *   post:
+ *     summary: Submit business for verification (MOCK)
+ *     tags: [Business]
+ *     parameters:
+ *       - in: path
+ *         name: businessId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Verification submitted
+ */
+// Submit business for verification (MOCK)
+router.post('/:businessId/verification/submit',
+  [
+    param('businessId').isUUID('4').withMessage('Valid business ID required')
+  ],
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid business ID'
+        }
+      });
+    }
+
+    try {
+      const { businessId } = req.params;
+
+      // Simulate verification submission processing
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Update business status to submitted
+      await db.updateBusiness(businessId, {
+        verification_status: 'submitted',
+        verification_submitted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+
+      // Mock automatic approval for TEST environment
+      setTimeout(async () => {
+        try {
+          await db.updateBusiness(businessId, {
+            verification_status: 'approved',
+            verification_approved_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            status: 'active'
+          });
+          console.log(`🎉 Mock verification approved for business ${businessId}`);
+        } catch (error) {
+          console.error('Mock approval error:', error);
+        }
+      }, 3000); // Auto-approve after 3 seconds for testing
+
+      const response: APIResponse<{
+        status: string;
+        message: string;
+        estimatedReviewTime: string;
+      }> = {
+        success: true,
+        data: {
+          status: 'submitted',
+          message: 'Din ansökan har skickats in för granskning',
+          estimatedReviewTime: '3 sekunder (TEST-läge: automatisk godkännande)'
+        }
+      };
+
+      console.log(`📝 Mock verification submitted for business ${businessId}`);
+      res.json(response);
+    } catch (error) {
+      console.error('Verification submission error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'VERIFICATION_SUBMISSION_ERROR',
+          message: 'Failed to submit verification'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * @openapi
+ * /api/business/{businessId}/verification/approve:
+ *   post:
+ *     summary: Approve business verification (ADMIN MOCK)
+ *     tags: [Business]
+ *     parameters:
+ *       - in: path
+ *         name: businessId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Business approved
+ */
+// Approve business verification (ADMIN MOCK)
+router.post('/:businessId/verification/approve',
+  [
+    param('businessId').isUUID('4').withMessage('Valid business ID required'),
+    body('approvedBy').optional().isString().withMessage('Approved by must be string'),
+    body('notes').optional().isString().withMessage('Notes must be string')
+  ],
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid approval data',
+          details: errors.array()
+        }
+      });
+    }
+
+    try {
+      const { businessId } = req.params;
+      const { approvedBy = 'TEST_ADMIN', notes = 'Automatic TEST approval' } = req.body;
+
+      // Update business to approved status
+      const business = await db.updateBusiness(businessId, {
+        verification_status: 'approved',
+        verification_approved_at: new Date().toISOString(),
+        verification_approved_by: approvedBy,
+        verification_notes: notes,
+        status: 'active',
+        updated_at: new Date().toISOString()
+      });
+
+      const response: APIResponse<{
+        business: typeof business;
+        message: string;
+      }> = {
+        success: true,
+        data: {
+          business,
+          message: 'Företag godkänt och aktiverat'
+        }
+      };
+
+      console.log(`✅ Business ${businessId} approved by ${approvedBy}`);
+      res.json(response);
+    } catch (error) {
+      console.error('Business approval error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'APPROVAL_ERROR',
+          message: 'Failed to approve business'
         }
       });
     }

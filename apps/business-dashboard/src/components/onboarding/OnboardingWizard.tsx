@@ -163,14 +163,74 @@ export function OnboardingWizard() {
     setIsCompleting(true);
     
     try {
-      // Simulate API call to save onboarding data
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Step 1: Create business with Stripe Connect integration
+      console.log('🚀 Creating business with Stripe Connect...');
       
-      // Redirect to dashboard or show success message
-      console.log('Onboarding completed:', data);
+      const businessResponse = await fetch('/api/business', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: data.businessInfo.name,
+          email: data.businessInfo.email,
+          orgNumber: data.businessInfo.organizationNumber,
+          phone: data.businessInfo.phone,
+          address: {
+            street: data.businessInfo.address,
+            city: data.businessInfo.city,
+            postal_code: data.businessInfo.postalCode
+          },
+          createStripeAccount: true, // Enable Stripe Connect TEST mode
+          businessContext: data.businessContext
+        })
+      });
+      
+      if (!businessResponse.ok) {
+        throw new Error('Failed to create business');
+      }
+      
+      const businessData = await businessResponse.json();
+      const businessId = businessData.data.business.id;
+      const onboardingUrl = businessData.data.onboardingUrl;
+      
+      console.log('✅ Business created:', businessId);
+      console.log('💳 Stripe account:', businessData.data.stripeAccountId);
+      
+      // Step 2: Save locations
+      for (const location of data.locations) {
+        console.log('📍 Creating location:', location.name);
+        // Here you would call location creation API
+        await new Promise(resolve => setTimeout(resolve, 500)); // Mock delay
+      }
+      
+      // Step 3: Set up team members (if any)
+      for (const member of data.teamMembers) {
+        console.log('👤 Adding team member:', member.name);
+        // Here you would call user invitation API
+        await new Promise(resolve => setTimeout(resolve, 300)); // Mock delay
+      }
+      
+      // Success - redirect to verification or dashboard
+      console.log('🎉 Onboarding completed successfully!');
+      
+      // Store onboarding completion
+      localStorage.setItem('businessId', businessId);
+      localStorage.setItem('onboardingCompleted', 'true');
+      
+      if (onboardingUrl) {
+        localStorage.setItem('stripeOnboardingUrl', onboardingUrl);
+        alert(`Onboarding complete! \n\nNext step: Complete Stripe Connect setup\n\nBusiness ID: ${businessId}`);
+      } else {
+        alert(`Onboarding complete!\n\nBusiness ID: ${businessId}\n\nYou can now proceed to verification.`);
+      }
+      
+      // In a real app, you would redirect:
+      // router.push(`/verification?businessId=${businessId}`);
       
     } catch (error) {
       console.error('Failed to complete onboarding:', error);
+      alert('Failed to complete onboarding. Please try again.');
     } finally {
       setIsCompleting(false);
     }

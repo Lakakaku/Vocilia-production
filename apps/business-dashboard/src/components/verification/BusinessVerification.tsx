@@ -32,37 +32,74 @@ export function BusinessVerification({}: BusinessVerificationProps) {
   const [uploadingDoc, setUploadingDoc] = useState<DocumentType | null>(null);
 
   useEffect(() => {
-    // Mock data - in real implementation, this would fetch from API
-    setTimeout(() => {
-      setVerification({
-        id: 'verification-1',
-        businessId: 'business-1',
-        status: VerificationStatus.PENDING,
-        documents: [],
-        businessInfo: {
-          legalName: 'Café Aurora AB',
-          organizationNumber: '556123-4567',
-          registeredAddress: 'Storgatan 15, 111 29 Stockholm',
-          contactPerson: 'Emma Larsson',
-          contactEmail: 'emma.larsson@cafearura.se',
-          contactPhone: '+46 8 123 456',
-          businessDescription: 'Kafé och bageri med fokus på ekologiska råvaror och hållbar service',
-          website: 'https://cafearura.se',
-          expectedMonthlyFeedbacks: 500
-        },
-        requiredDocuments: getRequiredDocuments(),
-        createdAt: '2024-08-20T10:00:00Z',
-        updatedAt: '2024-08-20T10:00:00Z'
-      });
-      setIsLoading(false);
-    }, 1000);
+    // Fetch verification data from API
+    const fetchVerification = async () => {
+      try {
+        const businessId = localStorage.getItem('businessId') || 'demo-business-id';
+        
+        const response = await fetch(`/api/business/${businessId}/verification`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch verification data');
+        }
+        
+        const data = await response.json();
+        const verificationData = data.data.verification;
+        
+        setVerification({
+          id: verificationData.id,
+          businessId: verificationData.businessId,
+          status: verificationData.status as VerificationStatus,
+          documents: verificationData.documents.map((doc: any) => ({
+            id: doc.id,
+            type: doc.type,
+            name: doc.name,
+            url: doc.url,
+            uploadedAt: doc.uploadedAt,
+            status: doc.status
+          })),
+          businessInfo: verificationData.businessInfo,
+          requiredDocuments: getRequiredDocuments(),
+          createdAt: verificationData.createdAt,
+          updatedAt: verificationData.updatedAt
+        });
+        
+        console.log('✅ Verification data loaded');
+      } catch (error) {
+        console.error('Failed to fetch verification:', error);
+        // Fall back to mock data
+        setVerification({
+          id: 'verification-fallback',
+          businessId: 'fallback-business-id',
+          status: VerificationStatus.PENDING,
+          documents: [],
+          businessInfo: {
+            legalName: 'Test Business AB',
+            organizationNumber: '556123-4567',
+            registeredAddress: 'Testgatan 123, 111 11 Stockholm',
+            contactPerson: 'Test Person',
+            contactEmail: 'test@example.com',
+            contactPhone: '+46 8 123 456',
+            businessDescription: 'Test business for development',
+            website: 'https://test.example.com',
+            expectedMonthlyFeedbacks: 100
+          },
+          requiredDocuments: getRequiredDocuments(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchVerification();
   }, []);
 
   const handleFileUpload = async (docType: DocumentType, file: File) => {
     setUploadingDoc(docType);
     
     try {
-      // Validate file
+      // Validate file locally first
       const requirements = DOCUMENT_REQUIREMENTS[docType];
       const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
       
@@ -74,27 +111,53 @@ export function BusinessVerification({}: BusinessVerificationProps) {
         throw new Error(`Filen är för stor. Max storlek: ${requirements.maxSize}MB`);
       }
       
-      // Simulate upload
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Upload via API
+      const businessId = verification?.businessId || localStorage.getItem('businessId') || 'demo-business-id';
       
-      const newDocument: VerificationDocument = {
-        id: Date.now().toString(),
-        type: docType,
-        name: file.name,
-        url: URL.createObjectURL(file),
-        uploadedAt: new Date().toISOString(),
-        status: 'uploaded'
+      const response = await fetch(`/api/business/${businessId}/verification/documents`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          documentType: docType,
+          fileName: file.name,
+          fileSize: file.size
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Upload failed');
+      }
+      
+      const uploadData = await response.json();
+      const newDocument = uploadData.data.document;
+      
+      // Convert to VerificationDocument format
+      const verificationDoc: VerificationDocument = {
+        id: newDocument.id,
+        type: newDocument.type,
+        name: newDocument.name,
+        url: newDocument.url,
+        uploadedAt: newDocument.uploadedAt,
+        status: newDocument.status
       };
       
       if (verification) {
         const updatedVerification = {
           ...verification,
-          documents: [...verification.documents.filter(d => d.type !== docType), newDocument],
+          documents: [...verification.documents.filter(d => d.type !== docType), verificationDoc],
           updatedAt: new Date().toISOString()
         };
         setVerification(updatedVerification);
       }
+      
+      console.log(`✅ Document uploaded: ${docType}`);
+      alert(`✅ ${requirements.name} uploaded successfully!`);
+      
     } catch (error) {
+      console.error('Document upload error:', error);
       alert(error instanceof Error ? error.message : 'Fel vid filuppladdning');
     } finally {
       setUploadingDoc(null);
@@ -118,8 +181,21 @@ export function BusinessVerification({}: BusinessVerificationProps) {
     try {
       setIsLoading(true);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const businessId = verification.businessId;
+      
+      const response = await fetch(`/api/business/${businessId}/verification/submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Submission failed');
+      }
+      
+      const submitData = await response.json();
       
       const updatedVerification = {
         ...verification,
@@ -130,8 +206,32 @@ export function BusinessVerification({}: BusinessVerificationProps) {
       
       setVerification(updatedVerification);
       
+      console.log('✅ Verification submitted successfully');
+      alert(`✅ ${submitData.data.message}\n\nEstimerad handläggningstid: ${submitData.data.estimatedReviewTime}`);
+      
+      // Check for auto-approval after a delay
+      setTimeout(async () => {
+        try {
+          const statusResponse = await fetch(`/api/business/${businessId}/verification`);
+          if (statusResponse.ok) {
+            const statusData = await statusResponse.json();
+            if (statusData.data.verification.status === 'approved') {
+              setVerification(prev => prev ? {
+                ...prev,
+                status: VerificationStatus.APPROVED,
+                updatedAt: new Date().toISOString()
+              } : null);
+              alert('🎉 Din ansökan har blivit godkänd! Företaget är nu aktiverat.');
+            }
+          }
+        } catch (error) {
+          console.error('Failed to check approval status:', error);
+        }
+      }, 5000); // Check after 5 seconds
+      
     } catch (error) {
-      alert('Fel vid inskickning av verifiering');
+      console.error('Verification submission error:', error);
+      alert(error instanceof Error ? error.message : 'Fel vid inskickning av verifiering');
     } finally {
       setIsLoading(false);
     }
