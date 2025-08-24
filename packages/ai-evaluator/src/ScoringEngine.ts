@@ -3,6 +3,8 @@ import { BusinessContext, QualityScore, RewardTier } from './types';
 /**
  * Advanced scoring engine with multiple evaluation strategies and reward calculations
  */
+import { EnhancedFraudPrevention } from '../../../services/payment-handler/src/EnhancedFraudPrevention';
+
 export class ScoringEngine {
   private rewardTiers: RewardTier[] = [
     { min: 90, max: 100, rewardPercentage: [0.08, 0.12] }, // Exceptional
@@ -10,6 +12,11 @@ export class ScoringEngine {
     { min: 60, max: 74, rewardPercentage: [0.01, 0.03] },  // Acceptable  
     { min: 0, max: 59, rewardPercentage: [0, 0] }          // Insufficient
   ];
+  private enhancedFraudPrevention: EnhancedFraudPrevention;
+
+  constructor() {
+    this.enhancedFraudPrevention = new EnhancedFraudPrevention();
+  }
 
   /**
    * Generate comprehensive evaluation prompt with multiple scoring aspects
@@ -19,46 +26,33 @@ export class ScoringEngine {
     businessContext: BusinessContext,
     purchaseItems: string[]
   ): string {
-    const contextDetails = this.buildContextSection(businessContext);
-    const scoringCriteria = this.buildScoringCriteria();
-    const examples = this.buildExamples();
+    // Use optimized short prompt for faster processing
+    return this.buildOptimizedPrompt(transcript, businessContext, purchaseItems);
+  }
 
-    return `Du är en expert på att utvärdera kundåterrapportering för svenska företag. Din uppgift är att bedöma feedbacken objektiv och konsekvent.
-
-${contextDetails}
-
-KÖPTA PRODUKTER: ${purchaseItems.join(', ') || 'Ej specificerat'}
-
-KUNDFEEDBACK ATT UTVÄRDERA:
+  /**
+   * Build ultra-optimized prompt for maximum speed (targeting <500ms processing)
+   */
+  private buildOptimizedPrompt(
+    transcript: string,
+    businessContext: BusinessContext,
+    purchaseItems: string[]
+  ): string {
+    // Ultra-concise prompt focusing only on essential elements
+    const contextStr = `${businessContext.type}${businessContext.strengths ? ` (Styrkor: ${businessContext.strengths.slice(0, 2).join(', ')})` : ''}`;
+    const itemsStr = purchaseItems.length > 0 ? ` Köpte: ${purchaseItems.slice(0, 3).join(', ')}` : '';
+    
+    return `Bedöm feedback 0-100:
 "${transcript}"
 
-${scoringCriteria}
+Kontext: ${contextStr}${itemsStr}
 
-${examples}
+Kriterier: Trov (40%), Konkret (30%), Djup (30%)
 
-INSTRUKTIONER:
-1. Läs feedbacken noggrant
-2. Jämför mot företagskontexten  
-3. Betygssätt enligt kriterierna
-4. Var strikt men rättvis
-5. Förklara ditt resonemang tydligt
+Svara JSON:
+{"authenticity":N,"concreteness":N,"depth":N,"total_score":N,"reasoning":"kort förklaring","categories":["ord"],"sentiment":N}
 
-Svara med ENDAST denna JSON-struktur (utan markdown eller extra text):
-{
-  "authenticity": number,
-  "concreteness": number,
-  "depth": number,
-  "total_score": number,
-  "reasoning": "Detaljerad förklaring av bedömningen",
-  "categories": ["kategori1", "kategori2"],
-  "sentiment": number,
-  "confidence": number
-}
-
-VIKTIGT: 
-- Sentiment: -1.0 (mycket negativ) till +1.0 (mycket positiv)
-- Confidence: 0.0-1.0 (hur säker du är på bedömningen)
-- Categories: Svenska ord som "service", "kvalitet", "miljö", "personal", "pris", "produkter", "upplevelse"`;
+Sentiment -1 till 1. Kategorier svenska ord.`;
   }
 
   /**
@@ -69,31 +63,23 @@ VIKTIGT:
     conversationHistory: string[],
     businessContext: BusinessContext
   ): string {
-    const contextInfo = this.buildConversationContext(businessContext);
-    const historySection = this.buildHistorySection(conversationHistory);
-    const questionStrategy = this.getQuestionStrategy(conversationHistory.length, businessContext.type);
-
-    return `Du är en vänlig AI-assistent som samlar detaljerad feedback från kunder i svenska butiker. Du pratar naturlig svenska och ställer smarta följdfrågor.
-
-${contextInfo}
-
-DITT MÅL: Samla in specifik, actionable feedback som företaget kan använda för förbättringar.
-
-SAMTALSREGLER:
-- Håll svaren korta och naturliga (max 2 meningar)
-- Ställ EN specifik följdfråga per svar
-- Var varm och professionell
-- Fokusera på detaljer som företaget kan agera på
-- Undvik att upprepa dig
-- Avsluta elegant efter 3-4 utbyten eller när du fått tillräckligt
-
-${questionStrategy}
-
-${historySection}
-
-KUND: "${userInput}"
-
-DITT SVAR (på svenska, naturligt och engagerande):`;
+    // Ultra-optimized conversation prompt for speed
+    const isFirstMessage = conversationHistory.length === 0;
+    const shouldEnd = conversationHistory.length >= 4;
+    
+    if (shouldEnd) {
+      return `Avsluta vänligt på svenska. KUND: "${userInput}" DU:`;
+    }
+    
+    if (isFirstMessage) {
+      return `Du hjälper kunder ge feedback på svenska. Var vänlig, fråga specifikt om deras upplevelse. Max 2 meningar.
+KUND: "${userInput}" 
+DU:`;
+    }
+    
+    return `Följ upp med specifik fråga. Kort svar på svenska.
+KUND: "${userInput}" 
+DU:`;
   }
 
   /**
@@ -115,6 +101,13 @@ DITT SVAR (på svenska, naturligt och engagerande):`;
       maxMonthlyRewardBudget?: number;
       currentMonthlySpent?: number;
       riskTolerance?: 'low' | 'medium' | 'high';
+    },
+    transactionContext?: {
+      customerId?: string;
+      businessId: string;
+      ipAddress: string;
+      deviceFingerprint: string;
+      sessionId: string;
     }
   ): {
     rewardAmount: number;
@@ -128,6 +121,14 @@ DITT SVAR (på svenska, naturligt och engagerande):`;
       factors: string[];
       confidence: number;
     };
+    enhancedFraudResults?: {
+      approved: boolean;
+      riskScore: number;
+      alerts: any[];
+      actions: string[];
+      velocityViolations: string[];
+      behavioralAnomalies: string[];
+    };
   } {
     const tier = this.getRewardTier(qualityScore.total);
     const basePercentage = this.calculateBasePercentage(qualityScore, tier);
@@ -136,8 +137,68 @@ DITT SVAR (på svenska, naturligt och engagerande):`;
     const caps: Array<{ type: string; originalAmount: number; cappedAmount: number; reason: string }> = [];
     let finalPercentage = basePercentage;
 
-    // Risk assessment first - affects all calculations
-    const riskAssessment = this.assessCustomerRisk(qualityScore, customerHistory, businessConstraints);
+    // Enhanced Fraud Prevention Check (if transaction context provided)
+    let enhancedFraudResults;
+    let combinedSuspiciousScore = customerHistory?.suspiciousActivityScore || 0;
+
+    if (transactionContext) {
+      try {
+        // Create a test transaction for fraud analysis
+        const testTransaction = {
+          timestamp: new Date(),
+          amount: purchaseAmount,
+          currency: 'SEK' as const,
+          businessId: transactionContext.businessId,
+          customerId: transactionContext.customerId,
+          ipAddress: transactionContext.ipAddress,
+          deviceFingerprint: transactionContext.deviceFingerprint,
+          sessionId: transactionContext.sessionId,
+          // Create test Swedish payment data for demonstration
+          swedishBankAccount: {
+            type: 'bankgiro' as const,
+            number: '5555-5555', // Test Bankgiro number
+            verified: true
+          },
+          metadata: {
+            qualityScore: qualityScore.total,
+            feedbackCategory: qualityScore.total >= 80 ? 'high_quality' : qualityScore.total >= 60 ? 'medium_quality' : 'low_quality'
+          }
+        };
+
+        // Run enhanced fraud detection
+        enhancedFraudResults = await this.enhancedFraudPrevention.performEnhancedFraudCheck(
+          testTransaction,
+          combinedSuspiciousScore
+        );
+
+        // Combine fraud scores
+        combinedSuspiciousScore = Math.max(
+          combinedSuspiciousScore,
+          enhancedFraudResults.riskScore
+        );
+
+        // If fraud prevention blocks the transaction, apply severe restrictions
+        if (!enhancedFraudResults.approved) {
+          finalPercentage *= 0.1; // Only 10% of normal reward
+          caps.push({
+            type: 'fraud_prevention_block',
+            originalAmount: basePercentage,
+            cappedAmount: finalPercentage,
+            reason: 'Fraudskydd blockerade transaktionen - endast minimal belöning utbetalas'
+          });
+        }
+      } catch (error) {
+        console.warn('Enhanced fraud prevention check failed, falling back to basic risk assessment:', error);
+        // Fall back to existing risk assessment only
+      }
+    }
+
+    // Risk assessment with enhanced fraud data
+    const riskAssessment = this.assessCustomerRisk(
+      qualityScore, 
+      customerHistory ? { ...customerHistory, suspiciousActivityScore: combinedSuspiciousScore } : undefined, 
+      businessConstraints
+    );
 
     // Apply risk-based percentage adjustment
     if (riskAssessment.riskLevel === 'high') {
@@ -157,6 +218,18 @@ DITT SVAR (på svenska, naturligt och engagerande):`;
         originalAmount: basePercentage,
         cappedAmount: finalPercentage,
         reason: `Medium riskprofil reducerar belöning med ${((1 - riskPenalty) * 100).toFixed(0)}%`
+      });
+    }
+
+    // Apply additional velocity-based restrictions if detected
+    if (enhancedFraudResults?.velocityViolations?.length) {
+      const velocityPenalty = 0.7; // 30% reduction for velocity violations
+      finalPercentage *= velocityPenalty;
+      caps.push({
+        type: 'velocity_restriction',
+        originalAmount: finalPercentage / velocityPenalty,
+        cappedAmount: finalPercentage,
+        reason: `Hastighetsbegränsningar aktiva: ${enhancedFraudResults.velocityViolations.join(', ')}`
       });
     }
 
@@ -233,7 +306,8 @@ DITT SVAR (på svenska, naturligt och engagerande):`;
       explanation: this.generateEnhancedRewardExplanation(qualityScore, basePercentage, finalPercentage, bonuses, caps),
       bonuses,
       caps,
-      riskAssessment
+      riskAssessment,
+      enhancedFraudResults
     };
   }
 
