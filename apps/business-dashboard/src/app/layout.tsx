@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/components/auth/AuthProvider';
+import { PermissionProvider } from '@/contexts/PermissionContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 
 export const metadata: Metadata = {
@@ -17,9 +18,11 @@ export default function RootLayout({
     <html lang="sv">
       <body className="bg-gray-50">
         <AuthProvider>
-          <DashboardLayout>
-            {children}
-          </DashboardLayout>
+          <PermissionProvider>
+            <DashboardLayout>
+              {children}
+            </DashboardLayout>
+          </PermissionProvider>
         </AuthProvider>
       </body>
     </html>

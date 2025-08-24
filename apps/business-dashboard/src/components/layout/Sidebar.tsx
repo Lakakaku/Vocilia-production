@@ -10,17 +10,29 @@ import {
   Store, 
   Users,
   TrendingUp,
+  MapPin,
+  Shield,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Calculator,
+  Gift,
+  FileText,
+  Printer
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3 },
   { name: 'Feedback', href: '/feedback', icon: MessageSquare },
   { name: 'Analytics', href: '/analytics', icon: TrendingUp },
-  { name: 'Customers', href: '/customers', icon: Users },
+  { name: 'ROI-kalkylator', href: '/roi', icon: Calculator },
+  { name: 'Rapporter', href: '/reports', icon: Printer },
+  { name: 'Locations', href: '/locations', icon: MapPin },
+  { name: 'Users', href: '/users', icon: Users },
+  { name: 'Verification', href: '/verification', icon: Shield },
+  { name: 'Kontext-mallar', href: '/templates', icon: FileText },
   { name: 'Store Settings', href: '/settings', icon: Store },
   { name: 'Account', href: '/account', icon: Settings },
+  { name: 'Provperiod', href: '/trial', icon: Gift },
 ];
 
 export function Sidebar() {
