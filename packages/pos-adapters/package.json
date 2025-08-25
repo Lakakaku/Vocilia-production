@@ -1,0 +1,26 @@
+{
+  "name": "@ai-feedback-platform/pos-adapters",
+  "version": "1.0.0",
+  "description": "Universal POS system adapters for Square, Shopify, and Zettle integrations",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-feedback-platform/shared-types": "workspace:*",
+    "axios": "^1.6.0",
+    "crypto": "^1.0.1",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/uuid": "^9.0.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@types/node": "^20.0.0"
+  }
+}
