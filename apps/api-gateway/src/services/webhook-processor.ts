@@ -133,6 +133,11 @@ export class WebhookProcessor {
         case 'orders/paid':
           return await this.processShopifyOrder(webhookEvent);
         
+        case 'orders/cancelled':
+        case 'orders/fulfilled':
+        case 'orders/partially_fulfilled':
+          return await this.processShopifyOrder(webhookEvent);
+        
         case 'orders/refund':
         case 'refunds/create':
           return await this.processShopifyRefund(webhookEvent);
@@ -142,6 +147,16 @@ export class WebhookProcessor {
         
         case 'shop/update':
           return await this.processShopifyShopUpdate(webhookEvent);
+        
+        case 'products/create':
+        case 'products/update':
+        case 'products/delete':
+          return await this.processShopifyProduct(webhookEvent, topic);
+        
+        case 'customers/create':
+        case 'customers/update':
+        case 'customers/delete':
+          return await this.processShopifyCustomer(webhookEvent, topic);
         
         default:
           logger.info(`Unhandled Shopify webhook topic: ${topic}`);
@@ -343,6 +358,63 @@ export class WebhookProcessor {
       return { success: true, data: { shopId: shopData.id } };
     } catch (error) {
       return { success: false, error: `Shop update processing failed: ${error}` };
+    }
+  }
+
+  private async processShopifyProduct(productData: any, topic: string): Promise<WebhookProcessingResult> {
+    try {
+      const action = topic.split('/')[1]; // create, update, or delete
+      
+      logger.info(`Processing Shopify product ${action}: ${productData.id}`);
+      
+      // Store or update product information if needed
+      const productInfo = {
+        provider: 'shopify' as const,
+        productId: productData.id?.toString(),
+        title: productData.title,
+        vendor: productData.vendor,
+        productType: productData.product_type,
+        tags: productData.tags,
+        variants: productData.variants,
+        action,
+        updatedAt: productData.updated_at
+      };
+
+      // You can store this in database or emit events as needed
+      logger.info('Shopify product processed:', productInfo);
+
+      return { success: true, data: productInfo };
+    } catch (error) {
+      return { success: false, error: `Product processing failed: ${error}` };
+    }
+  }
+
+  private async processShopifyCustomer(customerData: any, topic: string): Promise<WebhookProcessingResult> {
+    try {
+      const action = topic.split('/')[1]; // create, update, or delete
+      
+      logger.info(`Processing Shopify customer ${action}: ${customerData.id}`);
+      
+      // Store or update customer information if needed
+      const customerInfo = {
+        provider: 'shopify' as const,
+        customerId: customerData.id?.toString(),
+        email: customerData.email,
+        firstName: customerData.first_name,
+        lastName: customerData.last_name,
+        totalSpent: parseFloat(customerData.total_spent || '0'),
+        ordersCount: customerData.orders_count,
+        action,
+        createdAt: customerData.created_at,
+        updatedAt: customerData.updated_at
+      };
+
+      // You can store this in database or emit events as needed
+      logger.info('Shopify customer processed:', customerInfo);
+
+      return { success: true, data: customerInfo };
+    } catch (error) {
+      return { success: false, error: `Customer processing failed: ${error}` };
     }
   }
 

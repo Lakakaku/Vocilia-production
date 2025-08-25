@@ -7,7 +7,7 @@ import { POSApiError } from '../base/BasePOSAdapter';
 
 // Import concrete adapters
 import { SquareAdapter } from '../adapters/square/SquareAdapter';
-// import { ShopifyAdapter } from '../adapters/shopify/ShopifyAdapter';
+import { ShopifyAdapter } from '../adapters/shopify/ShopifyAdapter';
 // import { ZettleAdapter } from '../adapters/zettle/ZettleAdapter';
 
 export interface AdapterCreationOptions {
@@ -223,16 +223,12 @@ export class POSAdapterFactory {
 
   // Private methods
   private registerDefaultAdapters(): void {
-    // For now, we'll register placeholder adapters
-    // In the next step, we'll implement the actual adapter classes
-    
-    // this.adapterRegistry.set('square', SquareAdapter);
-    // this.adapterRegistry.set('shopify', ShopifyAdapter);
+    // Register actual adapter implementations
+    this.adapterRegistry.set('square', SquareAdapter);
+    this.adapterRegistry.set('shopify', ShopifyAdapter);
     // this.adapterRegistry.set('zettle', ZettleAdapter);
     
-    // Temporary mock adapters for development
-    this.adapterRegistry.set('square', MockAdapter as any);
-    this.adapterRegistry.set('shopify', MockAdapter as any);
+    // Temporary mock adapter for Zettle until implemented
     this.adapterRegistry.set('zettle', MockAdapter as any);
   }
 
