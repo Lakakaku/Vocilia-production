@@ -1,0 +1,163 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'pos-monitoring'
+    environment: 'production'
+    region: 'stockholm'
+
+rule_files:
+  - "pos-alert-rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  # API Gateway POS health endpoints
+  - job_name: 'pos-health'
+    scrape_interval: 30s
+    metrics_path: /pos/health
+    static_configs:
+      - targets: ['api-gateway:3001']
+    scrape_timeout: 10s
+    params:
+      format: ['prometheus']
+
+  # POS-specific metrics from API gateway
+  - job_name: 'pos-metrics'
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metric_relabel_configs:
+      # Only collect POS-related metrics
+      - source_labels: [__name__]
+        regex: 'pos_.*'
+        action: keep
+      - source_labels: [__name__]
+        regex: 'webhook_.*'  
+        action: keep
+
+  # Square POS health checks
+  - job_name: 'square-health'
+    scrape_interval: 60s
+    metrics_path: /pos/health/square
+    static_configs:
+      - targets: ['api-gateway:3001']
+    scrape_timeout: 30s
+
+  # Shopify POS health checks  
+  - job_name: 'shopify-health'
+    scrape_interval: 60s
+    metrics_path: /pos/health/shopify
+    static_configs:
+      - targets: ['api-gateway:3001']
+    scrape_timeout: 30s
+
+  # Zettle POS health checks
+  - job_name: 'zettle-health'
+    scrape_interval: 60s
+    metrics_path: /pos/health/zettle
+    static_configs:
+      - targets: ['api-gateway:3001']
+    scrape_timeout: 30s
+
+  # Webhook health monitoring
+  - job_name: 'webhook-health'
+    scrape_interval: 30s
+    metrics_path: /webhooks/health
+    static_configs:
+      - targets: ['api-gateway:3001']
+
+  # POS Webhook delivery metrics
+  - job_name: 'webhook-deliveries'
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metric_relabel_configs:
+      # Only collect webhook delivery metrics
+      - source_labels: [__name__]
+        regex: '.*webhook.*'
+        action: keep
+      - source_labels: [__name__]
+        regex: '.*delivery.*'
+        action: keep
+
+  # Database health for POS tables
+  - job_name: 'pos-database'
+    scrape_interval: 30s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['business-metrics-exporter:3000']
+    metric_relabel_configs:
+      # Collect database metrics related to POS
+      - source_labels: [__name__]
+        regex: 'database_.*'
+        action: keep
+      - source_labels: [__name__]
+        regex: 'pos_.*'
+        action: keep
+
+  # System metrics for POS processing
+  - job_name: 'pos-system-metrics'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['node-exporter:9100']
+    metric_relabel_configs:
+      # System metrics important for POS processing
+      - source_labels: [__name__]
+        regex: 'node_cpu_seconds_total|node_memory_.*|node_network_.*|node_disk_.*'
+        action: keep
+
+  # Custom POS integration metrics exporter
+  - job_name: 'pos-integration-metrics'
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['pos-metrics-exporter:3004']
+    scrape_timeout: 10s
+
+  # Redis metrics for POS caching
+  - job_name: 'redis-pos'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    metric_relabel_configs:
+      # Redis metrics relevant to POS operations
+      - source_labels: [__name__]
+        regex: 'redis_connected_clients|redis_commands_processed_total|redis_memory_used_bytes'
+        action: keep
+
+  # External POS provider status (if available)
+  - job_name: 'external-pos-status'
+    scrape_interval: 300s  # 5 minutes
+    metrics_path: /status
+    scheme: https
+    static_configs:
+      - targets: 
+        - 'status.squareup.com'
+        - 'status.shopify.com'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: provider
+        regex: 'status\.(.+)\.com'
+        replacement: '${1}'
+
+# Remote write configuration for long-term storage (optional)
+remote_write:
+  - url: "http://prometheus-remote-storage:9090/api/v1/write"
+    queue_config:
+      max_samples_per_send: 10000
+      max_shards: 200
+      capacity: 100000
+
+# Storage configuration
+storage:
+  tsdb:
+    path: /prometheus/data
+    retention.time: 30d
+    retention.size: 10GB

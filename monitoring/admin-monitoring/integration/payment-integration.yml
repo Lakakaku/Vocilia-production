@@ -1,0 +1,288 @@
+# Payment System Integration Configuration
+# Connects admin monitoring with existing payment infrastructure for Swedish pilot
+
+# Payment Prometheus Federation Configuration
+payment_prometheus_federation:
+  job_name: 'federate-payment-system'
+  scrape_interval: 30s
+  scrape_timeout: 15s
+  honor_labels: true
+  metrics_path: '/federate'
+  params:
+    'match[]':
+      # Payment gateway metrics
+      - '{__name__=~"payment_.*"}'
+      - '{__name__=~"stripe_.*"}'
+      - '{__name__=~"swish_.*"}'
+      - '{__name__=~"bankgiro_.*"}'
+      # Swedish pilot payment metrics
+      - '{__name__=~"swedish_pilot_payment_.*"}'
+      # Business financial metrics
+      - '{__name__=~"business_revenue_.*"}'
+      - '{__name__=~"reward_payout_.*"}'
+      # Compliance metrics
+      - '{__name__=~"fi_compliance_.*"}'
+      - '{__name__=~"gdpr_payment_.*"}'
+  static_configs:
+    - targets: ['payments-prometheus:9090']
+  relabel_configs:
+    - source_labels: [__address__]
+      target_label: federated_from
+      replacement: 'payment-prometheus'
+    - source_labels: [__name__]
+      target_label: metric_source
+      replacement: 'payment_system'
+
+# Payment Gateway Direct Scraping
+payment_gateway_scraping:
+  - job_name: 'payment-gateway-live'
+    static_configs:
+      - targets: ['payments-test-gateway:3000']
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'payment-gateway'
+      - source_labels: [__address__]
+        target_label: environment
+        replacement: 'test'
+      - source_labels: [__address__]
+        target_label: swedish_pilot
+        replacement: 'true'
+
+  - job_name: 'finansinspektionen-mock'
+    static_configs:
+      - targets: ['finansinspektionen-mock:3000']
+    scrape_interval: 60s
+    metrics_path: '/metrics'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'fi-compliance'
+      - source_labels: [__address__]
+        target_label: regulator
+        replacement: 'finansinspektionen'
+
+  - job_name: 'payment-compliance-logger'
+    static_configs:
+      - targets: ['compliance-logger:3000']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'payment-compliance'
+
+# Payment Alert Integration Rules
+payment_alert_integration:
+  - alert: AdminPaymentSystemDown
+    expr: up{job="payment-gateway-live"} == 0
+    for: 2m
+    labels:
+      severity: critical
+      team: admin
+      integration: payment_system
+      swedish_pilot: "true"
+    annotations:
+      summary: "Payment system unavailable for Swedish pilot"
+      description: "Payment gateway is down, affecting Swedish pilot business operations"
+      runbook_url: "https://docs.ai-feedback.se/runbooks/payment-system-down"
+      impact: "Swedish businesses cannot process customer rewards"
+
+  - alert: SwedishPilotPaymentVolumeAnomaly
+    expr: |
+      abs(
+        rate(payment_transactions_total{country="sweden"}[1h]) - 
+        rate(payment_transactions_total{country="sweden"}[1h] offset 24h)
+      ) / rate(payment_transactions_total{country="sweden"}[1h] offset 24h) > 0.7
+    for: 30m
+    labels:
+      severity: warning
+      team: pilot_management
+      integration: payment_analytics
+    annotations:
+      summary: "Unusual Swedish pilot payment volume"
+      description: "Payment volume differs by {{ $value | humanizePercentage }} from yesterday"
+
+  - alert: StripeSwedishComplianceIssue
+    expr: stripe_compliance_violations_total{country="sweden"} > 0
+    for: 5m
+    labels:
+      severity: critical
+      team: compliance
+      integration: payment_compliance
+    annotations:
+      summary: "Stripe compliance violation in Swedish operations"
+      description: "{{ $value }} compliance violations detected in Swedish payment processing"
+
+# Payment Data Enrichment for Admin Dashboards
+payment_data_enrichment:
+  # Business financial performance queries
+  business_revenue_query: |
+    sum by (business_id, region) (
+      rate(payment_transactions_total{country="sweden", status="completed"}[24h]) *
+      on(business_id) group_left(region) admin_swedish_pilot_businesses{status="approved_active"}
+    )
+
+  # Regional payment method distribution
+  payment_method_distribution: |
+    sum by (region, payment_method) (
+      rate(payment_transactions_total{country="sweden"}[1h]) *
+      on(business_id) group_left(region) admin_swedish_pilot_businesses
+    )
+
+  # Compliance monitoring integration
+  fi_reporting_status: |
+    max by (business_id) (
+      fi_report_last_submission_timestamp *
+      on(business_id) group_left admin_swedish_pilot_businesses{status="approved_active"}
+    )
+
+# Grafana Dashboard Integration Queries
+grafana_payment_integration:
+  # Payment volume trends for Swedish pilot dashboard
+  - title: "Swedish Pilot Payment Volume"
+    query: |
+      sum(rate(payment_transactions_total{country="sweden"}[5m])) by (region)
+    legend: "{{region}} Transactions/sec"
+
+  # Revenue per business for admin oversight
+  - title: "Business Revenue Performance"
+    query: |
+      topk(10, 
+        sum by (business_name) (
+          rate(payment_amount_total{currency="SEK"}[24h]) *
+          on(business_id) group_left(business_name) admin_swedish_pilot_businesses
+        )
+      )
+    legend: "{{business_name}} SEK/day"
+
+  # Payment method success rates
+  - title: "Payment Method Reliability"
+    query: |
+      rate(payment_transactions_total{status="completed"}[5m]) /
+      rate(payment_transactions_total[5m]) * 100
+    legend: "{{payment_method}} Success Rate %"
+
+# Webhook Integration Configuration
+webhook_integration:
+  stripe_webhook_handler:
+    endpoint: "http://admin-activity-logger:3000/webhooks/stripe"
+    events:
+      - "payment_intent.succeeded"
+      - "payment_intent.payment_failed" 
+      - "invoice.payment_succeeded"
+      - "customer.subscription.created"
+    swedish_pilot_filter: true
+    activity_logging: true
+
+  swish_webhook_handler:
+    endpoint: "http://admin-activity-logger:3000/webhooks/swish"
+    events:
+      - "payment.created"
+      - "payment.paid"
+      - "payment.declined"
+    region_filtering: ["stockholm", "gothenburg", "malmo"]
+    compliance_logging: true
+
+# Database Integration Queries
+database_integration:
+  # Payment data synchronization with admin database
+  payment_sync_queries:
+    - name: "sync_business_payment_metrics"
+      schedule: "*/5 * * * *" # Every 5 minutes
+      query: |
+        INSERT INTO admin_business_payment_metrics (
+          business_id, total_transactions, successful_transactions, 
+          total_amount_sek, last_transaction_at, updated_at
+        )
+        SELECT 
+          bp.business_id,
+          COUNT(*) as total_transactions,
+          COUNT(CASE WHEN bp.status = 'completed' THEN 1 END) as successful_transactions,
+          SUM(bp.amount) as total_amount_sek,
+          MAX(bp.created_at) as last_transaction_at,
+          NOW() as updated_at
+        FROM business_payments bp
+        WHERE bp.created_at >= NOW() - INTERVAL '5 minutes'
+        GROUP BY bp.business_id
+        ON CONFLICT (business_id) DO UPDATE SET
+          total_transactions = EXCLUDED.total_transactions,
+          successful_transactions = EXCLUDED.successful_transactions,
+          total_amount_sek = EXCLUDED.total_amount_sek,
+          last_transaction_at = EXCLUDED.last_transaction_at,
+          updated_at = EXCLUDED.updated_at;
+
+    - name: "sync_compliance_events"
+      schedule: "0 * * * *" # Every hour
+      query: |
+        INSERT INTO admin_compliance_events (
+          business_id, event_type, event_data, fi_reportable, 
+          created_at, swedish_pilot
+        )
+        SELECT 
+          ce.business_id,
+          ce.event_type,
+          ce.event_data,
+          ce.fi_reportable,
+          ce.created_at,
+          true as swedish_pilot
+        FROM compliance_events ce
+        JOIN businesses b ON ce.business_id = b.id
+        WHERE b.pilot_program = true
+          AND ce.created_at >= NOW() - INTERVAL '1 hour';
+
+# Redis Integration for Real-time Data
+redis_integration:
+  # Real-time payment notifications
+  payment_notifications:
+    channel: "admin:payment:notifications"
+    message_format:
+      business_id: "{{ .BusinessID }}"
+      amount: "{{ .Amount }}"
+      currency: "SEK"
+      payment_method: "{{ .PaymentMethod }}"
+      status: "{{ .Status }}"
+      timestamp: "{{ .Timestamp }}"
+      swedish_pilot: true
+
+  # Session data enrichment with payment context
+  session_enrichment:
+    key_pattern: "admin_session:*"
+    enrichment_data:
+      - business_payment_summary
+      - recent_transactions
+      - compliance_status
+      - fi_reporting_status
+
+# Monitoring Integration Health Checks
+health_checks:
+  payment_integration_health:
+    - name: "payment_prometheus_federation"
+      endpoint: "http://admin-prometheus:9090/api/v1/targets"
+      check: |
+        curl -s "$endpoint" | jq '.data.activeTargets[] | select(.labels.job == "federate-payment-system") | .health' | grep -q "up"
+      interval: "30s"
+      
+    - name: "payment_gateway_connectivity"
+      endpoint: "http://payments-test-gateway:3000/health"
+      check: |
+        curl -f -s "$endpoint" | jq -r '.status' | grep -q "healthy"
+      interval: "15s"
+      
+    - name: "fi_compliance_service"
+      endpoint: "http://finansinspektionen-mock:3000/health"
+      check: |
+        curl -f -s "$endpoint" | jq -r '.fi_reporting' | grep -q "active"
+      interval: "60s"
+
+# Environment Variables for Integration
+environment_variables:
+  PAYMENT_PROMETHEUS_URL: "http://payments-prometheus:9090"
+  PAYMENT_GATEWAY_URL: "http://payments-test-gateway:3000"
+  FI_COMPLIANCE_URL: "http://finansinspektionen-mock:3000"
+  STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET}"
+  SWISH_API_KEY: "${SWISH_API_KEY}"
+  PAYMENT_INTEGRATION_ENABLED: "true"
+  SWEDISH_PILOT_PAYMENT_TRACKING: "true"

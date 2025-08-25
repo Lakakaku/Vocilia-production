@@ -1,0 +1,51 @@
+{
+  "name": "business-dashboard-tests",
+  "version": "1.0.0",
+  "description": "Comprehensive Business Dashboard Test Suite",
+  "scripts": {
+    "test": "jest --config=jest.config.js",
+    "test:watch": "jest --config=jest.config.js --watch",
+    "test:coverage": "jest --config=jest.config.js --coverage",
+    "test:components": "jest --config=jest.config.js --testPathPattern=business-dashboard.test.js",
+    "test:integration": "jest --config=jest.config.js --testPathPattern=integration.test.js",
+    "test:cross-browser": "jest --config=jest.config.js --testPathPattern=cross-browser.test.js",
+    "test:performance": "jest --config=jest.config.js --testPathPattern=performance.test.js",
+    "test:headless": "HEADLESS=true npm run test",
+    "test:debug": "HEADLESS=false npm run test",
+    "test:ci": "HEADLESS=true npm run test:coverage",
+    "generate-report": "node generate-test-report.js"
+  },
+  "dependencies": {
+    "puppeteer": "^21.0.0",
+    "puppeteer-firefox": "^0.5.1", 
+    "axios": "^1.5.0",
+    "jest": "^29.7.0",
+    "jest-puppeteer": "^9.0.0",
+    "jest-html-reporter": "^3.10.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.5",
+    "@types/puppeteer": "^7.0.4"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testTimeout": 60000,
+    "setupFilesAfterEnv": ["./test-setup.js"],
+    "testMatch": ["**/*.test.js"],
+    "collectCoverageFrom": [
+      "../../../apps/business-dashboard/src/**/*.{js,jsx,ts,tsx}",
+      "!**/node_modules/**"
+    ],
+    "coverageDirectory": "./coverage",
+    "coverageReporters": ["text", "lcov", "html"],
+    "reporters": [
+      "default",
+      ["jest-html-reporter", {
+        "pageTitle": "Business Dashboard Test Report",
+        "outputPath": "./test-report.html",
+        "includeFailureMsg": true,
+        "includeSuiteFailure": true
+      }]
+    ]
+  }
+}

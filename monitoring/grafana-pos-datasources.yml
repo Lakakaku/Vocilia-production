@@ -1,0 +1,54 @@
+apiVersion: 1
+
+datasources:
+  - name: POS Prometheus
+    type: prometheus
+    access: proxy
+    url: http://pos-prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: 15s
+      queryTimeout: 60s
+      httpMethod: POST
+    secureJsonData: {}
+
+  - name: Main Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    editable: true
+    jsonData:
+      timeInterval: 15s
+      queryTimeout: 60s
+      httpMethod: POST
+    secureJsonData: {}
+
+  - name: Business Metrics
+    type: prometheus
+    access: proxy
+    url: http://business-metrics-exporter:3000
+    editable: true
+    jsonData:
+      timeInterval: 30s
+      queryTimeout: 30s
+    secureJsonData: {}
+
+  - name: POS Logs
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: true
+    jsonData:
+      maxLines: 1000
+      timeout: 60s
+    secureJsonData: {}
+
+  - name: AlertManager
+    type: alertmanager
+    access: proxy
+    url: http://pos-alertmanager:9093
+    editable: false
+    jsonData:
+      implementation: prometheus
+    secureJsonData: {}

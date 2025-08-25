@@ -1,0 +1,386 @@
+version: '3.8'
+
+# Business Dashboard Performance Monitoring Stack
+# Comprehensive performance monitoring for business dashboard
+
+services:
+  # Business Performance Monitor
+  business-performance-monitor:
+    image: alpine:3.18
+    container_name: business-performance-monitor
+    environment:
+      - BUSINESS_DASHBOARD_URL=${BUSINESS_DASHBOARD_URL:-http://business-dashboard:3002}
+      - PROMETHEUS_URL=${PROMETHEUS_URL:-http://prometheus:9090}
+      - GRAFANA_URL=${GRAFANA_URL:-http://grafana:3000}
+      - SLACK_WEBHOOK=${SLACK_PERFORMANCE_WEBHOOK:-}
+      - MONITORING_INTERVAL=${PERFORMANCE_MONITORING_INTERVAL:-300}
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./monitoring:/opt/ai-feedback/monitoring
+      - performance_logs:/var/log/monitoring
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: |
+      sh -c "
+        apk add --no-cache curl jq bc docker-cli bash
+        chmod +x /scripts/business-performance-monitor.sh
+        echo 'Starting business performance monitoring...'
+        /scripts/business-performance-monitor.sh --continuous \$MONITORING_INTERVAL
+      "
+    networks:
+      - ai-feedback-prod
+      - monitoring-network
+    depends_on:
+      - performance-prometheus
+      - performance-node-exporter
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.15'
+          memory: 128M
+
+  # Performance-specific Prometheus
+  performance-prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: performance-prometheus
+    ports:
+      - "9092:9090"
+    volumes:
+      - ./monitoring/prometheus-performance.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/business-dashboard-performance.yml:/etc/prometheus/rules/business-performance.yml:ro
+      - performance_prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--storage.tsdb.retention.size=2GB'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.listen-address=:9090'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      - '--log.level=info'
+    networks:
+      - monitoring-network
+      - ai-feedback-prod
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1GB
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Node Exporter for system metrics
+  performance-node-exporter:
+    image: prom/node-exporter:v1.6.1
+    container_name: performance-node-exporter
+    ports:
+      - "9101:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - monitoring-network
+    restart: unless-stopped
+    deploy:
+      mode: global
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # cAdvisor for container metrics
+  performance-cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: performance-cadvisor
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+    networks:
+      - monitoring-network
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.15'
+          memory: 128M
+
+  # Business-specific metrics exporter
+  business-metrics-exporter:
+    image: node:18-alpine
+    container_name: business-metrics-exporter
+    ports:
+      - "9103:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - NODE_ENV=production
+      - METRICS_PORT=3000
+    volumes:
+      - ./monitoring/business-metrics-exporter.js:/app/exporter.js:ro
+      - business_metrics_logs:/var/log/business-metrics
+    working_dir: /app
+    command: |
+      sh -c "
+        npm init -y
+        npm install express prom-client pg redis
+        node exporter.js
+      "
+    networks:
+      - monitoring-network
+      - ai-feedback-prod
+    depends_on:
+      - performance-prometheus
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Performance alerting service
+  performance-alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: performance-alertmanager
+    ports:
+      - "9094:9093"
+    volumes:
+      - ./monitoring/alertmanager-performance.yml:/etc/alertmanager/alertmanager.yml:ro
+      - performance_alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.listen-address=:9093'
+      - '--web.external-url=http://localhost:9094'
+      - '--log.level=info'
+    networks:
+      - monitoring-network
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.15'
+          memory: 128M
+
+  # Performance Grafana
+  performance-grafana:
+    image: grafana/grafana:10.1.0
+    container_name: performance-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_DOMAIN=${GRAFANA_DOMAIN:-localhost}
+      - GF_SERVER_ROOT_URL=http://${GRAFANA_DOMAIN:-localhost}:3001
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - ./monitoring/grafana-performance-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./monitoring/grafana-performance-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./monitoring:/var/lib/grafana/dashboards:ro
+      - performance_grafana_data:/var/lib/grafana
+    networks:
+      - monitoring-network
+    depends_on:
+      - performance-prometheus
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Load testing service for performance validation
+  performance-load-tester:
+    image: loadimpact/k6:0.46.0
+    container_name: performance-load-tester
+    environment:
+      - BUSINESS_DASHBOARD_URL=${BUSINESS_DASHBOARD_URL:-http://business-dashboard:3002}
+      - LOAD_TEST_SCHEDULE=${LOAD_TEST_SCHEDULE:-0 2 * * *}  # Daily at 2 AM
+    volumes:
+      - ./monitoring/load-test-business.js:/scripts/load-test.js:ro
+      - performance_logs:/var/log/monitoring
+    command: |
+      sh -c "
+        apk add --no-cache dcron curl
+        echo '\$LOAD_TEST_SCHEDULE k6 run /scripts/load-test.js --out json=/var/log/monitoring/load-test-\$(date +%Y%m%d_%H%M%S).json' | crontab -
+        crond -f
+      "
+    networks:
+      - ai-feedback-prod
+      - monitoring-network
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # Performance report generator
+  performance-reporter:
+    image: alpine:3.18
+    container_name: performance-reporter
+    environment:
+      - PROMETHEUS_URL=http://performance-prometheus:9090
+      - GRAFANA_URL=http://performance-grafana:3000
+      - REPORT_SCHEDULE=${PERFORMANCE_REPORT_SCHEDULE:-0 6 * * *}  # Daily at 6 AM
+      - S3_BUCKET=${S3_BACKUP_BUCKET:-ai-feedback-backups-eu-north-1}
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./monitoring:/opt/ai-feedback/monitoring
+      - performance_logs:/var/log/monitoring
+    command: |
+      sh -c "
+        apk add --no-cache curl jq bc dcron aws-cli bash
+        echo '\$REPORT_SCHEDULE /scripts/generate-performance-report.sh' | crontab -
+        crond -f
+      "
+    networks:
+      - monitoring-network
+    depends_on:
+      - performance-prometheus
+      - performance-grafana
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.15'
+          memory: 128M
+
+  # Business dashboard synthetic monitoring
+  synthetic-monitor:
+    image: alpine:3.18
+    container_name: synthetic-monitor
+    environment:
+      - BUSINESS_DASHBOARD_URL=${BUSINESS_DASHBOARD_URL:-http://business-dashboard:3002}
+      - SYNTHETIC_TEST_INTERVAL=${SYNTHETIC_TEST_INTERVAL:-60}  # Every minute
+      - PROMETHEUS_URL=http://performance-prometheus:9090
+    volumes:
+      - ./monitoring/synthetic-tests.sh:/scripts/synthetic-tests.sh:ro
+      - performance_logs:/var/log/monitoring
+    command: |
+      sh -c "
+        apk add --no-cache curl jq bash
+        chmod +x /scripts/synthetic-tests.sh
+        while true; do
+          /scripts/synthetic-tests.sh
+          sleep \$SYNTHETIC_TEST_INTERVAL
+        done
+      "
+    networks:
+      - ai-feedback-prod
+      - monitoring-network
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+volumes:
+  performance_prometheus_data:
+    driver: local
+    driver_opts:
+      type: bind
+      o: bind
+      device: /opt/ai-feedback/monitoring/data/prometheus
+
+  performance_grafana_data:
+    driver: local
+    driver_opts:
+      type: bind
+      o: bind
+      device: /opt/ai-feedback/monitoring/data/grafana
+
+  performance_alertmanager_data:
+    driver: local
+
+  performance_logs:
+    driver: local
+    driver_opts:
+      type: bind
+      o: bind
+      device: /opt/ai-feedback/logs/performance
+
+  business_metrics_logs:
+    driver: local
+
+networks:
+  monitoring-network:
+    external: true
+
+  ai-feedback-prod:
+    external: true

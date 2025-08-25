@@ -1,0 +1,58 @@
+{
+  "name": "stripe-security-tests",
+  "version": "1.0.0",
+  "description": "Comprehensive payment security testing suite for AI Feedback Platform - Swedish market focus",
+  "private": true,
+  "scripts": {
+    "test": "jest --testTimeout=30000 --verbose",
+    "test:pci": "jest --testPathPattern=pci-compliance --testTimeout=30000",
+    "test:fraud": "jest --testPathPattern=fraud-detection --testTimeout=30000",
+    "test:velocity": "jest --testPathPattern=velocity-limits --testTimeout=30000",
+    "test:banking": "jest --testPathPattern=swedish-banking --testTimeout=30000",
+    "test:pentest": "jest --testPathPattern=penetration --testTimeout=30000",
+    "test:encryption": "jest --testPathPattern=data-protection --testTimeout=30000",
+    "test:monitoring": "jest --testPathPattern=security-monitoring --testTimeout=30000",
+    "test:watch": "jest --watch --testTimeout=30000",
+    "test:coverage": "jest --coverage --testTimeout=30000",
+    "security:report": "npm run test:coverage && node generate-security-report.js"
+  },
+  "dependencies": {
+    "stripe": "^14.12.0",
+    "express": "^4.18.2",
+    "crypto": "^1.0.1",
+    "helmet": "^7.1.0",
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "rate-limiter-flexible": "^3.0.8",
+    "node-device-detector": "^2.0.15"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.8",
+    "supertest": "^6.3.3",
+    "nock": "^13.4.0",
+    "puppeteer": "^21.6.1"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "setupFilesAfterEnv": [
+      "<rootDir>/security-test-setup.js"
+    ],
+    "collectCoverageFrom": [
+      "**/*.{js,ts}",
+      "!**/node_modules/**",
+      "!**/coverage/**"
+    ],
+    "coverageReporters": [
+      "text",
+      "lcov",
+      "html",
+      "json-summary"
+    ],
+    "testMatch": [
+      "**/__tests__/**/*.(js|ts)",
+      "**/*.(test|spec).(js|ts)"
+    ],
+    "verbose": true
+  }
+}

@@ -1,0 +1,460 @@
+{{/* Admin Alert Templates for Swedish Pilot Management */}}
+
+{{/* Default admin email template */}}
+{{ define "admin.email.body" }}
+AI Feedback Platform - Admin Alert
+
+Alert: {{ .GroupLabels.alertname }}
+Status: {{ .Status | toUpper }}
+Severity: {{ .CommonLabels.severity }}
+Environment: {{ .CommonLabels.environment | default "production" }}
+
+{{ if .CommonLabels.swedish_pilot }}
+Swedish Pilot: Active
+{{ end }}
+
+Summary:
+{{ range .Alerts }}
+- {{ .Annotations.summary }}
+  Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+  {{ if .Annotations.description }}Description: {{ .Annotations.description }}{{ end }}
+  {{ if .Annotations.runbook_url }}Runbook: {{ .Annotations.runbook_url }}{{ end }}
+{{ end }}
+
+{{ if .CommonLabels.team }}
+Responsible Team: {{ .CommonLabels.team }}
+{{ end }}
+
+Time: {{ now.Format "2006-01-02 15:04:05 MST" }}
+{{ end }}
+
+{{/* HTML email template */}}
+{{ define "admin.email.html" }}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>AI Feedback Admin Alert</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .alert-header { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .alert-critical { border-left: 5px solid #dc3545; }
+        .alert-warning { border-left: 5px solid #ffc107; }
+        .alert-info { border-left: 5px solid #17a2b8; }
+        .alert-details { background-color: #f8f9fa; padding: 10px; margin: 10px 0; border-radius: 3px; }
+        .swedish-pilot { background-color: #004B87; color: white; padding: 5px 10px; border-radius: 3px; display: inline-block; }
+        .timestamp { color: #6c757d; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="alert-header alert-{{ .CommonLabels.severity }}">
+        <h2>🚨 AI Feedback Admin Alert</h2>
+        {{ if .CommonLabels.swedish_pilot }}
+        <span class="swedish-pilot">🇸🇪 Swedish Pilot</span>
+        {{ end }}
+        <h3>{{ .GroupLabels.alertname }} - {{ .Status | toUpper }}</h3>
+    </div>
+
+    <div class="alert-details">
+        <p><strong>Severity:</strong> {{ .CommonLabels.severity | title }}</p>
+        {{ if .CommonLabels.team }}<p><strong>Team:</strong> {{ .CommonLabels.team }}</p>{{ end }}
+        {{ if .CommonLabels.region }}<p><strong>Region:</strong> {{ .CommonLabels.region | title }}</p>{{ end }}
+        {{ if .CommonLabels.service }}<p><strong>Service:</strong> {{ .CommonLabels.service }}</p>{{ end }}
+    </div>
+
+    <h4>Alert Details:</h4>
+    {{ range .Alerts }}
+    <div class="alert-details">
+        <p><strong>Summary:</strong> {{ .Annotations.summary }}</p>
+        {{ if .Annotations.description }}<p><strong>Description:</strong> {{ .Annotations.description }}</p>{{ end }}
+        <p><strong>Started:</strong> {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}</p>
+        {{ if .Annotations.runbook_url }}<p><strong>Runbook:</strong> <a href="{{ .Annotations.runbook_url }}">{{ .Annotations.runbook_url }}</a></p>{{ end }}
+    </div>
+    {{ end }}
+
+    <hr>
+    <p class="timestamp">Generated: {{ now.Format "2006-01-02 15:04:05 MST" }}</p>
+    <p><em>AI Feedback Platform - Admin Monitoring</em></p>
+</body>
+</html>
+{{ end }}
+
+{{/* Slack message template */}}
+{{ define "admin.slack.text" }}
+:warning: *{{ .GroupLabels.alertname }}* - {{ .Status | toUpper }}
+{{ if .CommonLabels.swedish_pilot }}:sweden: *Swedish Pilot Alert*{{ end }}
+
+*Severity:* {{ .CommonLabels.severity | title }}
+{{ if .CommonLabels.team }}*Team:* {{ .CommonLabels.team }}{{ end }}
+{{ if .CommonLabels.region }}*Region:* {{ .CommonLabels.region | title }}{{ end }}
+
+*Details:*
+{{ range .Alerts }}
+• {{ .Annotations.summary }}
+  _Started: {{ .StartsAt.Format "15:04 MST" }}_
+{{ end }}
+
+{{ if .CommonAnnotations.runbook_url }}
+:book: <{{ .CommonAnnotations.runbook_url }}|Runbook>
+{{ end }}
+{{ end }}
+
+{{/* Security alert templates */}}
+{{ define "security.email.body" }}
+🚨 SECURITY ALERT - AI Feedback Platform
+
+Alert: {{ .GroupLabels.alertname }}
+Severity: CRITICAL
+Status: {{ .Status | toUpper }}
+
+{{ range .Alerts }}
+Summary: {{ .Annotations.summary }}
+Description: {{ .Annotations.description }}
+Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+
+{{ if .Labels.ip_address }}Source IP: {{ .Labels.ip_address }}{{ end }}
+{{ if .Labels.user_agent }}User Agent: {{ .Labels.user_agent }}{{ end }}
+{{ if .Labels.username }}Username: {{ .Labels.username }}{{ end }}
+{{ end }}
+
+IMMEDIATE ACTION REQUIRED
+
+{{ if .CommonAnnotations.runbook_url }}
+Runbook: {{ .CommonAnnotations.runbook_url }}
+{{ end }}
+
+Time: {{ now.Format "2006-01-02 15:04:05 MST" }}
+{{ end }}
+
+{{ define "security.slack.text" }}
+🚨 *SECURITY CRITICAL*
+
+*{{ .GroupLabels.alertname }}* - {{ .Status | toUpper }}
+
+{{ range .Alerts }}
+*Summary:* {{ .Annotations.summary }}
+*Description:* {{ .Annotations.description }}
+*Started:* {{ .StartsAt.Format "15:04 MST" }}
+{{ if .Labels.ip_address }}*Source IP:* {{ .Labels.ip_address }}{{ end }}
+{{ end }}
+
+*IMMEDIATE ACTION REQUIRED*
+{{ end }}
+
+{{ define "security.immediate.body" }}
+🚨🚨 IMMEDIATE SECURITY RESPONSE REQUIRED 🚨🚨
+
+Alert: {{ .GroupLabels.alertname }}
+Time: {{ now.Format "2006-01-02 15:04:05 MST" }}
+
+{{ range .Alerts }}
+{{ .Annotations.summary }}
+
+{{ .Annotations.description }}
+
+Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+{{ end }}
+
+This alert requires immediate attention from the security team.
+
+{{ if .CommonAnnotations.runbook_url }}
+Emergency Runbook: {{ .CommonAnnotations.runbook_url }}
+{{ end }}
+{{ end }}
+
+{{/* Swedish Pilot specific templates */}}
+{{ define "pilot.email.body" }}
+🇸🇪 Swedish Pilot Program Alert
+
+Alert: {{ .GroupLabels.alertname }}
+Status: {{ .Status | toUpper }}
+Region: {{ .CommonLabels.region | title }}
+
+{{ range .Alerts }}
+Summary: {{ .Annotations.summary }}
+{{ if .Annotations.description }}Description: {{ .Annotations.description }}{{ end }}
+Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+
+{{ if .Labels.business_name }}Business: {{ .Labels.business_name }}{{ end }}
+{{ if .Labels.tier }}Tier: {{ .Labels.tier }}{{ end }}
+{{ end }}
+
+Swedish Time: {{ now.In (time.LoadLocation "Europe/Stockholm") | date "2006-01-02 15:04:05 MST" }}
+
+{{ if .CommonAnnotations.runbook_url }}
+Runbook: {{ .CommonAnnotations.runbook_url }}
+{{ end }}
+{{ end }}
+
+{{ define "pilot.slack.text" }}
+:sweden: *Swedish Pilot Alert*
+
+*{{ .GroupLabels.alertname }}* - {{ .Status | toUpper }}
+{{ if .CommonLabels.region }}*Region:* {{ .CommonLabels.region | title }}{{ end }}
+
+{{ range .Alerts }}
+• {{ .Annotations.summary }}
+{{ end }}
+
+_Swedish Time: {{ now.In (time.LoadLocation "Europe/Stockholm") | date "15:04 MST" }}_
+{{ end }}
+
+{{ define "pilot.regional.body" }}
+🇸🇪 REGIONAL ALERT - {{ .GroupLabels.region | title }}
+
+Critical issue in {{ .GroupLabels.region | title }} region of Swedish pilot program.
+
+{{ range .Alerts }}
+Alert: {{ .Annotations.summary }}
+Description: {{ .Annotations.description }}
+Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+{{ end }}
+
+Regional managers for {{ .GroupLabels.region | title }} have been notified.
+
+{{ if .CommonAnnotations.runbook_url }}
+Regional Runbook: {{ .CommonAnnotations.runbook_url }}
+{{ end }}
+{{ end }}
+
+{{ define "pilot.business.body" }}
+Business Operations Alert - Swedish Pilot
+
+{{ range .Alerts }}
+{{ .Annotations.summary }}
+
+{{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+
+{{ if .Labels.business_name }}Affected Business: {{ .Labels.business_name }}{{ end }}
+{{ if .Labels.org_number }}Organization Number: {{ .Labels.org_number }}{{ end }}
+{{ if .Labels.region }}Region: {{ .Labels.region | title }}{{ end }}
+{{ if .Labels.tier }}Business Tier: {{ .Labels.tier }}{{ end }}
+
+Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+{{ end }}
+{{ end }}
+
+{{ define "pilot.quality.body" }}
+Quality Assurance Alert - Swedish Pilot
+
+{{ range .Alerts }}
+{{ .Annotations.summary }}
+
+{{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+
+{{ if .Labels.quality_score }}Current Quality Score: {{ .Labels.quality_score }}{{ end }}
+{{ if .Labels.threshold }}Threshold: {{ .Labels.threshold }}{{ end }}
+
+Quality team attention required.
+
+Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+{{ end }}
+{{ end }}
+
+{{/* Compliance templates */}}
+{{ define "compliance.fi.body" }}
+🏛️ Finansinspektionen Compliance Alert
+
+Alert: {{ .GroupLabels.alertname }}
+Status: {{ .Status | toUpper }}
+
+{{ range .Alerts }}
+Summary: {{ .Annotations.summary }}
+Description: {{ .Annotations.description }}
+Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+{{ end }}
+
+This alert relates to Swedish financial regulatory compliance.
+Immediate review by compliance team required.
+
+{{ if .CommonAnnotations.runbook_url }}
+FI Compliance Runbook: {{ .CommonAnnotations.runbook_url }}
+{{ end }}
+{{ end }}
+
+{{ define "compliance.fi.critical.body" }}
+🚨 CRITICAL FINANSINSPEKTIONEN COMPLIANCE ALERT 🚨
+
+Alert: {{ .GroupLabels.alertname }}
+Time: {{ now.Format "2006-01-02 15:04:05 MST" }}
+
+{{ range .Alerts }}
+{{ .Annotations.summary }}
+
+{{ .Annotations.description }}
+{{ end }}
+
+CRITICAL: This alert may impact regulatory compliance with Finansinspektionen.
+CEO and compliance officer have been notified.
+
+Immediate action required to ensure continued regulatory compliance.
+
+{{ if .CommonAnnotations.runbook_url }}
+Emergency FI Compliance Runbook: {{ .CommonAnnotations.runbook_url }}
+{{ end }}
+{{ end }}
+
+{{ define "compliance.gdpr.body" }}
+🛡️ GDPR Data Protection Alert
+
+Alert: {{ .GroupLabels.alertname }}
+Status: {{ .Status | toUpper }}
+
+{{ range .Alerts }}
+Summary: {{ .Annotations.summary }}
+Description: {{ .Annotations.description }}
+Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+
+{{ if .Labels.data_subject_count }}Affected Data Subjects: {{ .Labels.data_subject_count }}{{ end }}
+{{ if .Labels.data_type }}Data Type: {{ .Labels.data_type }}{{ end }}
+{{ end }}
+
+Data Protection Officer has been notified.
+This alert may require notification to supervisory authority.
+
+{{ if .CommonAnnotations.runbook_url }}
+GDPR Incident Runbook: {{ .CommonAnnotations.runbook_url }}
+{{ end }}
+{{ end }}
+
+{{/* Finance templates */}}
+{{ define "finance.email.body" }}
+💰 Finance Alert - AI Feedback Platform
+
+Alert: {{ .GroupLabels.alertname }}
+Status: {{ .Status | toUpper }}
+
+{{ range .Alerts }}
+Summary: {{ .Annotations.summary }}
+{{ if .Annotations.description }}Description: {{ .Annotations.description }}{{ end }}
+Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+
+{{ if .Labels.currency }}Currency: {{ .Labels.currency }}{{ end }}
+{{ if .Labels.amount }}Amount: {{ .Labels.amount }}{{ end }}
+{{ end }}
+
+Finance team review required.
+{{ end }}
+
+{{ define "finance.budget.critical.body" }}
+🚨 CRITICAL BUDGET ALERT 🚨
+
+Alert: {{ .GroupLabels.alertname }}
+Time: {{ now.Format "2006-01-02 15:04:05 MST" }}
+
+{{ range .Alerts }}
+{{ .Annotations.summary }}
+
+{{ .Annotations.description }}
+
+{{ if .Labels.budget_category }}Budget Category: {{ .Labels.budget_category }}{{ end }}
+{{ if .Labels.current_spend }}Current Spend: {{ .Labels.current_spend }}{{ end }}
+{{ if .Labels.budget_limit }}Budget Limit: {{ .Labels.budget_limit }}{{ end }}
+{{ end }}
+
+IMMEDIATE ACTION REQUIRED
+CFO has been notified.
+{{ end }}
+
+{{ define "payment.swish.body" }}
+📱 Swish Payment Alert
+
+Alert: {{ .GroupLabels.alertname }}
+Status: {{ .Status | toUpper }}
+
+{{ range .Alerts }}
+{{ .Annotations.summary }}
+{{ .Annotations.description }}
+
+{{ if .Labels.transaction_id }}Transaction ID: {{ .Labels.transaction_id }}{{ end }}
+{{ if .Labels.amount_sek }}Amount: {{ .Labels.amount_sek }} SEK{{ end }}
+{{ if .Labels.error_code }}Error Code: {{ .Labels.error_code }}{{ end }}
+
+Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+{{ end }}
+
+Swedish payment method issue requires attention.
+{{ end }}
+
+{{/* Admin system templates */}}
+{{ define "admin.system.body" }}
+⚙️ Admin System Alert
+
+Alert: {{ .GroupLabels.alertname }}
+Status: {{ .Status | toUpper }}
+Service: {{ .CommonLabels.service }}
+
+{{ range .Alerts }}
+Summary: {{ .Annotations.summary }}
+{{ if .Annotations.description }}Description: {{ .Annotations.description }}{{ end }}
+Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+{{ end }}
+{{ end }}
+
+{{ define "admin.system.critical.body" }}
+🚨 CRITICAL ADMIN SYSTEM ALERT 🚨
+
+Alert: {{ .GroupLabels.alertname }}
+Service: {{ .CommonLabels.service }}
+Time: {{ now.Format "2006-01-02 15:04:05 MST" }}
+
+{{ range .Alerts }}
+{{ .Annotations.summary }}
+{{ .Annotations.description }}
+
+Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+{{ end }}
+
+On-call admin team has been notified.
+Immediate intervention required.
+{{ end }}
+
+{{ define "admin.performance.body" }}
+📊 Performance Alert - Admin Systems
+
+Alert: {{ .GroupLabels.alertname }}
+Service: {{ .CommonLabels.service }}
+
+{{ range .Alerts }}
+{{ .Annotations.summary }}
+{{ .Annotations.description }}
+
+{{ if .Labels.latency }}Current Latency: {{ .Labels.latency }}{{ end }}
+{{ if .Labels.error_rate }}Error Rate: {{ .Labels.error_rate }}{{ end }}
+
+Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+{{ end }}
+
+Performance team review recommended.
+{{ end }}
+
+{{/* Operations templates */}}
+{{ define "operations.email.body" }}
+🔧 Operations Alert
+
+Alert: {{ .GroupLabels.alertname }}
+Status: {{ .Status | toUpper }}
+Category: {{ .CommonLabels.category }}
+
+{{ range .Alerts }}
+Summary: {{ .Annotations.summary }}
+{{ if .Annotations.description }}Description: {{ .Annotations.description }}{{ end }}
+Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+{{ end }}
+{{ end }}
+
+{{/* Info template */}}
+{{ define "admin.info.body" }}
+ℹ️ Administrative Information
+
+Alert: {{ .GroupLabels.alertname }}
+
+{{ range .Alerts }}
+{{ .Annotations.summary }}
+{{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+{{ end }}
+
+Time: {{ now.Format "2006-01-02 15:04:05 MST" }}
+
+This is an informational alert for administrative awareness.
+{{ end }}

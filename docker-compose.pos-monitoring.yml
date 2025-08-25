@@ -1,0 +1,384 @@
+version: '3.8'
+
+# POS Integration Monitoring Stack
+# Comprehensive monitoring for Square, Shopify, and Zettle POS integrations
+
+services:
+  # POS-specific Prometheus instance
+  pos-prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: pos-prometheus
+    ports:
+      - "9095:9090"
+    volumes:
+      - ./monitoring/prometheus-pos.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/pos-alert-rules.yml:/etc/prometheus/pos-alert-rules.yml:ro
+      - pos_prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=5GB'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.listen-address=:9090'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      - '--log.level=info'
+      - '--alertmanager.notification-queue-capacity=10000'
+    networks:
+      - pos-monitoring-network
+      - ai-feedback-prod
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2GB
+        reservations:
+          cpus: '1.0'
+          memory: 1GB
+
+  # POS-specific Grafana instance
+  pos-grafana:
+    image: grafana/grafana:10.1.0
+    container_name: pos-grafana
+    ports:
+      - "3005:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_POS_ADMIN_PASSWORD:-pos-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_DOMAIN=${GRAFANA_POS_DOMAIN:-localhost}
+      - GF_SERVER_ROOT_URL=http://${GRAFANA_POS_DOMAIN:-localhost}:3005
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource,grafana-piechart-panel
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/pos-overview.json
+    volumes:
+      - ./monitoring/grafana-pos-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./monitoring/grafana-pos-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./monitoring/grafana-pos-dashboard.json:/var/lib/grafana/dashboards/pos-overview.json:ro
+      - pos_grafana_data:/var/lib/grafana
+    networks:
+      - pos-monitoring-network
+    depends_on:
+      - pos-prometheus
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1GB
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # POS metrics exporter
+  pos-metrics-exporter:
+    image: node:18-alpine
+    container_name: pos-metrics-exporter
+    ports:
+      - "3004:3004"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - API_GATEWAY_URL=${API_GATEWAY_URL:-http://api-gateway:3001}
+      - NODE_ENV=production
+      - POS_METRICS_PORT=3004
+      - LOG_LEVEL=info
+    volumes:
+      - ./monitoring/pos-metrics-exporter.js:/app/exporter.js:ro
+      - pos_metrics_logs:/var/log/pos-metrics
+    working_dir: /app
+    command: |
+      sh -c "
+        npm init -y
+        npm install express prom-client pg redis node-fetch winston
+        node exporter.js
+      "
+    networks:
+      - pos-monitoring-network
+      - ai-feedback-prod
+    depends_on:
+      - pos-prometheus
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # POS AlertManager
+  pos-alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: pos-alertmanager
+    ports:
+      - "9096:9093"
+    volumes:
+      - ./monitoring/alertmanager-pos.yml:/etc/alertmanager/alertmanager.yml:ro
+      - pos_alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.listen-address=:9093'
+      - '--web.external-url=http://localhost:9096'
+      - '--log.level=info'
+      - '--cluster.listen-address='
+    networks:
+      - pos-monitoring-network
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # POS health checker service
+  pos-health-checker:
+    image: alpine:3.18
+    container_name: pos-health-checker
+    environment:
+      - API_GATEWAY_URL=${API_GATEWAY_URL:-http://api-gateway:3001}
+      - HEALTH_CHECK_INTERVAL=${POS_HEALTH_CHECK_INTERVAL:-60}
+      - PROMETHEUS_URL=http://pos-prometheus:9090
+      - SLACK_WEBHOOK=${SLACK_POS_WEBHOOK:-}
+    volumes:
+      - ./scripts/pos-health-checker.sh:/scripts/pos-health-checker.sh:ro
+      - pos_health_logs:/var/log/pos-health
+    command: |
+      sh -c "
+        apk add --no-cache curl jq bc bash
+        chmod +x /scripts/pos-health-checker.sh
+        echo 'Starting POS health monitoring...'
+        while true; do
+          /scripts/pos-health-checker.sh
+          sleep \$HEALTH_CHECK_INTERVAL
+        done
+      "
+    networks:
+      - pos-monitoring-network
+      - ai-feedback-prod
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # POS webhook monitor
+  pos-webhook-monitor:
+    image: alpine:3.18
+    container_name: pos-webhook-monitor
+    environment:
+      - API_GATEWAY_URL=${API_GATEWAY_URL:-http://api-gateway:3001}
+      - WEBHOOK_MONITOR_INTERVAL=${POS_WEBHOOK_MONITOR_INTERVAL:-30}
+      - PROMETHEUS_URL=http://pos-prometheus:9090
+      - WEBHOOK_FAILURE_THRESHOLD=${POS_WEBHOOK_FAILURE_THRESHOLD:-5}
+    volumes:
+      - ./scripts/pos-webhook-monitor.sh:/scripts/pos-webhook-monitor.sh:ro
+      - pos_webhook_logs:/var/log/pos-webhooks
+    command: |
+      sh -c "
+        apk add --no-cache curl jq bc bash
+        chmod +x /scripts/pos-webhook-monitor.sh
+        echo 'Starting POS webhook monitoring...'
+        while true; do
+          /scripts/pos-webhook-monitor.sh
+          sleep \$WEBHOOK_MONITOR_INTERVAL
+        done
+      "
+    networks:
+      - pos-monitoring-network
+      - ai-feedback-prod
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # POS synthetic transaction tester
+  pos-synthetic-tester:
+    image: alpine:3.18
+    container_name: pos-synthetic-tester
+    environment:
+      - API_GATEWAY_URL=${API_GATEWAY_URL:-http://api-gateway:3001}
+      - TEST_INTERVAL=${POS_SYNTHETIC_TEST_INTERVAL:-300}
+      - SQUARE_TEST_LOCATION_ID=${SQUARE_TEST_LOCATION_ID:-}
+      - SHOPIFY_TEST_SHOP_DOMAIN=${SHOPIFY_TEST_SHOP_DOMAIN:-}
+      - ZETTLE_TEST_ORG_UUID=${ZETTLE_TEST_ORG_UUID:-}
+    volumes:
+      - ./scripts/pos-synthetic-tester.sh:/scripts/pos-synthetic-tester.sh:ro
+      - pos_synthetic_logs:/var/log/pos-synthetic
+    command: |
+      sh -c "
+        apk add --no-cache curl jq bc bash
+        chmod +x /scripts/pos-synthetic-tester.sh
+        echo 'Starting POS synthetic testing...'
+        while true; do
+          /scripts/pos-synthetic-tester.sh
+          sleep \$TEST_INTERVAL
+        done
+      "
+    networks:
+      - pos-monitoring-network
+      - ai-feedback-prod
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.15'
+          memory: 128M
+
+  # Redis exporter for POS caching metrics
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.50.0
+    container_name: pos-redis-exporter
+    ports:
+      - "9121:9121"
+    environment:
+      - REDIS_ADDR=redis://redis:6379
+      - REDIS_EXPORTER_LOG_FORMAT=json
+    networks:
+      - pos-monitoring-network
+      - ai-feedback-prod
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # POS log aggregator
+  pos-log-aggregator:
+    image: fluent/fluent-bit:2.1
+    container_name: pos-log-aggregator
+    ports:
+      - "24224:24224"
+    volumes:
+      - ./monitoring/fluent-bit-pos.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - pos_health_logs:/var/log/pos-health:ro
+      - pos_webhook_logs:/var/log/pos-webhooks:ro
+      - pos_synthetic_logs:/var/log/pos-synthetic:ro
+      - pos_metrics_logs:/var/log/pos-metrics:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    networks:
+      - pos-monitoring-network
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.15'
+          memory: 128M
+
+  # POS monitoring dashboard
+  pos-monitoring-dashboard:
+    image: nginx:alpine
+    container_name: pos-monitoring-dashboard
+    ports:
+      - "8080:80"
+    volumes:
+      - ./monitoring/pos-dashboard:/usr/share/nginx/html:ro
+      - ./monitoring/nginx-pos.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - pos-monitoring-network
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+volumes:
+  pos_prometheus_data:
+    driver: local
+    driver_opts:
+      type: bind
+      o: bind
+      device: /opt/ai-feedback/monitoring/pos/prometheus-data
+
+  pos_grafana_data:
+    driver: local
+    driver_opts:
+      type: bind
+      o: bind
+      device: /opt/ai-feedback/monitoring/pos/grafana-data
+
+  pos_alertmanager_data:
+    driver: local
+
+  pos_health_logs:
+    driver: local
+
+  pos_webhook_logs:
+    driver: local
+
+  pos_synthetic_logs:
+    driver: local
+
+  pos_metrics_logs:
+    driver: local
+
+networks:
+  pos-monitoring-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+  ai-feedback-prod:
+    external: true

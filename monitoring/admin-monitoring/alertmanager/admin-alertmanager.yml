@@ -1,0 +1,404 @@
+# AlertManager Configuration for Admin Monitoring Infrastructure
+# Swedish Pilot Management Alert Routing and Notification
+
+global:
+  # Default SMTP configuration for Swedish operations
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'admin-alerts@ai-feedback.se'
+  smtp_auth_username: '${SMTP_USERNAME}'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  smtp_require_tls: true
+
+  # Swedish localization
+  smtp_hello: 'ai-feedback.se'
+  
+  # Default notification templates
+  slack_api_url: '${SLACK_ADMIN_WEBHOOK}'
+  
+  # Time zone for Swedish operations
+  resolve_timeout: 5m
+
+# Template configuration
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Main routing configuration
+route:
+  # Default grouping and timing
+  group_by: ['alertname', 'cluster', 'service', 'region']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 1h
+  
+  # Default receiver for all alerts
+  receiver: 'admin-default'
+  
+  # Routing rules
+  routes:
+    # Critical security alerts - immediate notification
+    - match_re:
+        severity: critical
+        team: security
+      receiver: 'security-critical'
+      group_wait: 10s
+      repeat_interval: 15m
+      routes:
+        # Brute force attacks - immediate Slack + email
+        - match:
+            alertname: SuspiciousLoginActivity
+          receiver: 'security-immediate'
+          group_wait: 0s
+          repeat_interval: 5m
+    
+    # Swedish pilot management alerts
+    - match:
+        team: pilot_management
+      receiver: 'pilot-management'
+      group_by: ['alertname', 'region', 'category']
+      group_wait: 1m
+      group_interval: 10m
+      routes:
+        # Regional business issues
+        - match_re:
+            region: stockholm|gothenburg|malmo
+            severity: critical
+          receiver: 'pilot-regional-critical'
+          group_wait: 30s
+        
+        # Business tier and compliance issues
+        - match:
+            category: business_operations
+          receiver: 'pilot-business-ops'
+          
+        # Quality and performance issues
+        - match:
+            category: quality_assurance
+          receiver: 'pilot-quality'
+    
+    # Finansinspektionen compliance alerts
+    - match:
+        regulator: finansinspektionen
+      receiver: 'compliance-fi'
+      group_wait: 0s
+      repeat_interval: 30m
+      routes:
+        - match:
+            severity: critical
+          receiver: 'compliance-fi-critical'
+    
+    # GDPR and data protection alerts
+    - match_re:
+        regulation: gdpr
+        category: data_protection|data_localization
+      receiver: 'compliance-gdpr'
+      group_wait: 0s
+      repeat_interval: 1h
+    
+    # Financial and payment alerts
+    - match:
+        team: finance
+      receiver: 'finance-admin'
+      group_by: ['alertname', 'currency', 'category']
+      routes:
+        - match:
+            severity: critical
+            category: budget_control
+          receiver: 'finance-budget-critical'
+          group_wait: 0s
+        
+        - match:
+            payment_method: swish
+          receiver: 'payment-swish'
+    
+    # Admin system health alerts
+    - match:
+        team: admin
+      receiver: 'admin-system'
+      group_by: ['alertname', 'service', 'category']
+      routes:
+        - match:
+            severity: critical
+          receiver: 'admin-system-critical'
+          group_wait: 0s
+          repeat_interval: 15m
+        
+        - match:
+            category: performance
+          receiver: 'admin-performance'
+    
+    # Operations and infrastructure
+    - match:
+        team: operations
+      receiver: 'operations'
+      routes:
+        - match:
+            category: backup
+            severity: critical
+          receiver: 'operations-backup-critical'
+          
+        - match:
+            category: storage
+            severity: critical
+          receiver: 'operations-storage-critical'
+    
+    # Low priority/informational alerts
+    - match:
+        severity: info
+      receiver: 'admin-info'
+      group_interval: 1h
+      repeat_interval: 24h
+
+# Inhibition rules - suppress redundant alerts
+inhibit_rules:
+  # Suppress warning alerts when critical alerts are firing
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'cluster', 'service', 'instance']
+  
+  # Suppress individual service alerts when whole cluster is down
+  - source_match:
+      alertname: 'AdminServiceDown'
+    target_match_re:
+      alertname: 'Admin.*'
+    equal: ['cluster']
+  
+  # Suppress regional alerts when whole pilot program has issues
+  - source_match:
+      alertname: 'SwedishPilotDown'
+    target_match_re:
+      alertname: '.*Region.*'
+    equal: ['pilot_program']
+
+# Receiver configurations
+receivers:
+  # Default admin alerts
+  - name: 'admin-default'
+    email_configs:
+      - to: 'admin-alerts@ai-feedback.se'
+        subject: '[AI Feedback Admin] {{ .Status | toUpper }} - {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "admin.email.body" . }}
+        html: |
+          {{ template "admin.email.html" . }}
+    
+    slack_configs:
+      - api_url: '${SLACK_ADMIN_WEBHOOK}'
+        channel: '#admin-alerts'
+        username: 'Admin AlertManager'
+        icon_emoji: ':warning:'
+        title: '{{ .Status | toUpper }} - {{ .GroupLabels.alertname }}'
+        text: |
+          {{ template "admin.slack.text" . }}
+
+  # Critical security alerts
+  - name: 'security-critical'
+    email_configs:
+      - to: 'security@ai-feedback.se, admin@ai-feedback.se'
+        subject: '[SECURITY CRITICAL] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "security.email.body" . }}
+        headers:
+          Priority: 'high'
+    
+    slack_configs:
+      - api_url: '${SLACK_SECURITY_WEBHOOK}'
+        channel: '#security-alerts'
+        username: 'Security Alert'
+        icon_emoji: ':rotating_light:'
+        color: 'danger'
+        title: 'SECURITY CRITICAL: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ template "security.slack.text" . }}
+
+  # Immediate security response
+  - name: 'security-immediate'
+    email_configs:
+      - to: 'security-oncall@ai-feedback.se'
+        subject: '[SECURITY IMMEDIATE] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "security.immediate.body" . }}
+    
+    slack_configs:
+      - api_url: '${SLACK_SECURITY_WEBHOOK}'
+        channel: '#security-immediate'
+        username: 'Security Alert'
+        icon_emoji: ':exclamation:'
+        color: 'danger'
+        title: 'IMMEDIATE ACTION REQUIRED: {{ .GroupLabels.alertname }}'
+
+  # Swedish pilot management
+  - name: 'pilot-management'
+    email_configs:
+      - to: 'pilot-management@ai-feedback.se'
+        subject: '[Swedish Pilot] {{ .Status | toUpper }} - {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "pilot.email.body" . }}
+    
+    slack_configs:
+      - api_url: '${SLACK_PILOT_WEBHOOK}'
+        channel: '#swedish-pilot'
+        username: 'Pilot Manager'
+        icon_emoji: ':sweden:'
+        title: 'Swedish Pilot Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ template "pilot.slack.text" . }}
+
+  # Regional critical alerts
+  - name: 'pilot-regional-critical'
+    email_configs:
+      - to: 'pilot-management@ai-feedback.se, regional-managers@ai-feedback.se'
+        subject: '[CRITICAL - {{ .GroupLabels.region | title }}] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "pilot.regional.body" . }}
+    
+    slack_configs:
+      - api_url: '${SLACK_PILOT_WEBHOOK}'
+        channel: '#pilot-regional-{{ .GroupLabels.region }}'
+        username: 'Regional Alert'
+        icon_emoji: ':warning:'
+        color: 'danger'
+
+  # Business operations
+  - name: 'pilot-business-ops'
+    email_configs:
+      - to: 'business-ops@ai-feedback.se'
+        subject: '[Business Ops] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "pilot.business.body" . }}
+
+  # Quality assurance
+  - name: 'pilot-quality'
+    email_configs:
+      - to: 'quality@ai-feedback.se'
+        subject: '[Quality Alert] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "pilot.quality.body" . }}
+
+  # Finansinspektionen compliance
+  - name: 'compliance-fi'
+    email_configs:
+      - to: 'compliance@ai-feedback.se, legal@ai-feedback.se'
+        subject: '[FI Compliance] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "compliance.fi.body" . }}
+    
+    slack_configs:
+      - api_url: '${SLACK_COMPLIANCE_WEBHOOK}'
+        channel: '#compliance-fi'
+        username: 'FI Compliance'
+        icon_emoji: ':classical_building:'
+
+  # Critical FI compliance
+  - name: 'compliance-fi-critical'
+    email_configs:
+      - to: 'compliance@ai-feedback.se, ceo@ai-feedback.se'
+        subject: '[CRITICAL FI COMPLIANCE] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "compliance.fi.critical.body" . }}
+        headers:
+          Priority: 'high'
+
+  # GDPR compliance
+  - name: 'compliance-gdpr'
+    email_configs:
+      - to: 'dpo@ai-feedback.se, compliance@ai-feedback.se'
+        subject: '[GDPR Alert] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "compliance.gdpr.body" . }}
+
+  # Finance administration
+  - name: 'finance-admin'
+    email_configs:
+      - to: 'finance@ai-feedback.se'
+        subject: '[Finance] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "finance.email.body" . }}
+    
+    slack_configs:
+      - api_url: '${SLACK_FINANCE_WEBHOOK}'
+        channel: '#finance-alerts'
+        username: 'Finance Alert'
+        icon_emoji: ':moneybag:'
+
+  # Budget critical alerts
+  - name: 'finance-budget-critical'
+    email_configs:
+      - to: 'finance@ai-feedback.se, cfo@ai-feedback.se'
+        subject: '[BUDGET CRITICAL] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "finance.budget.critical.body" . }}
+
+  # Swish payment alerts
+  - name: 'payment-swish'
+    email_configs:
+      - to: 'payments@ai-feedback.se'
+        subject: '[Swish Payment] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "payment.swish.body" . }}
+
+  # Admin system health
+  - name: 'admin-system'
+    email_configs:
+      - to: 'admin-system@ai-feedback.se'
+        subject: '[Admin System] {{ .Status | toUpper }} - {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "admin.system.body" . }}
+
+  # Critical admin system alerts
+  - name: 'admin-system-critical'
+    email_configs:
+      - to: 'admin-oncall@ai-feedback.se'
+        subject: '[ADMIN CRITICAL] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "admin.system.critical.body" . }}
+
+  # Performance alerts
+  - name: 'admin-performance'
+    email_configs:
+      - to: 'performance@ai-feedback.se'
+        subject: '[Performance] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "admin.performance.body" . }}
+
+  # Operations
+  - name: 'operations'
+    email_configs:
+      - to: 'operations@ai-feedback.se'
+        subject: '[Operations] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "operations.email.body" . }}
+    
+    slack_configs:
+      - api_url: '${SLACK_OPS_WEBHOOK}'
+        channel: '#operations'
+        username: 'Operations'
+        icon_emoji: ':gear:'
+
+  # Critical backup alerts
+  - name: 'operations-backup-critical'
+    email_configs:
+      - to: 'backup-oncall@ai-feedback.se'
+        subject: '[BACKUP CRITICAL] {{ .GroupLabels.alertname }}'
+
+  # Critical storage alerts
+  - name: 'operations-storage-critical'
+    email_configs:
+      - to: 'storage-oncall@ai-feedback.se'
+        subject: '[STORAGE CRITICAL] {{ .GroupLabels.alertname }}'
+
+  # Informational alerts
+  - name: 'admin-info'
+    email_configs:
+      - to: 'admin-info@ai-feedback.se'
+        subject: '[Info] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "admin.info.body" . }}
+    
+    slack_configs:
+      - api_url: '${SLACK_ADMIN_WEBHOOK}'
+        channel: '#admin-info'
+        username: 'Admin Info'
+        icon_emoji: ':information_source:'
+        color: 'good'

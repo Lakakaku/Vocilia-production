@@ -1,0 +1,424 @@
+# Location-Specific Monitoring and Alerting Configuration
+# Prometheus AlertManager rules for geo-distributed business locations
+
+global:
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'alerts@feedback.your-domain.com'
+  smtp_auth_username: 'alerts@feedback.your-domain.com'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+
+# Route configuration for location-based alerts
+route:
+  group_by: ['region', 'business_id', 'location_id']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 12h
+  receiver: 'default'
+  
+  routes:
+    # Regional infrastructure alerts
+    - match:
+        severity: critical
+        alert_type: infrastructure
+      group_by: ['region', 'datacenter']
+      receiver: 'infrastructure-critical'
+      group_wait: 10s
+      repeat_interval: 5m
+      
+    # Business location alerts
+    - match:
+        alert_type: business_location
+      group_by: ['business_id', 'location_id', 'region']
+      receiver: 'business-location'
+      group_wait: 30s
+      repeat_interval: 30m
+      
+    # QR code generation alerts
+    - match:
+        alert_type: qr_generation
+      group_by: ['region', 'location_id']
+      receiver: 'qr-generation'
+      group_wait: 15s
+      repeat_interval: 15m
+      
+    # Performance alerts by region
+    - match:
+        alert_type: performance
+      group_by: ['region', 'service']
+      receiver: 'performance-alerts'
+      routes:
+        - match:
+            region: stockholm
+          receiver: 'performance-stockholm'
+        - match:
+            region: gothenburg
+          receiver: 'performance-gothenburg'
+        - match:
+            region: malmo
+          receiver: 'performance-malmo'
+
+# Alert receivers configuration
+receivers:
+  # Default receiver
+  - name: 'default'
+    email_configs:
+      - to: 'devops@feedback.your-domain.com'
+        subject: '[AI Feedback Platform] {{ .GroupLabels.region | title }} - {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Region: {{ .Labels.region }}
+          Severity: {{ .Labels.severity }}
+          {{ if .Labels.business_id }}Business ID: {{ .Labels.business_id }}{{ end }}
+          {{ if .Labels.location_id }}Location ID: {{ .Labels.location_id }}{{ end }}
+          {{ end }}
+
+  # Critical infrastructure alerts
+  - name: 'infrastructure-critical'
+    email_configs:
+      - to: 'infrastructure@feedback.your-domain.com,oncall@feedback.your-domain.com'
+        subject: '[CRITICAL] {{ .GroupLabels.region | title }} Infrastructure Alert'
+        body: |
+          🚨 CRITICAL INFRASTRUCTURE ALERT 🚨
+          
+          Region: {{ .GroupLabels.region | title }}
+          Datacenter: {{ .GroupLabels.datacenter }}
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Started: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          Labels: {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
+          {{ end }}
+          
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#infrastructure-alerts'
+        color: 'danger'
+        title: 'Critical Infrastructure Alert - {{ .GroupLabels.region | title }}'
+        text: |
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          Region: {{ .Labels.region }}
+          {{ end }}
+
+  # Business location alerts
+  - name: 'business-location'
+    email_configs:
+      - to: 'business-support@feedback.your-domain.com'
+        subject: '[Business Location] {{ .GroupLabels.region | title }} - Location {{ .GroupLabels.location_id }}'
+        body: |
+          Business Location Alert
+          
+          Region: {{ .GroupLabels.region | title }}
+          Business ID: {{ .GroupLabels.business_id }}
+          Location ID: {{ .GroupLabels.location_id }}
+          
+          {{ range .Alerts }}
+          Issue: {{ .Annotations.summary }}
+          Details: {{ .Annotations.description }}
+          Impact: {{ .Annotations.impact }}
+          {{ if .Annotations.resolution_steps }}
+          Resolution Steps:
+          {{ .Annotations.resolution_steps }}
+          {{ end }}
+          {{ end }}
+    
+    webhook_configs:
+      - url: 'https://api.feedback.your-domain.com/webhooks/business-alerts'
+        send_resolved: true
+        http_config:
+          bearer_token: '${WEBHOOK_TOKEN}'
+
+  # QR code generation alerts
+  - name: 'qr-generation'
+    email_configs:
+      - to: 'qr-support@feedback.your-domain.com'
+        subject: '[QR Generation] {{ .GroupLabels.region | title }} - Location {{ .GroupLabels.location_id }}'
+    
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#qr-alerts'
+        color: 'warning'
+        title: 'QR Code Generation Issue'
+        text: |
+          {{ range .Alerts }}
+          Region: {{ .Labels.region }}
+          Location: {{ .Labels.location_id }}
+          Issue: {{ .Annotations.summary }}
+          {{ end }}
+
+  # Performance alerts - Stockholm
+  - name: 'performance-stockholm'
+    email_configs:
+      - to: 'stockholm-ops@feedback.your-domain.com'
+        subject: '[Performance] Stockholm Region - {{ .GroupLabels.service }}'
+    
+    pagerduty_configs:
+      - routing_key: '${PAGERDUTY_STOCKHOLM_KEY}'
+        description: 'Performance issue in Stockholm region'
+
+  # Performance alerts - Gothenburg  
+  - name: 'performance-gothenburg'
+    email_configs:
+      - to: 'gothenburg-ops@feedback.your-domain.com'
+        subject: '[Performance] Gothenburg Region - {{ .GroupLabels.service }}'
+    
+    pagerduty_configs:
+      - routing_key: '${PAGERDUTY_GOTHENBURG_KEY}'
+        description: 'Performance issue in Gothenburg region'
+
+  # Performance alerts - Malmö
+  - name: 'performance-malmo'
+    email_configs:
+      - to: 'malmo-ops@feedback.your-domain.com'
+        subject: '[Performance] Malmö Region - {{ .GroupLabels.service }}'
+    
+    pagerduty_configs:
+      - routing_key: '${PAGERDUTY_MALMO_KEY}'
+        description: 'Performance issue in Malmö region'
+
+  # General performance alerts
+  - name: 'performance-alerts'
+    email_configs:
+      - to: 'performance@feedback.your-domain.com'
+        subject: '[Performance] {{ .GroupLabels.region | title }} - {{ .GroupLabels.service }}'
+
+# Inhibition rules to prevent alert spam
+inhibit_rules:
+  # Inhibit location-specific alerts when region is down
+  - source_match:
+      severity: 'critical'
+      alert_type: 'infrastructure'
+    target_match:
+      alert_type: 'business_location'
+    equal: ['region']
+    
+  # Inhibit QR generation alerts when location service is down
+  - source_match:
+      alertname: 'LocationServiceDown'
+    target_match:
+      alert_type: 'qr_generation'
+    equal: ['region', 'location_id']
+
+# Templates for Swedish localization
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+---
+# Location-specific Prometheus rules
+# File: location-monitoring.rules.yml
+
+groups:
+  - name: location.infrastructure
+    rules:
+      # Regional datacenter health
+      - alert: RegionalDatacenterDown
+        expr: up{job="location-router"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          alert_type: infrastructure
+        annotations:
+          summary: "Regional datacenter {{ $labels.region }} is down"
+          description: "The {{ $labels.region }} datacenter has been unreachable for more than 30 seconds"
+          impact: "All businesses in {{ $labels.region }} region affected"
+          resolution_steps: |
+            1. Check datacenter connectivity
+            2. Verify load balancer health
+            3. Activate failover to nearest region
+            4. Notify affected businesses
+
+      # Redis cluster health per region
+      - alert: RegionalRedisDown
+        expr: redis_up{region!=""} == 0
+        for: 1m
+        labels:
+          severity: critical
+          alert_type: infrastructure
+        annotations:
+          summary: "Redis cluster down in {{ $labels.region }}"
+          description: "Redis cluster in {{ $labels.region }} has been down for more than 1 minute"
+
+      # Cross-region sync issues
+      - alert: CrossRegionSyncFailure
+        expr: increase(region_sync_failures_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          alert_type: infrastructure
+        annotations:
+          summary: "Cross-region synchronization failing"
+          description: "Region sync has failed {{ $value }} times in the last 5 minutes"
+
+  - name: location.business
+    rules:
+      # Business location offline
+      - alert: BusinessLocationOffline
+        expr: location_health{status="offline"} == 1
+        for: 2m
+        labels:
+          severity: critical
+          alert_type: business_location
+        annotations:
+          summary: "Business location {{ $labels.location_name }} is offline"
+          description: "Location {{ $labels.location_id }} in {{ $labels.region }} has been offline for 2+ minutes"
+          impact: "Customers cannot access feedback system at this location"
+          resolution_steps: |
+            1. Check location network connectivity
+            2. Verify QR code accessibility
+            3. Test API endpoints for this location
+            4. Contact business if issue persists
+
+      # High error rate at specific location
+      - alert: LocationHighErrorRate
+        expr: |
+          (
+            rate(location_requests_total{status=~"5.."}[5m]) /
+            rate(location_requests_total[5m])
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          alert_type: business_location
+        annotations:
+          summary: "High error rate at location {{ $labels.location_name }}"
+          description: "Location {{ $labels.location_id }} has {{ $value | humanizePercentage }} error rate"
+
+      # Location QR code generation failing
+      - alert: LocationQRGenerationFailing
+        expr: increase(qr_generation_failures_total{location_id!=""}[5m]) > 3
+        for: 1m
+        labels:
+          severity: warning
+          alert_type: qr_generation
+        annotations:
+          summary: "QR generation failing for location {{ $labels.location_id }}"
+          description: "QR code generation has failed {{ $value }} times in 5 minutes"
+
+  - name: location.performance
+    rules:
+      # Regional latency alerts
+      - alert: RegionalHighLatency
+        expr: |
+          histogram_quantile(0.95, 
+            rate(location_request_duration_seconds_bucket[5m])
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          alert_type: performance
+        annotations:
+          summary: "High latency in {{ $labels.region }} region"
+          description: "95th percentile latency is {{ $value }}s in {{ $labels.region }}"
+
+      # Location-specific performance
+      - alert: LocationSlowResponse
+        expr: |
+          histogram_quantile(0.90,
+            rate(location_response_duration_seconds_bucket{location_id!=""}[5m])
+          ) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          alert_type: performance
+        annotations:
+          summary: "Slow response at location {{ $labels.location_name }}"
+          description: "90th percentile response time is {{ $value }}s for location {{ $labels.location_id }}"
+
+      # Regional capacity alerts
+      - alert: RegionalCapacityHigh
+        expr: location_concurrent_sessions{region!=""} > 800
+        for: 2m
+        labels:
+          severity: warning
+          alert_type: performance
+        annotations:
+          summary: "High capacity usage in {{ $labels.region }}"
+          description: "{{ $labels.region }} region has {{ $value }} concurrent sessions (>80% capacity)"
+
+  - name: location.qr_codes
+    rules:
+      # QR code cache hit rate low
+      - alert: QRCacheHitRateLow
+        expr: |
+          (
+            rate(qr_cache_hits_total[5m]) /
+            (rate(qr_cache_hits_total[5m]) + rate(qr_cache_misses_total[5m]))
+          ) < 0.7
+        for: 5m
+        labels:
+          severity: warning
+          alert_type: qr_generation
+        annotations:
+          summary: "Low QR cache hit rate in {{ $labels.region }}"
+          description: "QR cache hit rate is {{ $value | humanizePercentage }} in {{ $labels.region }}"
+
+      # QR code validation failures
+      - alert: QRValidationFailures
+        expr: increase(qr_validation_failures_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning  
+          alert_type: qr_generation
+        annotations:
+          summary: "High QR validation failure rate"
+          description: "{{ $value }} QR validation failures in last 5 minutes"
+
+  - name: location.security
+    rules:
+      # Unusual geographic access patterns
+      - alert: UnusualGeographicAccess
+        expr: increase(location_access_unusual_geo_total[10m]) > 5
+        for: 1m
+        labels:
+          severity: warning
+          alert_type: security
+        annotations:
+          summary: "Unusual geographic access pattern detected"
+          description: "{{ $value }} unusual geographic accesses detected in {{ $labels.region }}"
+
+      # Location spoofing attempts
+      - alert: LocationSpoofingAttempts
+        expr: increase(location_spoofing_attempts_total[5m]) > 3
+        for: 1m
+        labels:
+          severity: critical
+          alert_type: security
+        annotations:
+          summary: "Location spoofing attempts detected"
+          description: "{{ $value }} location spoofing attempts in {{ $labels.region }}"
+
+  - name: location.business_metrics
+    rules:
+      # Low customer engagement per location
+      - alert: LocationLowEngagement
+        expr: |
+          (
+            rate(feedback_sessions_completed_total{location_id!=""}[1h]) /
+            rate(feedback_sessions_started_total{location_id!=""}[1h])
+          ) < 0.3
+        for: 30m
+        labels:
+          severity: warning
+          alert_type: business_location
+        annotations:
+          summary: "Low customer engagement at {{ $labels.location_name }}"
+          description: "Completion rate is {{ $value | humanizePercentage }} at location {{ $labels.location_id }}"
+
+      # Location revenue impact
+      - alert: LocationRevenueDown
+        expr: |
+          (
+            rate(location_revenue_sek_total[1h]) - 
+            rate(location_revenue_sek_total[1h] offset 7d)
+          ) / rate(location_revenue_sek_total[1h] offset 7d) < -0.2
+        for: 2h
+        labels:
+          severity: warning
+          alert_type: business_location
+        annotations:
+          summary: "Revenue decline at {{ $labels.location_name }}"
+          description: "Revenue down {{ $value | humanizePercentage }} vs last week at location {{ $labels.location_id }}"

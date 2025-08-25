@@ -1,0 +1,278 @@
+groups:
+  - name: pos-health-alerts
+    rules:
+      # POS API connectivity alerts
+      - alert: POSProviderDown
+        expr: pos_connection_status == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: pos-connectivity
+        annotations:
+          summary: "POS Provider {{ $labels.provider }} is down"
+          description: "POS provider {{ $labels.provider }} for business {{ $labels.business_id }} has been unreachable for more than 2 minutes."
+          action: "Check POS provider status page and API credentials"
+          runbook_url: "https://docs.ai-feedback-platform.com/runbooks/pos-connectivity"
+
+      - alert: POSAuthenticationFailure
+        expr: pos_auth_status == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: pos-authentication
+        annotations:
+          summary: "POS authentication failed for {{ $labels.provider }}"
+          description: "Authentication failure detected for {{ $labels.provider }} provider (business: {{ $labels.business_id }}). Tokens may be expired or invalid."
+          action: "Check OAuth tokens and refresh if needed"
+          runbook_url: "https://docs.ai-feedback-platform.com/runbooks/pos-authentication"
+
+      # POS API performance alerts
+      - alert: POSHighResponseTime
+        expr: histogram_quantile(0.95, rate(pos_api_response_time_seconds_bucket[5m])) > 10
+        for: 3m
+        labels:
+          severity: warning
+          category: pos-performance
+        annotations:
+          summary: "High POS API response times for {{ $labels.provider }}"
+          description: "95th percentile response time for {{ $labels.provider }} is {{ $value }}s (>10s threshold)"
+          action: "Check POS provider status and network connectivity"
+
+      - alert: POSHighErrorRate
+        expr: pos_error_rate_percent > 25
+        for: 5m
+        labels:
+          severity: warning
+          category: pos-reliability
+        annotations:
+          summary: "High error rate for POS provider {{ $labels.provider }}"
+          description: "Error rate for {{ $labels.provider }} is {{ $value }}% over the last 5 minutes (>25% threshold)"
+          action: "Investigate recent API calls and error logs"
+
+      - alert: POSCriticalErrorRate
+        expr: pos_error_rate_percent > 50
+        for: 2m
+        labels:
+          severity: critical
+          category: pos-reliability
+        annotations:
+          summary: "Critical error rate for POS provider {{ $labels.provider }}"
+          description: "Error rate for {{ $labels.provider }} is {{ $value }}% over the last 2 minutes (>50% threshold)"
+          action: "Immediate investigation required - check provider status and credentials"
+
+      # Rate limiting alerts
+      - alert: POSRateLimitApproaching
+        expr: pos_rate_limit_remaining < 100
+        for: 0m
+        labels:
+          severity: warning
+          category: pos-rate-limit
+        annotations:
+          summary: "POS API rate limit approaching for {{ $labels.provider }}"
+          description: "Only {{ $value }} API calls remaining for {{ $labels.provider }}"
+          action: "Reduce API call frequency or wait for rate limit reset"
+
+      - alert: POSRateLimitExceeded
+        expr: pos_rate_limit_remaining == 0
+        for: 0m
+        labels:
+          severity: critical
+          category: pos-rate-limit
+        annotations:
+          summary: "POS API rate limit exceeded for {{ $labels.provider }}"
+          description: "Rate limit has been exceeded for {{ $labels.provider }}. API calls will fail until reset."
+          action: "Wait for rate limit reset and implement backoff strategy"
+
+  - name: webhook-alerts
+    rules:
+      # Webhook delivery alerts
+      - alert: WebhookDeliveryFailure
+        expr: rate(pos_webhook_deliveries_total{status="failed"}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          category: webhook-reliability
+        annotations:
+          summary: "High webhook delivery failure rate for {{ $labels.provider }}"
+          description: "Webhook delivery failure rate for {{ $labels.provider }} is {{ $value }}/min over the last 5 minutes"
+          action: "Check webhook endpoint accessibility and processing errors"
+
+      - alert: WebhookProcessingTimeout
+        expr: histogram_quantile(0.95, rate(pos_webhook_processing_time_seconds_bucket[5m])) > 30
+        for: 3m
+        labels:
+          severity: warning
+          category: webhook-performance
+        annotations:
+          summary: "Slow webhook processing for {{ $labels.provider }}"
+          description: "95th percentile webhook processing time for {{ $labels.provider }} is {{ $value }}s (>30s threshold)"
+          action: "Check webhook processing logic and database performance"
+
+      - alert: WebhookRetryExhaustion
+        expr: increase(pos_webhook_retries_total[1h]) > 50
+        for: 0m
+        labels:
+          severity: critical
+          category: webhook-reliability
+        annotations:
+          summary: "Excessive webhook retries for {{ $labels.provider }}"
+          description: "{{ $value }} webhook retries in the last hour for {{ $labels.provider }}"
+          action: "Investigate webhook processing issues and fix underlying problems"
+
+      - alert: NoWebhookDeliveries
+        expr: rate(pos_webhook_deliveries_total[15m]) == 0 and time() - pos_last_webhook_timestamp > 1800
+        for: 5m
+        labels:
+          severity: warning
+          category: webhook-availability
+        annotations:
+          summary: "No webhook deliveries received from {{ $labels.provider }}"
+          description: "No webhook deliveries from {{ $labels.provider }} in the last 30 minutes"
+          action: "Check webhook configuration and provider settings"
+
+  - name: transaction-verification-alerts
+    rules:
+      # Transaction verification alerts
+      - alert: TransactionVerificationFailure
+        expr: rate(pos_transaction_verifications_total{result="error"}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          category: transaction-verification
+        annotations:
+          summary: "High transaction verification error rate for {{ $labels.provider }}"
+          description: "Transaction verification error rate for {{ $labels.provider }} is {{ $value }}/min"
+          action: "Check transaction verification logic and API connectivity"
+
+      - alert: TransactionNotFoundHigh
+        expr: rate(pos_transaction_verifications_total{result="not_found"}[5m]) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          category: transaction-verification
+        annotations:
+          summary: "High transaction not found rate for {{ $labels.provider }}"
+          description: "Transaction not found rate for {{ $labels.provider }} is {{ $value }}/min over 5 minutes"
+          action: "Check transaction sync timing and search criteria"
+
+      - alert: SlowTransactionVerification
+        expr: histogram_quantile(0.95, rate(pos_transaction_verification_time_seconds_bucket[5m])) > 5
+        for: 3m
+        labels:
+          severity: warning
+          category: transaction-performance
+        annotations:
+          summary: "Slow transaction verification for {{ $labels.provider }}"
+          description: "95th percentile transaction verification time for {{ $labels.provider }} is {{ $value }}s"
+          action: "Check POS API performance and network latency"
+
+  - name: pos-business-health-alerts
+    rules:
+      # Business connection health alerts
+      - alert: BusinessConnectionUnhealthy
+        expr: pos_business_connection_health < 50
+        for: 5m
+        labels:
+          severity: warning
+          category: business-health
+        annotations:
+          summary: "Unhealthy POS connection for business {{ $labels.business_id }}"
+          description: "POS connection health score for business {{ $labels.business_id }} ({{ $labels.provider }}) is {{ $value }}/100"
+          action: "Check business-specific POS credentials and configuration"
+
+      - alert: MultipleBusinessConnectionFailures
+        expr: count(pos_business_connection_health < 50) > 5
+        for: 3m
+        labels:
+          severity: critical
+          category: platform-health
+        annotations:
+          summary: "Multiple business POS connections unhealthy"
+          description: "{{ $value }} businesses have unhealthy POS connections"
+          action: "Investigate platform-wide POS integration issues"
+
+  - name: pos-oauth-alerts
+    rules:
+      # OAuth token expiry alerts
+      - alert: OAuthTokenExpiringSoon
+        expr: (pos_oauth_token_expiry_timestamp - time()) < 86400  # 24 hours
+        for: 0m
+        labels:
+          severity: warning
+          category: oauth-management
+        annotations:
+          summary: "OAuth token expiring soon for {{ $labels.provider }}"
+          description: "OAuth token for {{ $labels.provider }} (business: {{ $labels.business_id }}) expires in less than 24 hours"
+          action: "Refresh OAuth token using refresh token or re-authenticate"
+
+      - alert: OAuthTokenExpired
+        expr: pos_oauth_token_expiry_timestamp < time()
+        for: 0m
+        labels:
+          severity: critical
+          category: oauth-management
+        annotations:
+          summary: "OAuth token expired for {{ $labels.provider }}"
+          description: "OAuth token for {{ $labels.provider }} (business: {{ $labels.business_id }}) has expired"
+          action: "Immediately refresh token or re-authenticate to restore service"
+
+  - name: pos-sync-alerts
+    rules:
+      # POS data sync alerts
+      - alert: POSSyncFailure
+        expr: rate(pos_sync_operations_total{status="error"}[10m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          category: pos-sync
+        annotations:
+          summary: "POS sync failures for {{ $labels.provider }}"
+          description: "POS sync failure rate for {{ $labels.provider }} ({{ $labels.sync_type }}) is {{ $value }}/min"
+          action: "Check sync process logs and POS API connectivity"
+
+      - alert: POSSyncStalled
+        expr: time() - pos_last_successful_sync_timestamp > 3600  # 1 hour
+        for: 0m
+        labels:
+          severity: critical
+          category: pos-sync
+        annotations:
+          summary: "POS sync stalled for {{ $labels.provider }}"
+          description: "No successful POS sync for {{ $labels.provider }} in over 1 hour"
+          action: "Investigate sync process and restart if necessary"
+
+      - alert: SlowPOSSync
+        expr: histogram_quantile(0.95, rate(pos_sync_duration_seconds_bucket[10m])) > 300  # 5 minutes
+        for: 5m
+        labels:
+          severity: warning
+          category: pos-sync-performance
+        annotations:
+          summary: "Slow POS sync for {{ $labels.provider }}"
+          description: "95th percentile POS sync duration for {{ $labels.provider }} is {{ $value }}s"
+          action: "Check sync efficiency and consider optimization"
+
+  - name: pos-system-alerts
+    rules:
+      # System resource alerts for POS processing
+      - alert: HighPOSProcessingLoad
+        expr: rate(pos_api_requests_total[5m]) > 100
+        for: 2m
+        labels:
+          severity: warning
+          category: system-load
+        annotations:
+          summary: "High POS API request load"
+          description: "POS API request rate is {{ $value }}/min, approaching system limits"
+          action: "Monitor system resources and consider scaling"
+
+      - alert: POSMemoryUsageHigh
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+        for: 3m
+        labels:
+          severity: critical
+          category: system-resources
+        annotations:
+          summary: "High memory usage on POS processing server"
+          description: "Memory usage is {{ $value | humanizePercentage }} on server processing POS operations"
+          action: "Check for memory leaks and consider increasing server resources"

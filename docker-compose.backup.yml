@@ -1,0 +1,409 @@
+version: '3.8'
+
+# Backup Services for Multi-Location Data
+# Handles automated backups across all Swedish regions
+
+services:
+  # Centralized backup coordinator
+  backup-coordinator:
+    image: alpine:3.18
+    container_name: backup-coordinator
+    environment:
+      - BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-0 2 * * *}  # Daily at 2 AM
+      - RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
+      - S3_BUCKET=${S3_BACKUP_BUCKET:-ai-feedback-backups-eu-north-1}
+      - REGIONS=stockholm,gothenburg,malmo
+      - SLACK_WEBHOOK=${SLACK_BACKUP_WEBHOOK:-}
+    volumes:
+      - /opt/ai-feedback/backups:/backups
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./scripts:/scripts:ro
+      - backup_logs:/var/log/backups
+    command: |
+      sh -c "
+        apk add --no-cache dcron postgresql-client redis aws-cli curl docker
+        echo '$${BACKUP_SCHEDULE} /scripts/backup-coordinator.sh' | crontab -
+        crond -f
+      "
+    networks:
+      - backup-network
+      - ai-feedback-prod
+    depends_on:
+      - redis-backup-service
+      - database-backup-service
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Redis backup service
+  redis-backup-service:
+    image: redis:7-alpine
+    container_name: redis-backup-service
+    environment:
+      - REDIS_REGIONS=stockholm,gothenburg,malmo
+      - BACKUP_DIR=/backups/redis
+      - S3_BUCKET=${S3_BACKUP_BUCKET:-ai-feedback-backups-eu-north-1}
+    volumes:
+      - /opt/ai-feedback/backups/redis:/backups/redis
+      - ./scripts:/scripts:ro
+      - backup_logs:/var/log/backups
+    command: |
+      sh -c "
+        apk add --no-cache aws-cli curl bash
+        while true; do
+          echo 'Waiting for backup coordinator...'
+          sleep 3600
+        done
+      "
+    networks:
+      - backup-network
+      - cross-region-replication
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.15'
+          memory: 128M
+
+  # Database backup service  
+  database-backup-service:
+    image: postgres:15-alpine
+    container_name: database-backup-service
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - BACKUP_DIR=/backups/database
+      - S3_BUCKET=${S3_BACKUP_BUCKET:-ai-feedback-backups-eu-north-1}
+      - PGPASSWORD=${DB_PASSWORD}
+    volumes:
+      - /opt/ai-feedback/backups/database:/backups/database
+      - ./scripts:/scripts:ro
+      - backup_logs:/var/log/backups
+    command: |
+      sh -c "
+        apk add --no-cache aws-cli curl bash
+        while true; do
+          echo 'Waiting for backup coordinator...'
+          sleep 3600
+        done
+      "
+    networks:
+      - backup-network
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # File system backup service
+  filesystem-backup-service:
+    image: alpine:3.18
+    container_name: filesystem-backup-service
+    environment:
+      - BACKUP_PATHS=/app/uploads,/app/logs,/app/config
+      - S3_BUCKET=${S3_BACKUP_BUCKET:-ai-feedback-backups-eu-north-1}
+      - BACKUP_DIR=/backups/filesystem
+    volumes:
+      - /opt/ai-feedback/uploads:/app/uploads:ro
+      - /opt/ai-feedback/logs:/app/logs:ro
+      - /opt/ai-feedback/config:/app/config:ro
+      - /opt/ai-feedback/backups/filesystem:/backups/filesystem
+      - ./scripts:/scripts:ro
+      - backup_logs:/var/log/backups
+    command: |
+      sh -c "
+        apk add --no-cache rsync aws-cli tar gzip curl bash
+        while true; do
+          echo 'Waiting for backup coordinator...'
+          sleep 3600
+        done
+      "
+    networks:
+      - backup-network
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.15'
+          memory: 128M
+
+  # Backup verification service
+  backup-verification-service:
+    image: alpine:3.18
+    container_name: backup-verification-service
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - S3_BUCKET=${S3_BACKUP_BUCKET:-ai-feedback-backups-eu-north-1}
+      - VERIFICATION_SCHEDULE=${BACKUP_VERIFICATION_SCHEDULE:-0 4 * * *}  # Daily at 4 AM
+    volumes:
+      - /opt/ai-feedback/backups:/backups:ro
+      - ./scripts:/scripts:ro
+      - backup_logs:/var/log/backups
+      - /tmp:/tmp
+    command: |
+      sh -c "
+        apk add --no-cache postgresql-client redis aws-cli curl bash dcron
+        echo '$${VERIFICATION_SCHEDULE} /scripts/verify-backups.sh' | crontab -
+        crond -f
+      "
+    networks:
+      - backup-network
+      - ai-feedback-prod
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.15'
+          memory: 128M
+
+  # Cross-region backup synchronization
+  backup-sync-stockholm:
+    image: alpine:3.18
+    container_name: backup-sync-stockholm
+    environment:
+      - REGION=stockholm
+      - SYNC_TARGETS=gothenburg,malmo
+      - SYNC_SCHEDULE=${CROSS_REGION_SYNC_SCHEDULE:-0 3 * * *}  # Daily at 3 AM
+    volumes:
+      - /opt/ai-feedback/backups:/backups
+      - ./scripts:/scripts:ro
+      - backup_logs:/var/log/backups
+    command: |
+      sh -c "
+        apk add --no-cache rsync openssh-client aws-cli curl bash dcron
+        echo '$${SYNC_SCHEDULE} /scripts/cross-region-sync.sh' | crontab -
+        crond -f
+      "
+    networks:
+      - backup-network
+      - cross-region-replication
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+
+  backup-sync-gothenburg:
+    image: alpine:3.18
+    container_name: backup-sync-gothenburg
+    environment:
+      - REGION=gothenburg
+      - SYNC_TARGETS=stockholm,malmo
+      - SYNC_SCHEDULE=${CROSS_REGION_SYNC_SCHEDULE:-0 3 * * *}
+    volumes:
+      - /opt/ai-feedback/backups:/backups
+      - ./scripts:/scripts:ro
+      - backup_logs:/var/log/backups
+    command: |
+      sh -c "
+        apk add --no-cache rsync openssh-client aws-cli curl bash dcron
+        echo '$${SYNC_SCHEDULE} /scripts/cross-region-sync.sh' | crontab -
+        crond -f
+      "
+    networks:
+      - backup-network
+      - cross-region-replication
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == gothenburg
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+
+  backup-sync-malmo:
+    image: alpine:3.18
+    container_name: backup-sync-malmo
+    environment:
+      - REGION=malmo
+      - SYNC_TARGETS=stockholm,gothenburg
+      - SYNC_SCHEDULE=${CROSS_REGION_SYNC_SCHEDULE:-0 3 * * *}
+    volumes:
+      - /opt/ai-feedback/backups:/backups
+      - ./scripts:/scripts:ro
+      - backup_logs:/var/log/backups
+    command: |
+      sh -c "
+        apk add --no-cache rsync openssh-client aws-cli curl bash dcron
+        echo '$${SYNC_SCHEDULE} /scripts/cross-region-sync.sh' | crontab -
+        crond -f
+      "
+    networks:
+      - backup-network
+      - cross-region-replication
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == malmo
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+
+  # Backup monitoring and alerting
+  backup-monitoring:
+    image: prom/prometheus:latest
+    container_name: backup-monitoring
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/backup-prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - backup_metrics:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.listen-address=:9090'
+    networks:
+      - backup-network
+      - monitoring-network
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Backup log aggregation
+  backup-log-collector:
+    image: fluent/fluent-bit:2.1
+    container_name: backup-log-collector
+    volumes:
+      - backup_logs:/var/log/backups:ro
+      - ./monitoring/fluent-bit-backup.conf:/fluent-bit/etc/fluent-bit.conf:ro
+    environment:
+      - ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-elasticsearch}
+      - ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+    networks:
+      - backup-network
+      - monitoring-network
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # Backup restore testing service
+  backup-restore-test:
+    image: postgres:15-alpine
+    container_name: backup-restore-test
+    environment:
+      - TEST_SCHEDULE=${BACKUP_TEST_SCHEDULE:-0 6 * * 0}  # Weekly on Sunday at 6 AM
+      - DATABASE_URL=${DATABASE_URL}
+      - S3_BUCKET=${S3_BACKUP_BUCKET:-ai-feedback-backups-eu-north-1}
+    volumes:
+      - /opt/ai-feedback/backups:/backups:ro
+      - ./scripts:/scripts:ro
+      - backup_logs:/var/log/backups
+      - backup_test_db:/var/lib/postgresql/test
+    command: |
+      sh -c "
+        apk add --no-cache redis aws-cli curl bash dcron
+        echo '$${TEST_SCHEDULE} /scripts/test-backup-restore.sh' | crontab -
+        crond -f
+      "
+    networks:
+      - backup-network
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+volumes:
+  backup_logs:
+    driver: local
+    driver_opts:
+      type: bind
+      o: bind
+      device: /opt/ai-feedback/logs/backups
+
+  backup_metrics:
+    driver: local
+    driver_opts:
+      type: bind
+      o: bind
+      device: /opt/ai-feedback/metrics/backups
+
+  backup_test_db:
+    driver: local
+
+networks:
+  backup-network:
+    driver: overlay
+    external: false
+    attachable: true
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+  cross-region-replication:
+    external: true
+
+  ai-feedback-prod:
+    external: true
+
+  monitoring-network:
+    external: true

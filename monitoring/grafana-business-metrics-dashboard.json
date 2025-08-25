@@ -1,0 +1,709 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Business Metrics & Operations Dashboard",
+    "tags": ["business", "operations", "kpis", "revenue"],
+    "style": "dark",
+    "timezone": "Europe/Stockholm",
+    "refresh": "1m",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "business_tier",
+          "type": "query",
+          "query": "label_values(business_metrics, tier)",
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          },
+          "multi": true,
+          "includeAll": true,
+          "options": []
+        },
+        {
+          "name": "business_id",
+          "type": "query",
+          "query": "label_values(business_metrics{tier=~\"$business_tier\"}, business_id)",
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          },
+          "multi": true,
+          "includeAll": true,
+          "options": []
+        },
+        {
+          "name": "region",
+          "type": "query",
+          "query": "label_values(business_metrics, region)",
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          },
+          "multi": true,
+          "includeAll": true,
+          "options": []
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Business KPIs Overview",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "targets": [
+          {
+            "expr": "count(count by (business_id)(business_metrics{tier=~\"$business_tier\",business_id=~\"$business_id\"}))",
+            "legendFormat": "Active Businesses",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(feedback_sessions_completed_total{business_id=~\"$business_id\"}[24h]))",
+            "legendFormat": "Daily Completions",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(rate(business_revenue_sek_total{business_id=~\"$business_id\"}[24h])) * 0.2",
+            "legendFormat": "Daily Platform Revenue (SEK)",
+            "refId": "C"
+          },
+          {
+            "expr": "avg(business_satisfaction_score{business_id=~\"$business_id\"})",
+            "legendFormat": "Avg Business Satisfaction",
+            "refId": "D"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Daily Platform Revenue (SEK)"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "SEK"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Avg Business Satisfaction"
+              },
+              "properties": [
+                {
+                  "id": "max",
+                  "value": 5
+                },
+                {
+                  "id": "min",
+                  "value": 1
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "horizontal",
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "center"
+        }
+      },
+      {
+        "id": 2,
+        "title": "Revenue by Business Tier",
+        "type": "piechart",
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 0,
+          "y": 4
+        },
+        "targets": [
+          {
+            "expr": "sum by (tier)(rate(business_revenue_sek_total{tier=~\"$business_tier\",business_id=~\"$business_id\"}[24h])) * 0.2",
+            "legendFormat": "Tier {{tier}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "unit": "SEK/s"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "pieType": "pie",
+          "tooltip": {
+            "mode": "single"
+          },
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "values": ["value", "percent"]
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Business Growth Trends",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 8,
+          "y": 4
+        },
+        "targets": [
+          {
+            "expr": "count by (tier)(business_metrics{tier=~\"$business_tier\",status=\"active\"})",
+            "legendFormat": "Active Tier {{tier}}",
+            "refId": "A"
+          },
+          {
+            "expr": "increase(business_signups_total{tier=~\"$business_tier\"}[1d])",
+            "legendFormat": "Daily Signups Tier {{tier}}",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "gradientMode": "none",
+              "showPoints": "auto",
+              "pointSize": 5
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": ["last", "max"],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Regional Business Distribution",
+        "type": "bargauge",
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 16,
+          "y": 4
+        },
+        "targets": [
+          {
+            "expr": "count by (region)(business_metrics{tier=~\"$business_tier\",business_id=~\"$business_id\",region=~\"$region\"})",
+            "legendFormat": "{{region}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "continuous-GrYlRd"
+            },
+            "custom": {
+              "displayMode": "basic",
+              "orientation": "vertical"
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "businesses"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "vertical",
+          "displayMode": "basic"
+        }
+      },
+      {
+        "id": 5,
+        "title": "Business Onboarding Funnel",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 12
+        },
+        "targets": [
+          {
+            "expr": "rate(business_signups_total[5m])",
+            "legendFormat": "Signups",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(business_verification_completed_total[5m])",
+            "legendFormat": "Verification Completed",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(business_first_session_total[5m])",
+            "legendFormat": "First Session",
+            "refId": "C"
+          },
+          {
+            "expr": "rate(business_activated_total[5m])",
+            "legendFormat": "Activated",
+            "refId": "D"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "showPoints": "auto",
+              "pointSize": 5,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "unit": "reqps"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": ["last"],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Business Health Score",
+        "type": "gauge",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 12
+        },
+        "targets": [
+          {
+            "expr": "avg by (business_id)(business_health_score{business_id=~\"$business_id\"})",
+            "legendFormat": "{{business_name}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 60
+                },
+                {
+                  "color": "green",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        }
+      },
+      {
+        "id": 7,
+        "title": "Customer Engagement by Business",
+        "type": "heatmap",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 20
+        },
+        "targets": [
+          {
+            "expr": "rate(feedback_sessions_completed_total{business_id=~\"$business_id\"}[1h]) / rate(feedback_sessions_started_total{business_id=~\"$business_id\"}[1h])",
+            "legendFormat": "{{business_name}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "spectrum"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1
+          }
+        },
+        "options": {
+          "calculate": false,
+          "cellGap": 2,
+          "color": {
+            "exponent": 0.5,
+            "fill": "dark-orange",
+            "mode": "spectrum",
+            "reverse": false,
+            "scale": "exponential",
+            "scheme": "Spectral",
+            "steps": 64
+          },
+          "exemplars": {
+            "color": "rgba(255,0,255,0.7)"
+          },
+          "filterValues": {
+            "le": 1e-9
+          },
+          "legend": {
+            "show": true
+          },
+          "yAxis": {
+            "axisPlacement": "left",
+            "reverse": false,
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Business Support Tickets",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 28
+        },
+        "targets": [
+          {
+            "expr": "increase(business_support_tickets_total{business_id=~\"$business_id\"}[1h])",
+            "legendFormat": "{{business_name}} - {{category}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "bars",
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "fillOpacity": 80,
+              "gradientMode": "none",
+              "showPoints": "auto",
+              "pointSize": 5,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Business Churn Risk Assessment",
+        "type": "table",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 28
+        },
+        "targets": [
+          {
+            "expr": "business_churn_risk_score{business_id=~\"$business_id\"}",
+            "legendFormat": "",
+            "refId": "A",
+            "instant": true
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            },
+            "mappings": [
+              {
+                "options": {
+                  "0": {
+                    "color": "green",
+                    "index": 0,
+                    "text": "Low"
+                  },
+                  "1": {
+                    "color": "yellow",
+                    "index": 1,
+                    "text": "Medium"
+                  },
+                  "2": {
+                    "color": "red",
+                    "index": 2,
+                    "text": "High"
+                  }
+                },
+                "type": "value"
+              }
+            ],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 0.3
+                },
+                {
+                  "color": "red",
+                  "value": 0.7
+                }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": true,
+              "displayName": "Churn Risk"
+            }
+          ]
+        },
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "__name__": true,
+                "job": true,
+                "instance": true
+              },
+              "indexByName": {},
+              "renameByName": {
+                "business_id": "Business ID",
+                "business_name": "Business Name",
+                "tier": "Tier",
+                "region": "Region",
+                "Value": "Churn Risk"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Platform Commission Trends",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 36
+        },
+        "targets": [
+          {
+            "expr": "sum(rate(business_revenue_sek_total{tier=~\"$business_tier\"}[1h])) * 0.2",
+            "legendFormat": "Platform Commission (20%)",
+            "refId": "A"
+          },
+          {
+            "expr": "sum by (tier)(rate(business_revenue_sek_total{tier=~\"$business_tier\"}[1h])) * on() group_left() (business_commission_rate{tier=~\"$business_tier\"} or on() (0.2))",
+            "legendFormat": "Tier {{tier}} Commission",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "gradientMode": "opacity",
+              "showPoints": "auto",
+              "pointSize": 5,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "SEK/h"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": ["last", "max", "mean"],
+            "displayMode": "table",
+            "placement": "right"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        }
+      }
+    ]
+  }
+}

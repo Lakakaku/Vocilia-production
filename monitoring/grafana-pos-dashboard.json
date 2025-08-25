@@ -1,0 +1,427 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "POS Integration Monitoring Dashboard",
+    "tags": ["pos", "monitoring", "integration"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "POS Provider Health Overview",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "pos_connection_status",
+            "legendFormat": "{{ provider }} Connection",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "green", "value": 1 }
+              ]
+            },
+            "mappings": [
+              { "options": { "0": { "text": "DOWN" } }, "type": "value" },
+              { "options": { "1": { "text": "UP" } }, "type": "value" }
+            ]
+          }
+        },
+        "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 }
+      },
+      {
+        "id": 2,
+        "title": "POS API Response Times",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(pos_api_response_time_seconds_bucket[5m]))",
+            "legendFormat": "{{ provider }} P50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(pos_api_response_time_seconds_bucket[5m]))",
+            "legendFormat": "{{ provider }} P95",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "color": { "mode": "palette-classic" }
+          }
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 8, "y": 0 }
+      },
+      {
+        "id": 3,
+        "title": "POS API Error Rates",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "pos_error_rate_percent",
+            "legendFormat": "{{ provider }} Error Rate",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": { "mode": "palette-classic" },
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 10 },
+                { "color": "red", "value": 25 }
+              ]
+            }
+          }
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+      },
+      {
+        "id": 4,
+        "title": "Authentication Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "pos_auth_status",
+            "legendFormat": "{{ provider }}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "green", "value": 1 }
+              ]
+            },
+            "mappings": [
+              { "options": { "0": { "text": "INVALID" } }, "type": "value" },
+              { "options": { "1": { "text": "VALID" } }, "type": "value" }
+            ]
+          }
+        },
+        "gridPos": { "h": 4, "w": 8, "x": 12, "y": 8 }
+      },
+      {
+        "id": 5,
+        "title": "Webhook Delivery Success Rate",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(pos_webhook_deliveries_total{status=\"success\"}[5m]) / rate(pos_webhook_deliveries_total[5m]) * 100",
+            "legendFormat": "{{ provider }} Success Rate",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": { "mode": "palette-classic" },
+            "min": 0,
+            "max": 100
+          }
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 }
+      },
+      {
+        "id": 6,
+        "title": "Webhook Processing Times",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(pos_webhook_processing_time_seconds_bucket[5m]))",
+            "legendFormat": "{{ provider }} P95",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "color": { "mode": "palette-classic" }
+          }
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 }
+      },
+      {
+        "id": 7,
+        "title": "POS API Requests per Minute",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(pos_api_requests_total[1m]) * 60",
+            "legendFormat": "{{ provider }} - {{ status }}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "color": { "mode": "palette-classic" }
+          }
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 }
+      },
+      {
+        "id": 8,
+        "title": "Rate Limit Status",
+        "type": "bargauge",
+        "targets": [
+          {
+            "expr": "pos_rate_limit_remaining",
+            "legendFormat": "{{ provider }}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "yellow", "value": 100 },
+                { "color": "green", "value": 500 }
+              ]
+            },
+            "min": 0,
+            "max": 1000
+          }
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 }
+      },
+      {
+        "id": 9,
+        "title": "Transaction Verification Success Rate",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(pos_transaction_verifications_total{result=\"found\"}[5m]) / rate(pos_transaction_verifications_total[5m]) * 100",
+            "legendFormat": "{{ provider }} Success Rate",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": { "mode": "palette-classic" },
+            "min": 0,
+            "max": 100
+          }
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 }
+      },
+      {
+        "id": 10,
+        "title": "Transaction Verification Times",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(pos_transaction_verification_time_seconds_bucket[5m]))",
+            "legendFormat": "{{ provider }} P95",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "color": { "mode": "palette-classic" }
+          }
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 }
+      },
+      {
+        "id": 11,
+        "title": "Business Connection Health Scores",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "pos_business_connection_health",
+            "legendFormat": "{{ business_id }}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "spectrum"
+            }
+          }
+        },
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 40 }
+      },
+      {
+        "id": 12,
+        "title": "Webhook Retry Attempts",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(pos_webhook_retries_total[5m]) * 60",
+            "legendFormat": "{{ provider }} Attempt {{ attempt_number }}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "rpm",
+            "color": { "mode": "palette-classic" }
+          }
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 }
+      },
+      {
+        "id": 13,
+        "title": "OAuth Token Expiry Status",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "(pos_oauth_token_expiry_timestamp - time()) / 3600",
+            "legendFormat": "{{ provider }} - {{ business_id }}",
+            "refId": "A",
+            "format": "table"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "h",
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "yellow", "value": 24 },
+                { "color": "green", "value": 168 }
+              ]
+            }
+          }
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 }
+      },
+      {
+        "id": 14,
+        "title": "POS Sync Performance",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(pos_sync_duration_seconds_bucket[10m]))",
+            "legendFormat": "{{ provider }} - {{ sync_type }} P95",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "color": { "mode": "palette-classic" }
+          }
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 56 }
+      },
+      {
+        "id": 15,
+        "title": "POS Health Check Failures",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(pos_health_checks_total{status=\"unhealthy\"}[5m]) * 60",
+            "legendFormat": "{{ provider }} Failures/min",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "rpm",
+            "color": { "mode": "palette-classic" }
+          }
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 56 }
+      },
+      {
+        "id": 16,
+        "title": "Active Alert Summary",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "ALERTS{alertname=~\"POS.*|Webhook.*\"}",
+            "legendFormat": "",
+            "refId": "A",
+            "format": "table"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 1 },
+                { "color": "red", "value": 2 }
+              ]
+            }
+          }
+        },
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 64 }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h"],
+      "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d"]
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "provider",
+          "type": "query",
+          "query": "label_values(pos_connection_status, provider)",
+          "refresh": 1,
+          "includeAll": true,
+          "allValue": ".*",
+          "multi": true
+        },
+        {
+          "name": "business_id",
+          "type": "query",
+          "query": "label_values(pos_connection_status{provider=~\"$provider\"}, business_id)",
+          "refresh": 1,
+          "includeAll": true,
+          "allValue": ".*",
+          "multi": true
+        }
+      ]
+    },
+    "refresh": "30s",
+    "schemaVersion": 30,
+    "version": 1,
+    "links": [
+      {
+        "title": "POS Integration Documentation",
+        "url": "https://docs.ai-feedback-platform.com/pos-integration",
+        "type": "link"
+      },
+      {
+        "title": "POS Runbook",
+        "url": "https://docs.ai-feedback-platform.com/runbooks/pos",
+        "type": "link"
+      }
+    ]
+  }
+}

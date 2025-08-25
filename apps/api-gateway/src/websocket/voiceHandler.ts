@@ -99,12 +99,14 @@ export function getVoiceAnalytics() {
   };
 }
 
-// Initialize AI services
+// Initialize AI services with fast model fallback chain
 const aiService = new UniversalAIService({
   provider: 'ollama',
-  model: 'llama3.2',
+  model: 'qwen2:0.5b',        // Ultra-fast 0.5B model for <500ms latency
   endpoint: process.env.OLLAMA_ENDPOINT || 'http://localhost:11434',
-  temperature: 0.7
+  temperature: 0.7,
+  fallbackProvider: 'ollama',
+  fallbackModel: 'llama3.2:1b' // Fallback to 1B model if 0.5B fails
 });
 
 const voiceProcessor = new VoiceProcessor({

@@ -1,0 +1,491 @@
+# Redis Cluster Configuration for Geo-Distributed Caching
+# Multi-region Redis setup with cross-region replication
+
+version: '3.8'
+
+services:
+  # Stockholm Redis Cluster (Primary)
+  redis-stockholm-master:
+    image: redis:7-alpine
+    container_name: redis-stockholm-master
+    environment:
+      - REDIS_REPLICATION_MODE=master
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_AOF_ENABLED=yes
+      - REDIS_RDB_ENABLED=yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_stockholm_master_data:/data
+      - ./redis/stockholm-master.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - stockholm-redis
+      - cross-region-replication
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+        reservations:
+          memory: 512M
+          cpus: "0.25"
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis-stockholm-replica:
+    image: redis:7-alpine
+    container_name: redis-stockholm-replica
+    environment:
+      - REDIS_REPLICATION_MODE=slave
+      - REDIS_MASTER_HOST=redis-stockholm-master
+      - REDIS_MASTER_PORT=6379
+      - REDIS_MASTER_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_stockholm_replica_data:/data
+      - ./redis/stockholm-replica.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    depends_on:
+      - redis-stockholm-master
+    networks:
+      - stockholm-redis
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.25"
+        reservations:
+          memory: 256M
+          cpus: "0.125"
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # Gothenburg Redis Cluster
+  redis-gothenburg-master:
+    image: redis:7-alpine
+    container_name: redis-gothenburg-master
+    environment:
+      - REDIS_REPLICATION_MODE=master
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_AOF_ENABLED=yes
+      - REDIS_RDB_ENABLED=yes
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis_gothenburg_master_data:/data
+      - ./redis/gothenburg-master.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - gothenburg-redis
+      - cross-region-replication
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.25"
+        reservations:
+          memory: 256M
+          cpus: "0.125"
+      placement:
+        constraints:
+          - node.labels.region == gothenburg
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  redis-gothenburg-replica:
+    image: redis:7-alpine
+    container_name: redis-gothenburg-replica
+    environment:
+      - REDIS_REPLICATION_MODE=slave
+      - REDIS_MASTER_HOST=redis-gothenburg-master
+      - REDIS_MASTER_PORT=6379
+      - REDIS_MASTER_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "6382:6379"
+    volumes:
+      - redis_gothenburg_replica_data:/data
+      - ./redis/gothenburg-replica.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    depends_on:
+      - redis-gothenburg-master
+    networks:
+      - gothenburg-redis
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.125"
+        reservations:
+          memory: 128M
+          cpus: "0.05"
+      placement:
+        constraints:
+          - node.labels.region == gothenburg
+    restart: unless-stopped
+
+  # Malmö Redis Cluster
+  redis-malmo-master:
+    image: redis:7-alpine
+    container_name: redis-malmo-master
+    environment:
+      - REDIS_REPLICATION_MODE=master
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_AOF_ENABLED=yes
+      - REDIS_RDB_ENABLED=yes
+    ports:
+      - "6383:6379"
+    volumes:
+      - redis_malmo_master_data:/data
+      - ./redis/malmo-master.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - malmo-redis
+      - cross-region-replication
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.125"
+        reservations:
+          memory: 128M
+          cpus: "0.05"
+      placement:
+        constraints:
+          - node.labels.region == malmo
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  redis-malmo-replica:
+    image: redis:7-alpine
+    container_name: redis-malmo-replica
+    environment:
+      - REDIS_REPLICATION_MODE=slave
+      - REDIS_MASTER_HOST=redis-malmo-master
+      - REDIS_MASTER_PORT=6379
+      - REDIS_MASTER_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "6384:6379"
+    volumes:
+      - redis_malmo_replica_data:/data
+      - ./redis/malmo-replica.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    depends_on:
+      - redis-malmo-master
+    networks:
+      - malmo-redis
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.05"
+        reservations:
+          memory: 64M
+          cpus: "0.025"
+      placement:
+        constraints:
+          - node.labels.region == malmo
+    restart: unless-stopped
+
+  # Redis Sentinel for High Availability
+  redis-sentinel-stockholm:
+    image: redis:7-alpine
+    container_name: redis-sentinel-stockholm
+    environment:
+      - REDIS_SENTINEL_ENABLED=yes
+      - REDIS_MASTER_NAME=stockholm-master
+      - REDIS_MASTER_HOST=redis-stockholm-master
+      - REDIS_MASTER_PORT=6379
+      - REDIS_SENTINEL_QUORUM=2
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "26379:26379"
+    volumes:
+      - ./redis/sentinel-stockholm.conf:/usr/local/etc/redis/sentinel.conf:ro
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    depends_on:
+      - redis-stockholm-master
+    networks:
+      - stockholm-redis
+      - cross-region-replication
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.1"
+        reservations:
+          memory: 64M
+          cpus: "0.05"
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+    restart: unless-stopped
+
+  redis-sentinel-gothenburg:
+    image: redis:7-alpine
+    container_name: redis-sentinel-gothenburg
+    environment:
+      - REDIS_SENTINEL_ENABLED=yes
+      - REDIS_MASTER_NAME=gothenburg-master
+      - REDIS_MASTER_HOST=redis-gothenburg-master
+      - REDIS_MASTER_PORT=6379
+      - REDIS_SENTINEL_QUORUM=2
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "26380:26379"
+    volumes:
+      - ./redis/sentinel-gothenburg.conf:/usr/local/etc/redis/sentinel.conf:ro
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    depends_on:
+      - redis-gothenburg-master
+    networks:
+      - gothenburg-redis
+      - cross-region-replication
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.1"
+        reservations:
+          memory: 64M
+          cpus: "0.05"
+      placement:
+        constraints:
+          - node.labels.region == gothenburg
+    restart: unless-stopped
+
+  redis-sentinel-malmo:
+    image: redis:7-alpine
+    container_name: redis-sentinel-malmo
+    environment:
+      - REDIS_SENTINEL_ENABLED=yes
+      - REDIS_MASTER_NAME=malmo-master
+      - REDIS_MASTER_HOST=redis-malmo-master
+      - REDIS_MASTER_PORT=6379
+      - REDIS_SENTINEL_QUORUM=2
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "26381:26379"
+    volumes:
+      - ./redis/sentinel-malmo.conf:/usr/local/etc/redis/sentinel.conf:ro
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    depends_on:
+      - redis-malmo-master
+    networks:
+      - malmo-redis
+      - cross-region-replication
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.1"
+        reservations:
+          memory: 64M
+          cpus: "0.05"
+      placement:
+        constraints:
+          - node.labels.region == malmo
+    restart: unless-stopped
+
+  # Cross-Region Sync Service
+  redis-sync-service:
+    build:
+      context: .
+      dockerfile: services/geo-cache/Dockerfile.sync
+    container_name: redis-sync-service
+    environment:
+      - NODE_ENV=production
+      - SYNC_INTERVAL=60000  # 1 minute
+      - CONFLICT_RESOLUTION=last_write_wins
+      - MAX_SYNC_RETRIES=3
+      - SYNC_BATCH_SIZE=1000
+      - REDIS_STOCKHOLM=redis://redis-stockholm-master:6379
+      - REDIS_GOTHENBURG=redis://redis-gothenburg-master:6379
+      - REDIS_MALMO=redis://redis-malmo-master:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - ENCRYPTION_KEY=${SYNC_ENCRYPTION_KEY}
+    volumes:
+      - sync_state:/app/sync-state
+      - sync_logs:/app/logs
+    depends_on:
+      - redis-stockholm-master
+      - redis-gothenburg-master
+      - redis-malmo-master
+    networks:
+      - cross-region-replication
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.2"
+        reservations:
+          memory: 128M
+          cpus: "0.1"
+      replicas: 1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cluster Monitoring
+  redis-cluster-monitor:
+    image: redis:7-alpine
+    container_name: redis-cluster-monitor
+    environment:
+      - MONITOR_INTERVAL=15000  # 15 seconds
+      - ALERT_THRESHOLD_LATENCY=100  # 100ms
+      - ALERT_THRESHOLD_MEMORY=90  # 90%
+      - WEBHOOK_URL=${MONITORING_WEBHOOK_URL}
+    volumes:
+      - ./monitoring/redis-monitor.lua:/usr/local/bin/redis-monitor.lua:ro
+    command: |
+      sh -c "
+        while true; do
+          redis-cli -h redis-stockholm-master -a ${REDIS_PASSWORD} --eval /usr/local/bin/redis-monitor.lua
+          redis-cli -h redis-gothenburg-master -a ${REDIS_PASSWORD} --eval /usr/local/bin/redis-monitor.lua
+          redis-cli -h redis-malmo-master -a ${REDIS_PASSWORD} --eval /usr/local/bin/redis-monitor.lua
+          sleep 15
+        done
+      "
+    depends_on:
+      - redis-stockholm-master
+      - redis-gothenburg-master
+      - redis-malmo-master
+    networks:
+      - cross-region-replication
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: "0.05"
+    restart: unless-stopped
+
+  # HAProxy Load Balancer for Redis
+  redis-loadbalancer:
+    image: haproxy:2.8-alpine
+    container_name: redis-loadbalancer
+    ports:
+      - "6390:6379"  # Read-write port
+      - "6391:6380"  # Read-only port
+      - "8404:8404"  # Stats page
+    volumes:
+      - ./redis/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      - redis-stockholm-master
+      - redis-gothenburg-master
+      - redis-malmo-master
+    networks:
+      - cross-region-replication
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.1"
+        reservations:
+          memory: 64M
+          cpus: "0.05"
+    healthcheck:
+      test: ["CMD", "haproxy", "-f", "/usr/local/etc/haproxy/haproxy.cfg", "-c"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+networks:
+  stockholm-redis:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.1.0/24
+  gothenburg-redis:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.2.0/24
+  malmo-redis:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.3.0/24
+  cross-region-replication:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+
+volumes:
+  # Redis data volumes
+  redis_stockholm_master_data:
+  redis_stockholm_replica_data:
+  redis_gothenburg_master_data:
+  redis_gothenberg_replica_data:
+  redis_malmo_master_data:
+  redis_malmo_replica_data:
+  
+  # Sync service volumes
+  sync_state:
+  sync_logs:
+
+# Production scaling and deployment
+x-redis-master-deploy: &redis-master-deploy
+  restart_policy:
+    condition: unless-stopped
+    delay: 10s
+    max_attempts: 3
+    window: 120s
+  update_config:
+    parallelism: 1
+    delay: 30s
+    failure_action: rollback
+    monitor: 60s
+
+x-redis-replica-deploy: &redis-replica-deploy
+  restart_policy:
+    condition: unless-stopped
+    delay: 5s
+    max_attempts: 5
+    window: 60s
+  update_config:
+    parallelism: 1
+    delay: 10s
+    failure_action: continue
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+    labels: "service,region,role"

@@ -5,10 +5,10 @@ import { POSDetector, BusinessContext, DetectedPOSSystem } from '../detection/PO
 import { OAuthManager } from '../oauth/OAuthManager';
 import { POSApiError } from '../base/BasePOSAdapter';
 
-// Import concrete adapters (to be implemented)
-// import { SquareAdapter } from '../adapters/SquareAdapter';
-// import { ShopifyAdapter } from '../adapters/ShopifyAdapter';
-// import { ZettleAdapter } from '../adapters/ZettleAdapter';
+// Import concrete adapters
+import { SquareAdapter } from '../adapters/square/SquareAdapter';
+// import { ShopifyAdapter } from '../adapters/shopify/ShopifyAdapter';
+// import { ZettleAdapter } from '../adapters/zettle/ZettleAdapter';
 
 export interface AdapterCreationOptions {
   provider?: POSProvider;

@@ -24,6 +24,7 @@ export interface QualityScore {
   reasoning: string;     // AI explanation
   categories: string[];  // Feedback categories
   sentiment: number;     // -1 to 1
+  confidence?: number;   // Optional confidence score 0-1
 }
 
 export interface RewardTier {
@@ -66,6 +67,14 @@ export interface OllamaRequest {
   stream?: boolean;
   temperature?: number;
   max_tokens?: number;
+  options?: {
+    num_predict?: number;
+    num_ctx?: number;
+    top_k?: number;
+    top_p?: number;
+    repeat_penalty?: number;
+    stop?: string[];
+  };
 }
 
 export interface OllamaResponse {

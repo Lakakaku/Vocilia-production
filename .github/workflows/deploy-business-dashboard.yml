@@ -1,0 +1,236 @@
+name: Deploy Business Dashboard
+
+on:
+  push:
+    branches: [main, production]
+    paths:
+      - 'apps/business-dashboard/**'
+      - 'packages/**'
+      - '.github/workflows/deploy-business-dashboard.yml'
+  pull_request:
+    paths:
+      - 'apps/business-dashboard/**'
+      - 'packages/**'
+
+env:
+  NODE_VERSION: '18'
+  PNPM_VERSION: '8'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+          
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+            
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Build shared packages
+        run: pnpm build --filter="@repo/shared" --filter="@repo/ui"
+        
+      - name: Lint business dashboard
+        run: pnpm lint --filter=business-dashboard
+        
+      - name: Type check business dashboard
+        run: pnpm type-check --filter=business-dashboard
+        
+      - name: Test business dashboard
+        run: pnpm test --filter=business-dashboard
+        env:
+          NODE_ENV: test
+          
+      - name: Build business dashboard
+        run: pnpm build --filter=business-dashboard
+        env:
+          NODE_ENV: production
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_WS_URL: ${{ secrets.NEXT_PUBLIC_WS_URL }}
+          NEXT_PUBLIC_BUSINESS_DASHBOARD_URL: ${{ secrets.NEXT_PUBLIC_BUSINESS_DASHBOARD_URL }}
+
+  deploy-staging:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: staging
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.CONTAINER_REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+          
+      - name: Build and push business dashboard image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/business-dashboard/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.CONTAINER_REGISTRY }}/business-dashboard:staging-${{ github.sha }}
+            ${{ secrets.CONTAINER_REGISTRY }}/business-dashboard:staging-latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_ENV=production
+            NEXT_PUBLIC_API_URL=${{ secrets.STAGING_API_URL }}
+            NEXT_PUBLIC_WS_URL=${{ secrets.STAGING_WS_URL }}
+            
+      - name: Deploy to staging
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd /opt/ai-feedback-platform
+            export BUSINESS_DASHBOARD_IMAGE="${{ secrets.CONTAINER_REGISTRY }}/business-dashboard:staging-${{ github.sha }}"
+            docker-compose -f docker-compose.staging.yml pull business-dashboard
+            docker-compose -f docker-compose.staging.yml up -d business-dashboard
+            
+            # Wait for health check
+            echo "Waiting for business dashboard to be ready..."
+            timeout 300 bash -c 'until curl -f http://localhost:3002/api/health; do sleep 5; done'
+            
+            # Run post-deployment tests
+            curl -f http://localhost:3002/api/health || exit 1
+            
+      - name: Notify deployment status
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          fields: repo,message,commit,author,action,eventName,ref,workflow
+
+  deploy-production:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/production' && github.event_name == 'push'
+    environment: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.CONTAINER_REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+          
+      - name: Build and push business dashboard image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/business-dashboard/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.CONTAINER_REGISTRY }}/business-dashboard:prod-${{ github.sha }}
+            ${{ secrets.CONTAINER_REGISTRY }}/business-dashboard:prod-latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_ENV=production
+            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_WS_URL=${{ secrets.NEXT_PUBLIC_WS_URL }}
+            
+      - name: Deploy to production (blue-green)
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          script: |
+            cd /opt/ai-feedback-platform
+            export BUSINESS_DASHBOARD_IMAGE="${{ secrets.CONTAINER_REGISTRY }}/business-dashboard:prod-${{ github.sha }}"
+            
+            # Blue-green deployment
+            ./scripts/blue-green-deploy.sh business-dashboard
+            
+            # Verify deployment
+            curl -f https://business.feedback.your-domain.com/api/health || exit 1
+            
+      - name: Create GitHub release
+        if: github.ref == 'refs/heads/production'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: business-dashboard-v${{ github.run_number }}
+          release_name: Business Dashboard Release v${{ github.run_number }}
+          body: |
+            ## Business Dashboard Production Deployment
+            
+            **Deployed at**: ${{ github.event.head_commit.timestamp }}
+            **Commit**: ${{ github.sha }}
+            **Author**: ${{ github.event.head_commit.author.name }}
+            
+            ### Changes
+            ${{ github.event.head_commit.message }}
+            
+            ### Deployment Details
+            - Environment: Production
+            - Docker Image: `${{ secrets.CONTAINER_REGISTRY }}/business-dashboard:prod-${{ github.sha }}`
+            - URL: https://business.feedback.your-domain.com
+            
+          draft: false
+          prerelease: false
+
+  security-scan:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Run security audit
+        run: |
+          cd apps/business-dashboard
+          npm audit --audit-level high
+          
+      - name: Scan for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: apps/business-dashboard/
+          base: main
+          head: HEAD

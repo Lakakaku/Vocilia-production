@@ -1,0 +1,56 @@
+{
+  "name": "admin-system-tests",
+  "version": "1.0.0",
+  "description": "Comprehensive admin system testing suite for AI Feedback Platform - Swedish market focus",
+  "private": true,
+  "scripts": {
+    "test": "jest --testTimeout=30000 --verbose",
+    "test:auth": "jest --testPathPattern=authentication --testTimeout=30000",
+    "test:approval": "jest --testPathPattern=business-approval --testTimeout=30000",
+    "test:tiers": "jest --testPathPattern=tier-management --testTimeout=30000",
+    "test:monitoring": "jest --testPathPattern=session-monitoring --testTimeout=30000",
+    "test:rbac": "jest --testPathPattern=role-access --testTimeout=30000",
+    "test:conflicts": "jest --testPathPattern=permission-conflicts --testTimeout=30000",
+    "test:failures": "jest --testPathPattern=system-failures --testTimeout=30000",
+    "test:watch": "jest --watch --testTimeout=30000",
+    "test:coverage": "jest --coverage --testTimeout=30000",
+    "admin:report": "npm run test:coverage && node generate-admin-report.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "bcrypt": "^5.1.1",
+    "uuid": "^9.0.1",
+    "lodash": "^4.17.21",
+    "date-fns": "^2.30.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.8",
+    "supertest": "^6.3.3",
+    "nock": "^13.4.0",
+    "faker": "^5.5.3"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "setupFilesAfterEnv": [
+      "<rootDir>/admin-test-setup.js"
+    ],
+    "collectCoverageFrom": [
+      "**/*.{js,ts}",
+      "!**/node_modules/**",
+      "!**/coverage/**"
+    ],
+    "coverageReporters": [
+      "text",
+      "lcov", 
+      "html",
+      "json-summary"
+    ],
+    "testMatch": [
+      "**/__tests__/**/*.(js|ts)",
+      "**/*.(test|spec).(js|ts)"
+    ],
+    "verbose": true
+  }
+}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { authManager, getSwedishErrorMessage } from '../utils/auth';
 
 type AnalyticsResponse = {
   counters: { opened: number; closed: number; errors: number; reconnects: number };
@@ -16,23 +17,33 @@ export default function VoiceAnalytics() {
 
   useEffect(() => {
     let isMounted = true;
-    const token = typeof window !== 'undefined' ? (localStorage.getItem('ADMIN_TOKEN') || '') : '';
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 
-    const fetchData = () => {
-      fetch(`${apiBase}/api/admin/voice/analytics`, {
-        headers: { 'x-admin-token': token }
-      })
-        .then(r => (r.ok ? r.json() : Promise.reject(new Error('Failed to load voice analytics'))))
-        .then((json) => {
-          if (!isMounted) return;
-          setData(json);
-          setError(null);
-        })
-        .catch((e) => {
-          if (!isMounted) return;
-          setError(e.message);
-        });
+    const fetchData = async () => {
+      try {
+        const response = await authManager.makeAuthenticatedRequest('/api/admin/voice/analytics');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const json = await response.json();
+        
+        if (!isMounted) return;
+        
+        // Handle new API response format
+        if (json.success && json.data) {
+          setData(json.data);
+        } else {
+          setData(json); // Fallback for old format
+        }
+        
+        setError(null);
+      } catch (err: any) {
+        if (!isMounted) return;
+        
+        console.error('Voice analytics error:', err);
+        setError(getSwedishErrorMessage(err));
+      }
     };
 
     fetchData();

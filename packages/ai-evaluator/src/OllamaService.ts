@@ -1,5 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { AIService } from './AIService';
+import { cacheService } from './CacheService';
+import { performanceMonitor } from './PerformanceMonitor';
 import { 
   BusinessContext, 
   QualityScore, 
@@ -10,31 +12,71 @@ import {
   AIEvaluationResponse
 } from './types';
 
+// Node.js environment globals
+declare const console: any;
+declare const process: any;
+
 /**
- * Ollama AI service implementation for local Llama 3.2 processing
- * Handles both feedback evaluation and conversational responses
+ * Ollama AI service implementation optimized for production performance
+ * Uses ultra-fast models (qwen2:0.5b) for real-time feedback evaluation
+ * Handles both feedback evaluation and conversational responses with <2s latency
  */
 export class OllamaService implements AIService {
   private client: AxiosInstance;
   private config: AIServiceConfig;
+  private modelWarmedUp: boolean = false;
+  private connectionPool: AxiosInstance[] = [];
+  private currentConnectionIndex: number = 0;
+  private readonly maxConnections: number;
 
   constructor(config: Partial<AIServiceConfig> = {}) {
+    // Environment-based model selection for optimal performance
+    const defaultModel = process.env.NODE_ENV === 'production' 
+      ? process.env.OLLAMA_PRODUCTION_MODEL || 'qwen2:0.5b'
+      : 'qwen2:0.5b';
+
+    this.maxConnections = parseInt(process.env.AI_MAX_CONCURRENT || '5');
+
     this.config = {
       provider: 'ollama',
-      model: 'llama3.2',
-      endpoint: 'http://localhost:11434',
-      temperature: 0.7,
-      maxTokens: 1000,
+      model: defaultModel,    // Use environment-specific model
+      endpoint: process.env.OLLAMA_ENDPOINT || 'http://localhost:11434',
+      temperature: 0.3,       // Reduced for faster, more deterministic responses
+      maxTokens: 500,         // Reduced for faster generation
       ...config
     };
 
-    this.client = axios.create({
-      baseURL: this.config.endpoint,
-      timeout: 30000, // 30s timeout
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
+    // Initialize connection pool
+    this.initializeConnectionPool();
+  }
+
+  /**
+   * Initialize connection pool for concurrent requests
+   */
+  private initializeConnectionPool(): void {
+    for (let i = 0; i < this.maxConnections; i++) {
+      const client = axios.create({
+        baseURL: this.config.endpoint,
+        timeout: parseInt(process.env.AI_RESPONSE_TIMEOUT || '10000'),
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      this.connectionPool.push(client);
+    }
+    
+    // Keep the main client for compatibility
+    this.client = this.connectionPool[0];
+    console.log(`Initialized connection pool with ${this.maxConnections} connections`);
+  }
+
+  /**
+   * Get next available connection from pool (round-robin)
+   */
+  private getConnection(): AxiosInstance {
+    const connection = this.connectionPool[this.currentConnectionIndex];
+    this.currentConnectionIndex = (this.currentConnectionIndex + 1) % this.maxConnections;
+    return connection;
   }
 
   /**
@@ -45,18 +87,34 @@ export class OllamaService implements AIService {
     businessContext: BusinessContext, 
     purchaseItems: string[]
   ): Promise<QualityScore> {
-    const prompt = this.buildEvaluationPrompt(transcript, businessContext, purchaseItems);
-    
-    const startTime = Date.now();
+    const requestId = performanceMonitor.startRequest();
+    let cached = false;
     
     try {
-      const response = await this.makeRequest(prompt);
+      // Check cache first
+      const cachedResult = cacheService.getCachedEvaluation(transcript, businessContext.type);
+      if (cachedResult) {
+        console.log(`Cache hit for evaluation - saved AI processing time`);
+        cached = true;
+        performanceMonitor.endRequest(requestId, true, cached);
+        return cachedResult;
+      }
+
+      const prompt = this.buildEvaluationPrompt(transcript, businessContext, purchaseItems);
+      
+      const startTime = Date.now();
+      
+      const response = await this.makeRequest(prompt, { isConversation: false });
       const evaluation = this.parseEvaluationResponse(response.response);
       
       const latency = Date.now() - startTime;
-      console.log(`AI evaluation completed in ${latency}ms`);
+      console.log(`AI evaluation completed in ${latency}ms (model: ${this.config.model})`);
 
-      return {
+      // Record performance metrics
+      performanceMonitor.recordLatency(latency);
+      performanceMonitor.endRequest(requestId, true, cached);
+
+      const result: QualityScore = {
         authenticity: evaluation.authenticity,
         concreteness: evaluation.concreteness,
         depth: evaluation.depth,
@@ -65,8 +123,14 @@ export class OllamaService implements AIService {
         categories: evaluation.categories,
         sentiment: evaluation.sentiment
       };
+
+      // Cache the result for similar future requests
+      cacheService.cacheEvaluation(transcript, businessContext.type, result);
+
+      return result;
     } catch (error) {
       console.error('AI evaluation failed:', error);
+      performanceMonitor.endRequest(requestId, false, cached);
       throw new Error(`AI evaluation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -79,18 +143,41 @@ export class OllamaService implements AIService {
     conversationHistory: string[],
     businessContext: BusinessContext
   ): Promise<ConversationResponse> {
-    const prompt = this.buildConversationPrompt(userInput, conversationHistory, businessContext);
+    const requestId = performanceMonitor.startRequest();
+    let cached = false;
     
     try {
-      const response = await this.makeRequest(prompt);
+      // Check cache for conversation responses
+      const cachedResult = cacheService.getCachedConversation(userInput, conversationHistory.length);
+      if (cachedResult) {
+        console.log(`Cache hit for conversation - saved AI processing time`);
+        cached = true;
+        performanceMonitor.endRequest(requestId, true, cached);
+        return cachedResult;
+      }
+
+      const prompt = this.buildConversationPrompt(userInput, conversationHistory, businessContext);
+      const startTime = Date.now();
       
-      return {
+      const response = await this.makeRequest(prompt, { isConversation: true });
+      
+      const latency = Date.now() - startTime;
+      performanceMonitor.recordLatency(latency);
+      performanceMonitor.endRequest(requestId, true, cached);
+      
+      const result: ConversationResponse = {
         response: response.response.trim(),
         shouldContinue: this.shouldContinueConversation(response.response, conversationHistory.length),
         confidence: 0.8 // TODO: Implement confidence scoring
       };
+
+      // Cache conversation responses for common patterns
+      cacheService.cacheConversation(userInput, conversationHistory.length, result);
+
+      return result;
     } catch (error) {
       console.error('AI conversation failed:', error);
+      performanceMonitor.endRequest(requestId, false, cached);
       
       // Fallback response
       return {
@@ -137,18 +224,84 @@ export class OllamaService implements AIService {
   }
 
   /**
-   * Make a request to Ollama API
+   * Make a request to Ollama API with production-optimized parameters
    */
-  private async makeRequest(prompt: string): Promise<OllamaResponse> {
+  private async makeRequest(prompt: string, options: { isConversation?: boolean } = {}): Promise<OllamaResponse> {
+    // Production-optimized parameters for maximum speed
     const request: OllamaRequest = {
       model: this.config.model,
       prompt,
       stream: false,
-      temperature: this.config.temperature
+      temperature: this.config.temperature,
+      // Additional optimization parameters
+      options: {
+        num_predict: options.isConversation ? 30 : 50, // Shorter responses for conversations
+        num_ctx: 1024,        // Reduced context window for speed
+        top_k: 10,           // Limit token selection for speed
+        top_p: 0.9,          // Focus probability mass
+        repeat_penalty: 1.1,  // Prevent loops
+        stop: options.isConversation ? ['\n\n', 'KUND:', 'DU:'] : undefined
+      }
     };
 
-    const response = await this.client.post('/api/generate', request);
+    // Log performance for monitoring
+    console.log(`AI request to ${this.config.model} (${options.isConversation ? 'conversation' : 'evaluation'})`);
+
+    // Use connection pool for load distribution
+    const client = this.getConnection();
+    const response = await client.post('/api/generate', request);
     return response.data;
+  }
+
+  /**
+   * Warm up the model by making a test request
+   */
+  async warmUpModel(): Promise<void> {
+    if (this.modelWarmedUp) return;
+    
+    try {
+      console.log(`Warming up model ${this.config.model}...`);
+      const startTime = Date.now();
+      
+      // Simple warm-up request
+      const testPrompt = 'Hej';
+      await this.makeRequest(testPrompt, { isConversation: true });
+      
+      const warmUpTime = Date.now() - startTime;
+      this.modelWarmedUp = true;
+      console.log(`Model ${this.config.model} warmed up in ${warmUpTime}ms`);
+    } catch (error) {
+      console.error('Model warm-up failed:', error);
+      // Don't throw - allow service to continue without warm-up
+    }
+  }
+
+  /**
+   * Initialize service and warm up model
+   */
+  async initialize(): Promise<void> {
+    console.log(`Initializing OllamaService with model ${this.config.model}`);
+    
+    // Start automatic memory monitoring
+    performanceMonitor.startMemoryMonitoring(30000); // Every 30 seconds
+    
+    await this.warmUpModel();
+    
+    console.log('OllamaService initialized with performance monitoring enabled');
+  }
+
+  /**
+   * Get current performance statistics
+   */
+  getPerformanceStats() {
+    return performanceMonitor.getStats();
+  }
+
+  /**
+   * Get formatted performance report
+   */
+  getPerformanceReport(): string {
+    return performanceMonitor.getReport();
   }
 
   /**

@@ -1,0 +1,542 @@
+# Swedish Pilot Specific Alerting Integration
+# Comprehensive alert orchestration across payment, AI, and admin systems
+
+# Cross-System Alert Correlation Rules
+cross_system_alerts:
+  # Business Impact Correlation
+  - alert: SwedishBusinessCriticalSystemsDown
+    expr: |
+      (
+        count by (business_id) (up{job=~"payment-.*"} == 0) > 0
+      ) and (
+        count by (business_id) (up{job=~"ai-.*"} == 0) > 0
+      ) and on (business_id) (
+        admin_swedish_pilot_businesses{status="approved_active"} == 1
+      )
+    for: 3m
+    labels:
+      severity: critical
+      team: incident_response
+      integration: cross_system
+      swedish_pilot: "true"
+      business_impact: "high"
+    annotations:
+      summary: "Multiple critical systems down for Swedish pilot business"
+      description: "Business {{ $labels.business_id }} affected by both payment and AI system outages"
+      runbook_url: "https://docs.ai-feedback.se/runbooks/multi-system-outage"
+      escalation: "immediate"
+
+  # Regional System Health
+  - alert: StockholmRegionSystemDegradation
+    expr: |
+      (
+        avg by (region) (up{job=~".*", region="stockholm"}) < 0.8
+      ) and (
+        admin_swedish_pilot_businesses{region="stockholm", status="approved_active"} > 5
+      )
+    for: 10m
+    labels:
+      severity: warning
+      team: regional_operations
+      region: stockholm
+      swedish_pilot: "true"
+    annotations:
+      summary: "Stockholm region experiencing system degradation"
+      description: "Multiple services in Stockholm region showing issues affecting {{ $value }} businesses"
+
+  # End-to-End Customer Journey Monitoring  
+  - alert: SwedishCustomerJourneyBroken
+    expr: |
+      (
+        rate(feedback_sessions_started_total{country="sweden"}[5m]) > 0.1
+      ) and (
+        rate(feedback_sessions_completed_total{country="sweden"}[5m]) /
+        rate(feedback_sessions_started_total{country="sweden"}[5m]) < 0.3
+      )
+    for: 5m
+    labels:
+      severity: critical
+      team: customer_experience
+      integration: journey_monitoring
+      swedish_pilot: "true"
+    annotations:
+      summary: "Swedish customer journey completion rate critically low"
+      description: "Only {{ $value | humanizePercentage }} of started sessions completing successfully"
+
+# Swedish Compliance Alert Integration
+compliance_alert_integration:
+  # GDPR Compliance Across Systems
+  - alert: GDPRViolationDetectedMultiSystem
+    expr: |
+      (
+        gdpr_violations_total{system="payment"} > 0
+      ) or (
+        gdpr_violations_total{system="ai"} > 0
+      ) or (
+        admin_compliance_violations_total{regulation="gdpr"} > 0
+      )
+    for: 0s
+    labels:
+      severity: critical
+      team: compliance
+      regulation: gdpr
+      swedish_pilot: "true"
+      legal_impact: "high"
+    annotations:
+      summary: "GDPR violation detected across integrated systems"
+      description: "Data protection violation requires immediate attention and potential DPA notification"
+      runbook_url: "https://docs.ai-feedback.se/runbooks/gdpr-incident-response"
+
+  # Finansinspektionen Reporting Integration
+  - alert: FIReportingSystemFailure
+    expr: |
+      (
+        fi_report_generation_failures_total > 0
+      ) or (
+        payment_fi_compliance_errors_total > 0
+      ) or (
+        admin_fi_report_failures_total > 0
+      )
+    for: 5m
+    labels:
+      severity: critical
+      team: compliance
+      regulator: finansinspektionen
+      swedish_pilot: "true"
+    annotations:
+      summary: "Finansinspektionen reporting system failure"
+      description: "Critical failure in FI compliance reporting pipeline"
+      escalation: "compliance_officer"
+
+  # Swedish Data Localization Monitoring
+  - alert: SwedishDataOutsideEU
+    expr: |
+      (
+        sum(data_location_violations{jurisdiction!="eu"}) by (system)
+      ) and on () (
+        swedish_pilot_active == 1
+      )
+    for: 1m
+    labels:
+      severity: critical
+      team: compliance
+      category: data_localization
+      swedish_pilot: "true"
+    annotations:
+      summary: "Swedish pilot data detected outside EU"
+      description: "{{ $value }} violations of data localization requirements"
+
+# Swedish Business Operations Alerts
+business_operations_alerts:
+  # Business Onboarding Pipeline Health
+  - alert: SwedishBusinessOnboardingStuck
+    expr: |
+      (
+        admin_swedish_pilot_businesses{status="pending_approval"} > 3
+      ) and (
+        increase(admin_swedish_pilot_businesses{status="approved_active"}[2h]) == 0
+      )
+    for: 1h
+    labels:
+      severity: warning
+      team: business_operations
+      category: onboarding
+      swedish_pilot: "true"
+    annotations:
+      summary: "Swedish business onboarding pipeline stalled"
+      description: "{{ $value }} businesses pending approval with no progress in 2 hours"
+
+  # Revenue Impact Monitoring
+  - alert: SwedishPilotRevenueImpact
+    expr: |
+      (
+        rate(payment_amount_total{currency="SEK"}[1h]) 
+      ) < (
+        rate(payment_amount_total{currency="SEK"}[1h] offset 24h) * 0.5
+      )
+    for: 30m
+    labels:
+      severity: warning
+      team: business_development
+      category: revenue_impact
+      swedish_pilot: "true"
+    annotations:
+      summary: "Swedish pilot revenue significantly down"
+      description: "Revenue is {{ $value }}% below yesterday's level"
+
+  # Business Tier Distribution Monitoring
+  - alert: UnhealthySwedishBusinessTierDistribution
+    expr: |
+      (
+        admin_swedish_pilot_businesses{tier="3"} /
+        sum(admin_swedish_pilot_businesses{status="approved_active"})
+      ) > 0.7
+    for: 2h
+    labels:
+      severity: info
+      team: sales
+      category: tier_distribution
+      swedish_pilot: "true"
+    annotations:
+      summary: "High concentration of enterprise tier businesses"
+      description: "{{ $value | humanizePercentage }} of businesses are enterprise tier"
+
+# Quality and Performance Integration Alerts
+quality_performance_alerts:
+  # Integrated Quality Score Monitoring
+  - alert: SwedishFeedbackQualitySystemFailure
+    expr: |
+      (
+        rate(ai_quality_evaluation_failures_total{country="sweden"}[5m]) > 0.1
+      ) or (
+        avg(ai_quality_score{country="sweden"}) < 50
+      )
+    for: 10m
+    labels:
+      severity: critical
+      team: quality_assurance
+      integration: ai_quality
+      swedish_pilot: "true"
+    annotations:
+      summary: "Swedish feedback quality system degraded"
+      description: "Quality evaluation failing or scores critically low"
+
+  # Voice Processing Quality for Swedish
+  - alert: SwedishVoiceProcessingDegraded
+    expr: |
+      (
+        rate(voice_processing_errors_total{language="swedish"}[5m]) > 0.05
+      ) or (
+        avg(voice_recognition_accuracy{language="swedish"}) < 0.8
+      )
+    for: 5m
+    labels:
+      severity: warning
+      team: voice_engineering
+      integration: voice_quality
+      language: swedish
+    annotations:
+      summary: "Swedish voice processing quality degraded"
+      description: "High error rate or low accuracy for Swedish language processing"
+
+  # End-to-End Response Time
+  - alert: SwedishPilotResponseTimeSLA
+    expr: |
+      histogram_quantile(0.95, 
+        sum(rate(feedback_session_duration_seconds_bucket{country="sweden"}[5m])) by (le)
+      ) > 30
+    for: 10m
+    labels:
+      severity: warning
+      team: performance
+      integration: sla_monitoring
+      swedish_pilot: "true"
+    annotations:
+      summary: "Swedish pilot response time SLA breach"
+      description: "95th percentile response time is {{ $value }}s, above 30s SLA"
+
+# Financial and Payment Integration Alerts
+financial_integration_alerts:
+  # Swedish Payment Method Availability
+  - alert: SwedishPaymentMethodsDown
+    expr: |
+      (
+        up{job="payment-gateway-live", payment_method=~"swish|bankgiro"} == 0
+      ) and on () (
+        hour() >= 8 and hour() <= 20  # Business hours
+      )
+    for: 2m
+    labels:
+      severity: critical
+      team: payments
+      integration: payment_methods
+      swedish_pilot: "true"
+    annotations:
+      summary: "Critical Swedish payment methods unavailable"
+      description: "Swish or Bankgiro payment methods down during business hours"
+
+  # Currency Exchange Rate Impact
+  - alert: SEKExchangeRateVolatility
+    expr: |
+      abs(
+        rate(sek_exchange_rate[1h]) - rate(sek_exchange_rate[1h] offset 24h)
+      ) / rate(sek_exchange_rate[1h] offset 24h) > 0.05
+    for: 15m
+    labels:
+      severity: info
+      team: finance
+      integration: currency_monitoring
+      swedish_pilot: "true"
+    annotations:
+      summary: "SEK exchange rate volatility detected"
+      description: "SEK rate changed by {{ $value | humanizePercentage }} vs yesterday"
+
+  # Payment Volume Anomaly Detection
+  - alert: SwedishPaymentVolumeAnomaly
+    expr: |
+      abs(
+        rate(payment_transactions_total{country="sweden"}[1h]) -
+        avg_over_time(rate(payment_transactions_total{country="sweden"}[1h])[7d:])
+      ) / avg_over_time(rate(payment_transactions_total{country="sweden"}[1h])[7d:]) > 2
+    for: 30m
+    labels:
+      severity: warning
+      team: fraud_detection
+      integration: anomaly_detection
+      swedish_pilot: "true"
+    annotations:
+      summary: "Unusual Swedish payment volume pattern"
+      description: "Payment volume is {{ $value }}x normal levels"
+
+# Security Integration Alerts
+security_integration_alerts:
+  # Multi-System Security Breach
+  - alert: SwedishPilotSecurityIncident
+    expr: |
+      (
+        admin_auth_failed_attempts_total > 20
+      ) and (
+        fraud_high_risk_events_total > 5
+      ) and (
+        payment_security_violations_total > 0
+      )
+    for: 5m
+    labels:
+      severity: critical
+      team: security_incident_response
+      integration: security_correlation
+      swedish_pilot: "true"
+    annotations:
+      summary: "Coordinated security incident detected"
+      description: "Multiple security systems detecting suspicious activity"
+      escalation: "security_team_lead"
+
+  # Swedish Admin Account Compromise
+  - alert: SwedishAdminAccountSuspicious
+    expr: |
+      (
+        rate(admin_auth_failed_attempts_total{country="sweden"}[5m]) > 1
+      ) and (
+        admin_auth_successful_logins{country="sweden", hour=~"0[0-6]|2[2-3]"} > 0
+      )
+    for: 1m
+    labels:
+      severity: critical
+      team: security
+      integration: account_security
+      swedish_pilot: "true"
+    annotations:
+      summary: "Suspicious Swedish admin account activity"
+      description: "Failed attempts followed by unusual hour login"
+
+# System Integration Health Monitoring
+integration_health_alerts:
+  # Cross-System Communication Failures
+  - alert: SwedishPilotIntegrationFailure
+    expr: |
+      (
+        rate(integration_api_call_failures_total{target_system=~"payment|ai|admin"}[5m]) > 0.1
+      ) or (
+        rate(webhook_delivery_failures_total{source_system=~"payment|ai|admin"}[5m]) > 0.1
+      )
+    for: 5m
+    labels:
+      severity: warning
+      team: integration
+      category: system_communication
+      swedish_pilot: "true"
+    annotations:
+      summary: "Swedish pilot system integration issues"
+      description: "High failure rate in cross-system communication"
+
+  # Data Synchronization Lag
+  - alert: SwedishPilotDataSyncLag
+    expr: |
+      (
+        time() - max(admin_data_sync_last_success_timestamp{source=~"payment|ai"})
+      ) > 300
+    for: 2m
+    labels:
+      severity: warning
+      team: data_engineering
+      integration: data_sync
+      swedish_pilot: "true"
+    annotations:
+      summary: "Swedish pilot data synchronization lag"
+      description: "Data sync delayed by {{ $value | humanizeDuration }}"
+
+# Alert Routing Configuration for Swedish Pilot
+swedish_pilot_routing:
+  # High-priority Swedish pilot alerts
+  - match:
+      swedish_pilot: "true"
+      severity: critical
+    receiver: 'swedish-pilot-critical'
+    group_wait: 0s
+    repeat_interval: 10m
+    routes:
+      # Business impact alerts to management
+      - match:
+          business_impact: "high"
+        receiver: 'swedish-pilot-management'
+        
+      # Compliance alerts to legal team
+      - match_re:
+          regulation: gdpr|finansinspektionen
+        receiver: 'swedish-compliance-emergency'
+        
+      # Security incidents to SOC
+      - match:
+          team: security_incident_response
+        receiver: 'swedish-security-soc'
+
+  # Regional alert routing
+  - match:
+      swedish_pilot: "true"
+      region: stockholm
+    receiver: 'stockholm-regional-team'
+    group_by: ['alertname', 'business_id']
+    
+  - match:
+      swedish_pilot: "true"
+      region: gothenburg
+    receiver: 'gothenburg-regional-team'
+    group_by: ['alertname', 'business_id']
+    
+  - match:
+      swedish_pilot: "true"
+      region: malmo
+    receiver: 'malmo-regional-team'
+    group_by: ['alertname', 'business_id']
+
+# Alert Receivers for Swedish Pilot Integration
+swedish_pilot_receivers:
+  # Critical Swedish pilot issues
+  - name: 'swedish-pilot-critical'
+    email_configs:
+      - to: 'swedish-pilot-oncall@ai-feedback.se'
+        subject: '[CRITICAL] Swedish Pilot - {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "swedish.pilot.critical" . }}
+    slack_configs:
+      - api_url: '${SLACK_SWEDISH_PILOT_CRITICAL}'
+        channel: '#swedish-pilot-critical'
+        username: 'Swedish Pilot Alert'
+        icon_emoji: ':sweden:'
+        color: 'danger'
+
+  # Management notifications
+  - name: 'swedish-pilot-management'
+    email_configs:
+      - to: 'management@ai-feedback.se, swedish-pilot-lead@ai-feedback.se'
+        subject: '[MGMT] Swedish Pilot Business Impact - {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "swedish.pilot.management" . }}
+
+  # Compliance emergency
+  - name: 'swedish-compliance-emergency'
+    email_configs:
+      - to: 'compliance-emergency@ai-feedback.se, legal@ai-feedback.se'
+        subject: '[COMPLIANCE EMERGENCY] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ template "swedish.compliance.emergency" . }}
+    pagerduty_configs:
+      - integration_key: '${PAGERDUTY_COMPLIANCE_KEY}'
+        description: 'Swedish compliance emergency: {{ .GroupLabels.alertname }}'
+
+  # Security operations center
+  - name: 'swedish-security-soc'
+    email_configs:
+      - to: 'soc@ai-feedback.se'
+        subject: '[SOC] Swedish Pilot Security - {{ .GroupLabels.alertname }}'
+    slack_configs:
+      - api_url: '${SLACK_SECURITY_SOC}'
+        channel: '#security-soc'
+        color: 'danger'
+
+# Alert Templates for Swedish Pilot Integration
+alert_templates:
+  swedish_pilot_templates: |
+    {{ define "swedish.pilot.critical" }}
+    🚨 CRITICAL SWEDISH PILOT ALERT 🚨
+    
+    Alert: {{ .GroupLabels.alertname }}
+    Time: {{ now.In (time.LoadLocation "Europe/Stockholm") | date "2006-01-02 15:04:05 MST" }}
+    
+    {{ range .Alerts }}
+    Summary: {{ .Annotations.summary }}
+    Description: {{ .Annotations.description }}
+    
+    {{ if .Labels.business_id }}Business ID: {{ .Labels.business_id }}{{ end }}
+    {{ if .Labels.region }}Region: {{ .Labels.region | title }}{{ end }}
+    {{ if .Labels.integration }}Integration: {{ .Labels.integration }}{{ end }}
+    
+    Started: {{ .StartsAt.In (time.LoadLocation "Europe/Stockholm") | date "15:04 MST" }}
+    {{ end }}
+    
+    {{ if .CommonAnnotations.escalation }}
+    Escalation: {{ .CommonAnnotations.escalation }}
+    {{ end }}
+    
+    {{ if .CommonAnnotations.runbook_url }}
+    Runbook: {{ .CommonAnnotations.runbook_url }}
+    {{ end }}
+    
+    This is a critical Swedish pilot system alert requiring immediate attention.
+    {{ end }}
+
+    {{ define "swedish.pilot.management" }}
+    Swedish Pilot Business Impact Alert
+    
+    Alert: {{ .GroupLabels.alertname }}
+    Business Impact: {{ .CommonLabels.business_impact | default "medium" }}
+    
+    {{ range .Alerts }}
+    Impact Description: {{ .Annotations.description }}
+    
+    {{ if .Labels.business_id }}Affected Business: {{ .Labels.business_id }}{{ end }}
+    {{ if .Labels.region }}Region: {{ .Labels.region | title }}{{ end }}
+    {{ if .Annotations.impact }}Impact: {{ .Annotations.impact }}{{ end }}
+    {{ end }}
+    
+    Swedish Time: {{ now.In (time.LoadLocation "Europe/Stockholm") | date "2006-01-02 15:04:05 MST" }}
+    
+    Management review recommended for Swedish pilot operations.
+    {{ end }}
+
+    {{ define "swedish.compliance.emergency" }}
+    🏛️ COMPLIANCE EMERGENCY - IMMEDIATE ACTION REQUIRED
+    
+    Alert: {{ .GroupLabels.alertname }}
+    Regulation: {{ .CommonLabels.regulation | title }}
+    Legal Impact: {{ .CommonLabels.legal_impact | default "high" }}
+    
+    {{ range .Alerts }}
+    Violation: {{ .Annotations.summary }}
+    Details: {{ .Annotations.description }}
+    {{ end }}
+    
+    ⚠️  This compliance violation may require:
+    - Immediate remediation actions
+    - Regulatory authority notification
+    - Legal counsel consultation
+    - Customer/business communication
+    
+    Swedish Time: {{ now.In (time.LoadLocation "Europe/Stockholm") | date "2006-01-02 15:04:05 MST" }}
+    {{ end }}
+
+# Health Check Integration
+health_check_integration:
+  swedish_pilot_health:
+    - name: "cross_system_integration"
+      endpoint: "http://admin-prometheus:9090/api/v1/query"
+      query: 'up{swedish_pilot="true"}'
+      check: |
+        curl -s "$endpoint?query=$query" | jq -r '.data.result | length > 0'
+      interval: "30s"
+      
+    - name: "alert_routing_health"
+      endpoint: "http://admin-alertmanager:9093/api/v1/status"
+      check: |
+        curl -f -s "$endpoint" | jq -r '.status' | grep -q "success"
+      interval: "60s"

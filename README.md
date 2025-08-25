@@ -84,8 +84,10 @@ Admin System
 🔍 Real-time monitoring of feedback sessions
 🛡️ Fraud detection with multi-layer protection
 📊 Process analytics and conversion funnels
+🎯 AI calibration tools with performance monitoring
+⚖️ Manual score override system with audit trails
 🧪 A/B testing tools for AI optimization
-🎮 Manual override capabilities
+🎮 Comprehensive manual override capabilities
 
 🔄 Customer Journey
 

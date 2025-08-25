@@ -1,0 +1,125 @@
+apiVersion: 1
+
+# Admin-specific Prometheus datasources configuration
+# Integrates with existing monitoring while adding admin-specific data sources
+
+datasources:
+  # Admin Prometheus - Dedicated for admin monitoring
+  - name: Admin-Prometheus
+    type: prometheus
+    access: proxy
+    url: http://admin-prometheus:9090
+    isDefault: true
+    basicAuth: false
+    withCredentials: false
+    tlsAuth: false
+    tlsAuthWithCACert: false
+    tlsSkipVerify: true
+    editable: true
+    version: 1
+    jsonData:
+      timeInterval: "15s"
+      queryTimeout: "60s"
+      httpMethod: "POST"
+      manageAlerts: true
+      prometheusType: "Prometheus"
+      prometheusVersion: "2.47.0"
+      exemplarTraceIdDestinations: []
+      customQueryParameters: ""
+    uid: admin-prometheus
+
+  # Main Prometheus (existing) - For cross-referencing
+  - name: Main-Prometheus  
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: false
+    basicAuth: false
+    withCredentials: false
+    tlsAuth: false
+    tlsAuthWithCACert: false
+    tlsSkipVerify: true
+    editable: true
+    version: 1
+    jsonData:
+      timeInterval: "15s"
+      queryTimeout: "60s"
+      httpMethod: "POST"
+      manageAlerts: false
+      prometheusType: "Prometheus"
+      prometheusVersion: "2.47.0"
+    uid: main-prometheus
+
+  # Payment Prometheus (from test infrastructure) - For Swedish pilot payment data
+  - name: Payment-Prometheus
+    type: prometheus
+    access: proxy
+    url: http://payments-prometheus:9090
+    isDefault: false
+    basicAuth: false
+    withCredentials: false
+    tlsAuth: false
+    tlsAuthWithCACert: false
+    tlsSkipVerify: true
+    editable: true
+    version: 1
+    jsonData:
+      timeInterval: "30s"
+      queryTimeout: "60s"
+      httpMethod: "POST"
+      manageAlerts: false
+      prometheusType: "Prometheus"
+      prometheusVersion: "2.47.0"
+    uid: payment-prometheus
+
+  # Admin PostgreSQL - For direct database queries
+  - name: Admin-PostgreSQL
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    database: ai_feedback_admin
+    user: ${POSTGRES_ADMIN_USER}
+    isDefault: false
+    basicAuth: false
+    withCredentials: false
+    tlsAuth: false
+    tlsAuthWithCACert: false
+    tlsSkipVerify: true
+    editable: true
+    version: 1
+    jsonData:
+      sslmode: "disable"
+      maxOpenConns: 10
+      maxIdleConns: 2
+      connMaxLifetime: 14400
+      postgresVersion: 1400
+      timescaledb: false
+    secureJsonData:
+      password: ${POSTGRES_ADMIN_PASSWORD}
+    uid: admin-postgres
+
+  # Admin Redis - For session and cache monitoring
+  - name: Admin-Redis
+    type: redis-datasource
+    access: proxy
+    url: http://admin-session-manager:6379
+    isDefault: false
+    basicAuth: false
+    withCredentials: false
+    tlsAuth: false
+    tlsAuthWithCACert: false
+    tlsSkipVerify: true
+    editable: true
+    version: 1
+    jsonData:
+      client: "standalone"
+      poolSize: 5
+      timeout: 10
+      pingInterval: 0
+      pipelineWindow: 0
+    uid: admin-redis
+
+deleteDatasources:
+  # Clean up any old admin datasources
+  - name: old-admin-prometheus
+    orgId: 1

@@ -1,0 +1,374 @@
+# Business Dashboard Performance Monitoring Configuration
+# Prometheus rules and alerts for business dashboard performance
+
+groups:
+  - name: business_dashboard_performance
+    rules:
+      # Response Time Metrics
+      - alert: BusinessDashboardHighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{service="business-dashboard"}[5m])) > 2
+        for: 2m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: response_time
+        annotations:
+          summary: "Business dashboard response time is high"
+          description: "95th percentile response time for business dashboard is {{ $value }}s, which exceeds 2s threshold"
+          runbook_url: "https://docs.ai-feedback.internal/runbooks/business-dashboard-performance"
+
+      - alert: BusinessDashboardCriticalResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{service="business-dashboard"}[5m])) > 5
+        for: 1m
+        labels:
+          severity: critical
+          service: business-dashboard
+          metric: response_time
+        annotations:
+          summary: "Business dashboard response time is critically high"
+          description: "95th percentile response time for business dashboard is {{ $value }}s, which exceeds 5s critical threshold"
+          runbook_url: "https://docs.ai-feedback.internal/runbooks/business-dashboard-performance"
+
+      # Error Rate Metrics
+      - alert: BusinessDashboardHighErrorRate
+        expr: rate(http_requests_total{service="business-dashboard",status=~"5.."}[5m]) / rate(http_requests_total{service="business-dashboard"}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: error_rate
+        annotations:
+          summary: "Business dashboard error rate is high"
+          description: "Error rate for business dashboard is {{ $value | humanizePercentage }}, which exceeds 5% threshold"
+
+      - alert: BusinessDashboardCriticalErrorRate
+        expr: rate(http_requests_total{service="business-dashboard",status=~"5.."}[5m]) / rate(http_requests_total{service="business-dashboard"}[5m]) > 0.15
+        for: 1m
+        labels:
+          severity: critical
+          service: business-dashboard
+          metric: error_rate
+        annotations:
+          summary: "Business dashboard error rate is critically high"
+          description: "Error rate for business dashboard is {{ $value | humanizePercentage }}, which exceeds 15% critical threshold"
+
+      # Database Performance
+      - alert: BusinessDashboardSlowDatabaseQueries
+        expr: histogram_quantile(0.95, rate(database_query_duration_seconds_bucket{service="business-dashboard"}[5m])) > 1
+        for: 3m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: database_performance
+        annotations:
+          summary: "Business dashboard database queries are slow"
+          description: "95th percentile database query time is {{ $value }}s, which exceeds 1s threshold"
+
+      - alert: BusinessDashboardDatabaseConnectionPool
+        expr: database_connections_active{service="business-dashboard"} / database_connections_max{service="business-dashboard"} > 0.8
+        for: 2m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: database_connections
+        annotations:
+          summary: "Business dashboard database connection pool usage is high"
+          description: "Database connection pool usage is {{ $value | humanizePercentage }}, approaching limit"
+
+      # Memory and CPU Performance
+      - alert: BusinessDashboardHighMemoryUsage
+        expr: process_resident_memory_bytes{service="business-dashboard"} / 1024 / 1024 / 1024 > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: memory_usage
+        annotations:
+          summary: "Business dashboard memory usage is high"
+          description: "Business dashboard memory usage is {{ $value }}GB, which exceeds 1GB threshold"
+
+      - alert: BusinessDashboardHighCPUUsage
+        expr: rate(process_cpu_seconds_total{service="business-dashboard"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: cpu_usage
+        annotations:
+          summary: "Business dashboard CPU usage is high"
+          description: "Business dashboard CPU usage is {{ $value | humanizePercentage }}, which exceeds 80% threshold"
+
+      # Business-Specific Performance Metrics
+      - alert: BusinessAnalyticsLoadTime
+        expr: histogram_quantile(0.95, rate(business_analytics_load_duration_seconds_bucket[5m])) > 3
+        for: 2m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: analytics_performance
+        annotations:
+          summary: "Business analytics dashboard load time is high"
+          description: "Analytics dashboard load time is {{ $value }}s, which exceeds 3s threshold"
+
+      - alert: BusinessReportGenerationTime
+        expr: histogram_quantile(0.95, rate(business_report_generation_duration_seconds_bucket[5m])) > 10
+        for: 1m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: report_generation
+        annotations:
+          summary: "Business report generation is slow"
+          description: "Report generation time is {{ $value }}s, which exceeds 10s threshold"
+
+      - alert: BusinessDashboardSessionTimeout
+        expr: rate(business_session_timeouts_total[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: session_management
+        annotations:
+          summary: "High rate of business dashboard session timeouts"
+          description: "Session timeout rate is {{ $value }} per second, indicating performance issues"
+
+      # Location-Specific Performance
+      - alert: LocationSpecificPerformanceDegradation
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{service="business-dashboard",location_id!=""}[5m])) > 3
+        for: 5m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: location_performance
+        annotations:
+          summary: "Location-specific dashboard performance is degraded"
+          description: "Location {{ $labels.location_id }} dashboard response time is {{ $value }}s"
+
+      # Business Tier Performance
+      - alert: PremiumBusinessDashboardPerformance
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{service="business-dashboard",business_tier="3"}[5m])) > 1.5
+        for: 2m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: premium_performance
+        annotations:
+          summary: "Premium business dashboard performance is degraded"
+          description: "Premium tier dashboard response time is {{ $value }}s, exceeding 1.5s SLA"
+
+      # API Performance
+      - alert: BusinessDashboardAPIPerformance
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{service="business-dashboard",endpoint=~"/api/.*"}[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: api_performance
+        annotations:
+          summary: "Business dashboard API performance is degraded"
+          description: "API endpoint {{ $labels.endpoint }} response time is {{ $value }}s"
+
+      # WebSocket Performance
+      - alert: BusinessDashboardWebSocketLatency
+        expr: histogram_quantile(0.95, rate(websocket_message_duration_seconds_bucket{service="business-dashboard"}[5m])) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: websocket_performance
+        annotations:
+          summary: "Business dashboard WebSocket latency is high"
+          description: "WebSocket message latency is {{ $value }}s, which exceeds 0.5s threshold"
+
+      - alert: BusinessDashboardWebSocketConnections
+        expr: websocket_connections_active{service="business-dashboard"} > 1000
+        for: 2m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: websocket_connections
+        annotations:
+          summary: "High number of WebSocket connections to business dashboard"
+          description: "{{ $value }} active WebSocket connections, approaching capacity limits"
+
+      # Cache Performance
+      - alert: BusinessDashboardCacheHitRate
+        expr: rate(cache_hits_total{service="business-dashboard"}[5m]) / (rate(cache_hits_total{service="business-dashboard"}[5m]) + rate(cache_misses_total{service="business-dashboard"}[5m])) < 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: cache_performance
+        annotations:
+          summary: "Business dashboard cache hit rate is low"
+          description: "Cache hit rate is {{ $value | humanizePercentage }}, which is below 80% threshold"
+
+      # Business Data Loading Performance
+      - alert: BusinessDataLoadingPerformance
+        expr: histogram_quantile(0.95, rate(business_data_load_duration_seconds_bucket[5m])) > 2
+        for: 3m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: data_loading
+        annotations:
+          summary: "Business data loading is slow"
+          description: "Business data loading time is {{ $value }}s, which exceeds 2s threshold"
+
+      # Export Performance
+      - alert: BusinessExportPerformance
+        expr: histogram_quantile(0.95, rate(business_export_duration_seconds_bucket[5m])) > 30
+        for: 1m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: export_performance
+        annotations:
+          summary: "Business data export is slow"
+          description: "Data export time is {{ $value }}s, which exceeds 30s threshold"
+
+  - name: business_dashboard_availability
+    rules:
+      # Service Availability
+      - alert: BusinessDashboardDown
+        expr: up{service="business-dashboard"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: business-dashboard
+          metric: availability
+        annotations:
+          summary: "Business dashboard is down"
+          description: "Business dashboard service is not responding"
+          runbook_url: "https://docs.ai-feedback.internal/runbooks/service-down"
+
+      - alert: BusinessDashboardPartialOutage
+        expr: (count(up{service="business-dashboard"} == 1) / count(up{service="business-dashboard"})) < 0.7
+        for: 1m
+        labels:
+          severity: critical
+          service: business-dashboard
+          metric: availability
+        annotations:
+          summary: "Business dashboard partial outage"
+          description: "Only {{ $value | humanizePercentage }} of business dashboard instances are healthy"
+
+      # Health Check Performance
+      - alert: BusinessDashboardHealthCheckFailures
+        expr: rate(health_check_failures_total{service="business-dashboard"}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: health_checks
+        annotations:
+          summary: "Business dashboard health check failures"
+          description: "Health check failure rate is {{ $value }} per second"
+
+  - name: business_dashboard_capacity
+    rules:
+      # Concurrent Users
+      - alert: BusinessDashboardHighConcurrentUsers
+        expr: business_dashboard_active_sessions > 500
+        for: 2m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: concurrent_users
+        annotations:
+          summary: "High number of concurrent business dashboard users"
+          description: "{{ $value }} active business dashboard sessions, approaching capacity"
+
+      - alert: BusinessDashboardConcurrentUserLimit
+        expr: business_dashboard_active_sessions > 750
+        for: 1m
+        labels:
+          severity: critical
+          service: business-dashboard
+          metric: concurrent_users
+        annotations:
+          summary: "Business dashboard concurrent user limit reached"
+          description: "{{ $value }} active sessions, exceeding recommended capacity"
+
+      # Request Rate
+      - alert: BusinessDashboardHighRequestRate
+        expr: rate(http_requests_total{service="business-dashboard"}[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: request_rate
+        annotations:
+          summary: "High request rate to business dashboard"
+          description: "Request rate is {{ $value }} requests/second, monitoring for capacity issues"
+
+      # Queue Lengths
+      - alert: BusinessDashboardHighQueueLength
+        expr: business_dashboard_queue_length > 50
+        for: 2m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: queue_length
+        annotations:
+          summary: "Business dashboard processing queue is long"
+          description: "Queue length is {{ $value }}, indicating potential bottleneck"
+
+  - name: business_dashboard_business_metrics
+    rules:
+      # Business-Critical Metrics
+      - alert: BusinessOnboardingPerformance
+        expr: histogram_quantile(0.95, rate(business_onboarding_duration_seconds_bucket[5m])) > 120
+        for: 2m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: business_onboarding
+        annotations:
+          summary: "Business onboarding process is slow"
+          description: "Business onboarding time is {{ $value }}s, which exceeds 2-minute threshold"
+
+      - alert: BusinessDashboardLoginPerformance
+        expr: histogram_quantile(0.95, rate(business_login_duration_seconds_bucket[5m])) > 3
+        for: 2m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: login_performance
+        annotations:
+          summary: "Business login process is slow"
+          description: "Business login time is {{ $value }}s, which exceeds 3s threshold"
+
+      - alert: BusinessLocationSwitchPerformance
+        expr: histogram_quantile(0.95, rate(location_switch_duration_seconds_bucket[5m])) > 2
+        for: 2m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: location_switch
+        annotations:
+          summary: "Business location switch is slow"
+          description: "Location switch time is {{ $value }}s, which exceeds 2s threshold"
+
+      # Revenue Impact Metrics
+      - alert: BusinessDashboardRevenueCalculationPerformance
+        expr: histogram_quantile(0.95, rate(revenue_calculation_duration_seconds_bucket[5m])) > 5
+        for: 1m
+        labels:
+          severity: warning
+          service: business-dashboard
+          metric: revenue_calculation
+        annotations:
+          summary: "Revenue calculation is slow"
+          description: "Revenue calculation time is {{ $value }}s, which may impact business operations"
+
+      - alert: BusinessPayoutProcessingPerformance
+        expr: histogram_quantile(0.95, rate(payout_processing_duration_seconds_bucket[5m])) > 10
+        for: 1m
+        labels:
+          severity: critical
+          service: business-dashboard
+          metric: payout_processing
+        annotations:
+          summary: "Business payout processing is slow"
+          description: "Payout processing time is {{ $value }}s, which may delay business payments"

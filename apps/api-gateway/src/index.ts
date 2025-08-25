@@ -11,9 +11,13 @@ import { businessRoutes } from './routes/business';
 import { qrRoutes } from './routes/qr';
 import { healthRoutes } from './routes/health';
 import { adminRoutes } from './routes/admin';
+import { paymentsRoutes } from './routes/payments';
+import { posHealthRoutes } from './routes/pos-health';
+import { posWebhookRoutes } from './routes/pos-webhooks';
 import { errorHandler } from './middleware/errorHandler';
 import { optionalAuth, createUserRateLimit } from './middleware/auth';
 import { setupWebSocket } from './websocket/voiceHandler';
+import { setupAdminWebSocket, cleanupAdminWebSocket } from './websocket/adminHandler';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './docs/openapi';
 
@@ -76,12 +80,16 @@ app.use('/health', healthRoutes);
 app.use('/api/qr', qrRoutes);
 app.use('/api/feedback', voiceLimiter, voiceUserLimit, feedbackRoutes);
 app.use('/api/business', businessRoutes);
+app.use('/api/payments', paymentsRoutes);
+app.use('/pos', posHealthRoutes);
+app.use('/webhooks', posWebhookRoutes);
 app.get('/openapi.json', (req, res) => res.json(swaggerSpec));
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/admin', adminRoutes);
 
-// WebSocket setup for voice streaming
+// WebSocket setup for voice streaming and admin dashboard
 setupWebSocket(wss);
+setupAdminWebSocket(wss);
 
 // Error handling middleware
 app.use(errorHandler);
@@ -103,6 +111,26 @@ server.listen(PORT, () => {
   console.log(`🚀 API Gateway running on port ${PORT}`);
   console.log(`📱 Health check: http://localhost:${PORT}/health`);
   console.log(`🎤 WebSocket server ready for voice connections`);
+  console.log(`📊 WebSocket server ready for admin dashboard connections`);
+});
+
+// Graceful shutdown handling
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM received, shutting down gracefully');
+  cleanupAdminWebSocket();
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 SIGINT received, shutting down gracefully');
+  cleanupAdminWebSocket();
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
 });
 
 export { app, server, wss };

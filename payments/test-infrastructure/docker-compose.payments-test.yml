@@ -1,0 +1,370 @@
+version: '3.8'
+
+# TEST Payment Infrastructure for Swedish Pilot
+# All services use test/mock data and free-tier resources
+
+services:
+  # Test Payment Gateway
+  payments-test-gateway:
+    image: node:18-alpine
+    container_name: payments-test-gateway
+    ports:
+      - "3010:3000"
+    environment:
+      - NODE_ENV=test
+      - STRIPE_TEST_SECRET_KEY=${STRIPE_TEST_SECRET_KEY}
+      - STRIPE_TEST_WEBHOOK_SECRET=${STRIPE_TEST_WEBHOOK_SECRET}
+      - DATABASE_URL=${TEST_DATABASE_URL}
+      - REDIS_URL=${TEST_REDIS_URL}
+      - COMPLIANCE_MODE=test
+      - FINANCIAL_AUTHORITY_ENDPOINT=mock
+      - SWEDISH_BANK_ID_TEST_MODE=true
+      - SWISH_TEST_API_KEY=${SWISH_TEST_API_KEY}
+    volumes:
+      - ./payment-gateway:/app
+      - ./test-data:/app/test-data:ro
+      - payment_test_logs:/var/log/payments
+    working_dir: /app
+    command: |
+      sh -c "
+        npm install
+        npm run start:test
+      "
+    networks:
+      - payments-test-network
+      - ai-feedback-test
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Mock Stripe Webhook Handler
+  stripe-webhook-mock:
+    image: alpine:3.18
+    container_name: stripe-webhook-mock
+    ports:
+      - "3011:3000"
+    environment:
+      - WEBHOOK_PORT=3000
+      - STRIPE_TEST_MODE=true
+      - PAYMENT_GATEWAY_URL=http://payments-test-gateway:3000
+    volumes:
+      - ./mock-services/stripe-webhook-mock.js:/app/webhook-mock.js:ro
+      - payment_test_logs:/var/log/payments
+    working_dir: /app
+    command: |
+      sh -c "
+        apk add --no-cache nodejs npm
+        npm init -y
+        npm install express body-parser uuid
+        node webhook-mock.js
+      "
+    networks:
+      - payments-test-network
+    depends_on:
+      - payments-test-gateway
+    restart: unless-stopped
+
+  # Swedish Financial Authority Mock API
+  finansinspektionen-mock:
+    image: alpine:3.18
+    container_name: finansinspektionen-mock
+    ports:
+      - "3012:3000"
+    environment:
+      - API_PORT=3000
+      - COMPLIANCE_MODE=test
+      - GENERATE_TEST_REPORTS=true
+    volumes:
+      - ./mock-services/finansinspektionen-mock.js:/app/fi-mock.js:ro
+      - ./test-data/compliance:/app/test-data:ro
+      - payment_test_logs:/var/log/payments
+    working_dir: /app
+    command: |
+      sh -c "
+        apk add --no-cache nodejs npm
+        npm init -y
+        npm install express cors uuid moment
+        node fi-mock.js
+      "
+    networks:
+      - payments-test-network
+    restart: unless-stopped
+
+  # Test Database (PostgreSQL)
+  payments-test-db:
+    image: postgres:15-alpine
+    container_name: payments-test-db
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_DB=payments_test
+      - POSTGRES_USER=test_user
+      - POSTGRES_PASSWORD=test_password
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - ./test-data/db-init:/docker-entrypoint-initdb.d:ro
+      - payments_test_db_data:/var/lib/postgresql/data
+    networks:
+      - payments-test-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.15'
+          memory: 128M
+
+  # Test Redis for session management
+  payments-test-redis:
+    image: redis:7-alpine
+    container_name: payments-test-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - payments_test_redis_data:/data
+    networks:
+      - payments-test-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # Payment Monitoring Dashboard
+  payments-monitoring:
+    image: grafana/grafana:10.1.0
+    container_name: payments-monitoring
+    ports:
+      - "3013:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=testpayments123
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - ./monitoring/payments-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./monitoring/payments-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./monitoring:/var/lib/grafana/dashboards:ro
+      - payments_monitoring_data:/var/lib/grafana
+    networks:
+      - payments-test-network
+    depends_on:
+      - payments-prometheus
+    restart: unless-stopped
+
+  # Prometheus for payment metrics
+  payments-prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: payments-prometheus
+    ports:
+      - "9093:9090"
+    volumes:
+      - ./monitoring/prometheus-payments.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/payment-alerts.yml:/etc/prometheus/rules/payment-alerts.yml:ro
+      - payments_prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.listen-address=:9090'
+      - '--web.enable-lifecycle'
+    networks:
+      - payments-test-network
+    restart: unless-stopped
+
+  # Payment Metrics Exporter
+  payments-metrics-exporter:
+    image: node:18-alpine
+    container_name: payments-metrics-exporter
+    ports:
+      - "9104:3000"
+    environment:
+      - NODE_ENV=test
+      - DATABASE_URL=postgresql://test_user:test_password@payments-test-db:5432/payments_test
+      - REDIS_URL=redis://payments-test-redis:6379
+      - METRICS_PORT=3000
+    volumes:
+      - ./monitoring/payments-metrics-exporter.js:/app/exporter.js:ro
+      - payment_test_logs:/var/log/payments
+    working_dir: /app
+    command: |
+      sh -c "
+        npm init -y
+        npm install express prom-client pg redis moment
+        node exporter.js
+      "
+    networks:
+      - payments-test-network
+    depends_on:
+      - payments-test-db
+      - payments-test-redis
+    restart: unless-stopped
+
+  # Compliance Logger
+  compliance-logger:
+    image: alpine:3.18
+    container_name: compliance-logger
+    environment:
+      - LOG_LEVEL=debug
+      - COMPLIANCE_ENDPOINT=http://finansinspektionen-mock:3000
+      - DATABASE_URL=postgresql://test_user:test_password@payments-test-db:5432/payments_test
+      - REPORT_SCHEDULE=0 */6 * * *  # Every 6 hours for testing
+    volumes:
+      - ./compliance/compliance-logger.js:/app/logger.js:ro
+      - ./test-data/compliance:/app/templates:ro
+      - payment_test_logs:/var/log/payments
+      - compliance_reports:/var/log/compliance
+    working_dir: /app
+    command: |
+      sh -c "
+        apk add --no-cache nodejs npm dcron
+        npm init -y
+        npm install pg moment uuid
+        echo '\$REPORT_SCHEDULE node logger.js' | crontab -
+        # Run once immediately
+        node logger.js &
+        crond -f
+      "
+    networks:
+      - payments-test-network
+    depends_on:
+      - payments-test-db
+      - finansinspektionen-mock
+    restart: unless-stopped
+
+  # Test Data Generator
+  test-data-generator:
+    image: node:18-alpine
+    container_name: test-data-generator
+    environment:
+      - DATABASE_URL=postgresql://test_user:test_password@payments-test-db:5432/payments_test
+      - REDIS_URL=redis://payments-test-redis:6379
+      - GENERATION_INTERVAL=60  # Generate test data every minute
+      - PAYMENT_GATEWAY_URL=http://payments-test-gateway:3000
+    volumes:
+      - ./test-data/generator.js:/app/generator.js:ro
+      - payment_test_logs:/var/log/payments
+    working_dir: /app
+    command: |
+      sh -c "
+        npm init -y
+        npm install pg redis axios faker moment
+        while true; do
+          node generator.js
+          sleep \$GENERATION_INTERVAL
+        done
+      "
+    networks:
+      - payments-test-network
+    depends_on:
+      - payments-test-db
+      - payments-test-redis
+      - payments-test-gateway
+    restart: unless-stopped
+
+  # Backup Service for Test Data
+  payments-backup-service:
+    image: alpine:3.18
+    container_name: payments-backup-service
+    environment:
+      - DATABASE_URL=postgresql://test_user:test_password@payments-test-db:5432/payments_test
+      - BACKUP_SCHEDULE=0 */4 * * *  # Every 4 hours for testing
+      - BACKUP_RETENTION_DAYS=7
+      - S3_TEST_BUCKET=${S3_TEST_BUCKET:-ai-feedback-test-backups}
+    volumes:
+      - ./scripts/backup-payments-test.sh:/scripts/backup.sh:ro
+      - payments_test_backups:/backups
+      - payment_test_logs:/var/log/payments
+    command: |
+      sh -c "
+        apk add --no-cache postgresql-client aws-cli dcron bash
+        chmod +x /scripts/backup.sh
+        echo '\$BACKUP_SCHEDULE /scripts/backup.sh' | crontab -
+        # Run backup once immediately
+        /scripts/backup.sh &
+        crond -f
+      "
+    networks:
+      - payments-test-network
+    depends_on:
+      - payments-test-db
+    restart: unless-stopped
+
+  # Migration Preparation Service
+  migration-prep:
+    image: node:18-alpine
+    container_name: migration-prep
+    environment:
+      - TEST_DATABASE_URL=postgresql://test_user:test_password@payments-test-db:5432/payments_test
+      - PROD_DATABASE_URL=${PRODUCTION_DATABASE_URL:-}
+      - MIGRATION_MODE=prepare
+      - DRY_RUN=true
+    volumes:
+      - ./migration:/app
+      - ./test-data:/app/test-data:ro
+      - payment_test_logs:/var/log/payments
+      - migration_prep:/app/migration-artifacts
+    working_dir: /app
+    command: |
+      sh -c "
+        npm install
+        echo 'Migration preparation service ready'
+        tail -f /dev/null
+      "
+    networks:
+      - payments-test-network
+    restart: unless-stopped
+
+  # Load Balancer for Test Environment
+  payments-test-lb:
+    image: nginx:alpine
+    container_name: payments-test-lb
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/payments-test.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - payments-test-network
+    depends_on:
+      - payments-test-gateway
+      - stripe-webhook-mock
+    restart: unless-stopped
+
+volumes:
+  payments_test_db_data:
+    driver: local
+  payments_test_redis_data:
+    driver: local
+  payments_monitoring_data:
+    driver: local
+  payments_prometheus_data:
+    driver: local
+  payment_test_logs:
+    driver: local
+  compliance_reports:
+    driver: local
+  payments_test_backups:
+    driver: local
+  migration_prep:
+    driver: local
+
+networks:
+  payments-test-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+  ai-feedback-test:
+    external: true

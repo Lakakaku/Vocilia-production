@@ -1,0 +1,407 @@
+version: '3.8'
+
+# Admin Monitoring Infrastructure for Swedish Pilot
+# Integrates with existing Prometheus/Grafana stack
+
+services:
+  # Admin Activity Logger
+  admin-activity-logger:
+    image: node:18-alpine
+    container_name: admin-activity-logger
+    ports:
+      - "3020:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - LOG_LEVEL=info
+      - ADMIN_LOG_RETENTION_DAYS=365
+      - GDPR_COMPLIANCE=true
+      - SWEDISH_LOCALE=sv_SE
+    volumes:
+      - ./admin-logger:/app
+      - admin_logs:/var/log/admin
+      - ./config/admin-rbac.json:/app/config/rbac.json:ro
+    working_dir: /app
+    command: |
+      sh -c "
+        npm install
+        node server.js
+      "
+    networks:
+      - monitoring-network
+      - ai-feedback-prod
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.15'
+          memory: 128M
+
+  # Admin Metrics Exporter
+  admin-metrics-exporter:
+    image: node:18-alpine
+    container_name: admin-metrics-exporter
+    ports:
+      - "9105:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - PROMETHEUS_PREFIX=admin_
+      - SWEDISH_PILOT_MODE=true
+    volumes:
+      - ./admin-metrics-exporter.js:/app/exporter.js:ro
+      - admin_logs:/var/log/admin
+    working_dir: /app
+    command: |
+      sh -c "
+        npm init -y
+        npm install express prom-client pg redis moment
+        node exporter.js
+      "
+    networks:
+      - monitoring-network
+      - ai-feedback-prod
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.15'
+          memory: 128M
+
+  # Swedish Pilot Management API
+  pilot-management-api:
+    image: node:18-alpine
+    container_name: pilot-management-api
+    ports:
+      - "3021:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${ADMIN_JWT_SECRET}
+      - SWEDISH_PILOT_ADMIN_ROLE=pilot_admin
+      - FINANSINSPEKTIONEN_REPORTING=true
+    volumes:
+      - ./pilot-management:/app
+      - admin_logs:/var/log/admin
+      - ./config:/app/config:ro
+    working_dir: /app
+    command: |
+      sh -c "
+        npm install
+        node pilot-api.js
+      "
+    networks:
+      - monitoring-network
+      - ai-feedback-prod
+    depends_on:
+      - admin-activity-logger
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Admin Authentication Service
+  admin-auth-service:
+    image: node:18-alpine
+    container_name: admin-auth-service
+    ports:
+      - "3022:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${ADMIN_JWT_SECRET}
+      - SESSION_TIMEOUT_MINUTES=480
+      - MFA_REQUIRED=true
+      - SWEDISH_ADMIN_COMPLIANCE=true
+    volumes:
+      - ./admin-auth:/app
+      - admin_logs:/var/log/admin
+      - ./config/admin-rbac.json:/app/config/rbac.json:ro
+    working_dir: /app
+    command: |
+      sh -c "
+        npm install
+        node auth-service.js
+      "
+    networks:
+      - monitoring-network
+      - ai-feedback-prod
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.15'
+          memory: 128M
+
+  # Admin Grafana (Extended)
+  admin-grafana:
+    image: grafana/grafana:10.1.0
+    container_name: admin-grafana
+    ports:
+      - "3023:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_GRAFANA_PASSWORD:-admin123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_DOMAIN=${ADMIN_GRAFANA_DOMAIN:-localhost}
+      - GF_SERVER_ROOT_URL=http://${ADMIN_GRAFANA_DOMAIN:-localhost}:3023
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-worldmap-panel,grafana-piechart-panel
+      - GF_AUTH_GENERIC_OAUTH_ENABLED=false
+      - GF_LOG_LEVEL=warn
+      - GF_FEATURE_TOGGLES_ENABLE=publicDashboards
+    volumes:
+      - ./grafana/admin-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./grafana/admin-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana/admin-rbac.yml:/etc/grafana/provisioning/access-control/rbac.yml:ro
+      - admin_grafana_data:/var/lib/grafana
+    networks:
+      - monitoring-network
+    depends_on:
+      - admin-prometheus
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Admin-specific Prometheus (extends existing)
+  admin-prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: admin-prometheus
+    ports:
+      - "9095:9090"
+    volumes:
+      - ./prometheus/admin-prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/admin-alerts.yml:/etc/prometheus/rules/admin-alerts.yml:ro
+      - ./prometheus/swedish-pilot-alerts.yml:/etc/prometheus/rules/pilot-alerts.yml:ro
+      - admin_prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=10GB'
+      - '--web.listen-address=:9090'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--log.level=warn'
+    networks:
+      - monitoring-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2GB
+        reservations:
+          cpus: '0.5'
+          memory: 1GB
+
+  # Admin Alert Manager
+  admin-alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: admin-alertmanager
+    ports:
+      - "9096:9093"
+    volumes:
+      - ./alertmanager/admin-alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./alertmanager/templates:/etc/alertmanager/templates:ro
+      - admin_alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.listen-address=:9093'
+      - '--web.external-url=http://localhost:9096'
+      - '--log.level=warn'
+    networks:
+      - monitoring-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.15'
+          memory: 128M
+
+  # Admin Log Aggregation
+  admin-log-aggregator:
+    image: fluent/fluent-bit:2.1
+    container_name: admin-log-aggregator
+    ports:
+      - "24224:24224"
+    volumes:
+      - admin_logs:/var/log/admin:ro
+      - ./fluent-bit/admin-fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+    environment:
+      - ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-elasticsearch}
+      - ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+      - LOG_LEVEL=warn
+    networks:
+      - monitoring-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # Swedish Pilot Status Monitor
+  pilot-status-monitor:
+    image: alpine:3.18
+    container_name: pilot-status-monitor
+    environment:
+      - MONITOR_INTERVAL=60
+      - ADMIN_API_URL=http://pilot-management-api:3000
+      - PROMETHEUS_URL=http://admin-prometheus:9090
+      - SWEDISH_BUSINESS_CHECK=true
+      - FI_COMPLIANCE_CHECK=true
+    volumes:
+      - ./scripts/pilot-status-monitor.sh:/scripts/monitor.sh:ro
+      - admin_logs:/var/log/admin
+    command: |
+      sh -c "
+        apk add --no-cache curl jq bash
+        chmod +x /scripts/monitor.sh
+        while true; do
+          /scripts/monitor.sh
+          sleep \$MONITOR_INTERVAL
+        done
+      "
+    networks:
+      - monitoring-network
+      - ai-feedback-prod
+    depends_on:
+      - pilot-management-api
+      - admin-prometheus
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 64M
+        reservations:
+          cpus: '0.05'
+          memory: 32M
+
+  # Admin Notification Service
+  admin-notification-service:
+    image: alpine:3.18
+    container_name: admin-notification-service
+    environment:
+      - SLACK_ADMIN_WEBHOOK=${SLACK_ADMIN_WEBHOOK:-}
+      - EMAIL_SMTP_HOST=${EMAIL_SMTP_HOST:-smtp.gmail.com}
+      - EMAIL_SMTP_PORT=${EMAIL_SMTP_PORT:-587}
+      - EMAIL_USER=${EMAIL_USER:-}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD:-}
+      - ADMIN_EMAIL_LIST=${ADMIN_EMAIL_LIST:-admin@ai-feedback.se}
+      - NOTIFICATION_THROTTLE_MINUTES=15
+      - SWEDISH_LOCALE=sv_SE
+    volumes:
+      - ./scripts/admin-notification.sh:/scripts/notify.sh:ro
+      - admin_logs:/var/log/admin
+    command: |
+      sh -c "
+        apk add --no-cache curl jq bash ssmtp
+        chmod +x /scripts/notify.sh
+        # Listen for notification events
+        tail -f /dev/null
+      "
+    networks:
+      - monitoring-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 64M
+        reservations:
+          cpus: '0.05'
+          memory: 32M
+
+  # Admin Session Manager
+  admin-session-manager:
+    image: redis:7-alpine
+    container_name: admin-session-manager
+    ports:
+      - "6381:6379"
+    volumes:
+      - admin_session_data:/data
+      - ./redis/admin-redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - monitoring-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+volumes:
+  admin_logs:
+    driver: local
+    driver_opts:
+      type: bind
+      o: bind
+      device: /opt/ai-feedback/logs/admin
+
+  admin_grafana_data:
+    driver: local
+    driver_opts:
+      type: bind
+      o: bind
+      device: /opt/ai-feedback/monitoring/admin/grafana
+
+  admin_prometheus_data:
+    driver: local
+    driver_opts:
+      type: bind
+      o: bind
+      device: /opt/ai-feedback/monitoring/admin/prometheus
+
+  admin_alertmanager_data:
+    driver: local
+
+  admin_session_data:
+    driver: local
+
+networks:
+  monitoring-network:
+    external: true
+
+  ai-feedback-prod:
+    external: true

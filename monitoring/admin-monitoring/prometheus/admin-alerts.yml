@@ -1,0 +1,307 @@
+# Admin Monitoring Alert Rules
+# Comprehensive alerting for Swedish pilot management and admin operations
+
+groups:
+  # Admin System Health Alerts
+  - name: admin_system_health
+    interval: 30s
+    rules:
+      - alert: AdminServiceDown
+        expr: up{job=~"admin-.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: admin
+          environment: production
+        annotations:
+          summary: "Admin service {{ $labels.job }} is down"
+          description: "Admin service {{ $labels.job }} on {{ $labels.instance }} has been down for more than 2 minutes."
+          runbook_url: "https://docs.ai-feedback.se/runbooks/admin-service-down"
+
+      - alert: AdminServiceHighMemory
+        expr: (admin_memory_usage_bytes / admin_memory_limit_bytes) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          team: admin
+        annotations:
+          summary: "High memory usage on admin service {{ $labels.service }}"
+          description: "Memory usage is {{ $value }}% on {{ $labels.service }}"
+
+      - alert: AdminServiceHighCPU
+        expr: rate(admin_cpu_usage_seconds_total[5m]) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          team: admin
+        annotations:
+          summary: "High CPU usage on admin service {{ $labels.service }}"
+          description: "CPU usage is {{ $value }}% on {{ $labels.service }}"
+
+  # Authentication & Security Alerts
+  - name: admin_authentication_security
+    interval: 15s
+    rules:
+      - alert: HighFailedLoginRate
+        expr: rate(admin_auth_failed_attempts_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          team: security
+          category: authentication
+        annotations:
+          summary: "High rate of failed admin login attempts"
+          description: "{{ $value }} failed login attempts per second in the last 5 minutes"
+          runbook_url: "https://docs.ai-feedback.se/runbooks/failed-logins"
+
+      - alert: SuspiciousLoginActivity
+        expr: rate(admin_auth_failed_attempts_total[1m]) > 1
+        for: 30s
+        labels:
+          severity: critical
+          team: security
+          category: authentication
+        annotations:
+          summary: "Suspicious admin login activity detected"
+          description: "More than 1 failed login attempt per second - possible brute force attack"
+          runbook_url: "https://docs.ai-feedback.se/runbooks/brute-force-attack"
+
+      - alert: AdminAccountLocked
+        expr: admin_auth_locked_accounts_total > 0
+        for: 0s
+        labels:
+          severity: warning
+          team: security
+          category: authentication
+        annotations:
+          summary: "Admin accounts locked due to failed attempts"
+          description: "{{ $value }} admin accounts are currently locked"
+
+      - alert: MFADisabledForCriticalRole
+        expr: admin_auth_users_without_mfa{role=~"super_admin|pilot_admin"} > 0
+        for: 0s
+        labels:
+          severity: critical
+          team: security
+          category: compliance
+        annotations:
+          summary: "Critical admin users without MFA enabled"
+          description: "{{ $value }} {{ $labels.role }} users do not have MFA enabled"
+
+      - alert: SessionTokenLeakage
+        expr: increase(admin_auth_invalid_session_attempts_total[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Possible session token leakage"
+          description: "{{ $value }} invalid session token attempts in the last 5 minutes"
+
+  # Swedish Pilot Business Alerts
+  - name: swedish_pilot_business
+    interval: 60s
+    rules:
+      - alert: PilotBusinessApprovalBacklog
+        expr: admin_swedish_pilot_businesses_total{status="pending_approval"} > 5
+        for: 30m
+        labels:
+          severity: warning
+          team: pilot_management
+          category: business_operations
+        annotations:
+          summary: "Swedish pilot business approval backlog"
+          description: "{{ $value }} businesses pending approval for over 30 minutes"
+          runbook_url: "https://docs.ai-feedback.se/runbooks/pilot-approval-backlog"
+
+      - alert: PilotBusinessSuspended
+        expr: increase(admin_swedish_pilot_businesses_total{status="suspended"}[1h]) > 0
+        for: 0s
+        labels:
+          severity: warning
+          team: pilot_management
+          category: business_operations
+        annotations:
+          summary: "Swedish pilot business suspended"
+          description: "{{ $value }} pilot businesses have been suspended in the last hour"
+
+      - alert: LowPilotBusinessActivity
+        expr: rate(admin_swedish_pilot_sessions_total[1h]) < 0.1
+        for: 2h
+        labels:
+          severity: warning
+          team: pilot_management
+        annotations:
+          summary: "Low activity in Swedish pilot program"
+          description: "Feedback session rate is {{ $value }} per second over the last hour"
+
+      - alert: PilotQualityScoreDrop
+        expr: admin_swedish_pilot_avg_quality_score < 60
+        for: 30m
+        labels:
+          severity: warning
+          team: pilot_management
+          category: quality_assurance
+        annotations:
+          summary: "Swedish pilot average quality score below threshold"
+          description: "Average quality score is {{ $value }}%, below 60% threshold"
+
+      - alert: PilotBusinessTierLimitExceeded
+        expr: admin_swedish_pilot_tier_limit_violations_total > 0
+        for: 5m
+        labels:
+          severity: critical
+          team: pilot_management
+          category: business_operations
+        annotations:
+          summary: "Pilot business exceeded tier limits"
+          description: "{{ $value }} businesses have exceeded their tier limits"
+
+  # Financial & Compliance Alerts
+  - name: financial_compliance
+    interval: 30s
+    rules:
+      - alert: FinansinspektionenReportingFailure
+        expr: admin_fi_report_failures_total > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: compliance
+          category: regulatory
+        annotations:
+          summary: "Finansinspektionen reporting failure"
+          description: "{{ $value }} FI reporting attempts have failed"
+          runbook_url: "https://docs.ai-feedback.se/runbooks/fi-reporting-failure"
+
+      - alert: ComplianceDataRetentionViolation
+        expr: admin_compliance_retention_violations_total > 0
+        for: 0s
+        labels:
+          severity: critical
+          team: compliance
+          category: data_protection
+        annotations:
+          summary: "GDPR data retention violation detected"
+          description: "{{ $value }} compliance data retention violations found"
+
+      - alert: HighRewardPayoutRate
+        expr: rate(admin_swedish_pilot_total_rewards_sek[1h]) > 1000
+        for: 15m
+        labels:
+          severity: warning
+          team: finance
+          category: payments
+        annotations:
+          summary: "High reward payout rate in Swedish pilot"
+          description: "Reward payout rate is {{ $value }} SEK/hour over the last hour"
+
+      - alert: UnbalancedRegionalDistribution
+        expr: |
+          (
+            max(admin_swedish_pilot_businesses_total{status="approved_active"} by (region)) - 
+            min(admin_swedish_pilot_businesses_total{status="approved_active"} by (region))
+          ) / min(admin_swedish_pilot_businesses_total{status="approved_active"} by (region)) > 2
+        for: 1h
+        labels:
+          severity: info
+          team: pilot_management
+          category: regional_balance
+        annotations:
+          summary: "Unbalanced regional distribution in Swedish pilot"
+          description: "Regional business distribution is heavily skewed"
+
+  # Performance & Monitoring Alerts
+  - name: admin_performance
+    interval: 30s
+    rules:
+      - alert: AdminAPIHighLatency
+        expr: histogram_quantile(0.95, rate(admin_api_request_duration_seconds_bucket[5m])) > 2
+        for: 10m
+        labels:
+          severity: warning
+          team: admin
+          category: performance
+        annotations:
+          summary: "High latency on admin API"
+          description: "95th percentile latency is {{ $value }}s for {{ $labels.endpoint }}"
+
+      - alert: AdminAPIHighErrorRate
+        expr: rate(admin_api_requests_total{status=~"5.."}[5m]) / rate(admin_api_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: admin
+          category: availability
+        annotations:
+          summary: "High error rate on admin API"
+          description: "Error rate is {{ $value | humanizePercentage }} for {{ $labels.endpoint }}"
+
+      - alert: DatabaseConnectionPoolExhaustion
+        expr: admin_db_connections_active / admin_db_connections_max > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          team: admin
+          category: database
+        annotations:
+          summary: "Database connection pool near exhaustion"
+          description: "{{ $value | humanizePercentage }} of database connections in use"
+
+      - alert: RedisSessionStoreIssue
+        expr: admin_redis_connected_clients == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: admin
+          category: session_management
+        annotations:
+          summary: "Redis session store unavailable"
+          description: "No connected Redis clients for session management"
+
+  # Operational Alerts
+  - name: admin_operations
+    interval: 60s
+    rules:
+      - alert: AdminLogVolumeHigh
+        expr: rate(admin_log_entries_total[10m]) > 100
+        for: 15m
+        labels:
+          severity: warning
+          team: operations
+          category: logging
+        annotations:
+          summary: "High volume of admin logs"
+          description: "{{ $value }} log entries per second over the last 10 minutes"
+
+      - alert: AdminDiskSpaceUsage
+        expr: (admin_disk_used_bytes / admin_disk_total_bytes) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+          team: operations
+          category: storage
+        annotations:
+          summary: "High disk space usage on admin systems"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: AdminBackupFailure
+        expr: admin_backup_last_success_timestamp < (time() - 86400)
+        for: 1h
+        labels:
+          severity: critical
+          team: operations
+          category: backup
+        annotations:
+          summary: "Admin system backup failure"
+          description: "Last successful backup was {{ $value | humanizeDuration }} ago"
+
+      - alert: AdminNotificationServiceDown
+        expr: up{job="admin-notification-service"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          team: operations
+          category: notifications
+        annotations:
+          summary: "Admin notification service is down"
+          description: "Admin notification service has been down for 5 minutes"

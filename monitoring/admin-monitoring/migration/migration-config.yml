@@ -1,0 +1,707 @@
+# Admin-to-Live Migration Configuration
+# Comprehensive configuration for seamless migration with Swedish compliance
+version: "1.0.0"
+last_updated: "2024-12-19"
+
+# Migration Metadata
+migration:
+  name: "admin-to-live-migration"
+  description: "Complete migration from admin monitoring to live production environment"
+  version: "1.0.0"
+  swedish_compliance: true
+  gdpr_compliant: true
+  finansinspektionen_compliant: true
+  
+  # Migration Phases
+  phases:
+    - name: "pre_migration_validation"
+      duration_minutes: 45
+      critical: true
+      rollback_point: true
+      
+    - name: "data_migration"
+      duration_minutes: 120
+      critical: true
+      rollback_point: true
+      
+    - name: "service_migration"
+      duration_minutes: 60
+      critical: true
+      rollback_point: true
+      
+    - name: "configuration_migration"
+      duration_minutes: 30
+      critical: false
+      rollback_point: false
+      
+    - name: "validation_and_rollback_preparation"
+      duration_minutes: 30
+      critical: true
+      rollback_point: true
+      
+    - name: "dns_and_traffic_cutover"
+      duration_minutes: 45
+      critical: true
+      rollback_point: true
+      
+    - name: "post_migration_validation"
+      duration_minutes: 45
+      critical: true
+      rollback_point: false
+
+# Environment Configuration
+environments:
+  admin:
+    name: "admin-monitoring"
+    type: "staging"
+    region: "sweden-central"
+    services:
+      prometheus:
+        host: "admin-prometheus"
+        port: 9090
+        health_endpoint: "/api/v1/targets"
+        
+      grafana:
+        host: "admin-grafana"
+        port: 3000
+        health_endpoint: "/api/health"
+        
+      alertmanager:
+        host: "admin-alertmanager"
+        port: 9093
+        health_endpoint: "/api/v1/status"
+        
+      postgres:
+        host: "admin-postgres"
+        port: 5432
+        database: "admin_feedback_platform"
+        
+      redis:
+        host: "admin-redis"
+        port: 6379
+        
+  live:
+    name: "live-monitoring"
+    type: "production"
+    region: "sweden-central"
+    services:
+      prometheus:
+        host: "live-prometheus"
+        port: 9090
+        health_endpoint: "/api/v1/targets"
+        
+      grafana:
+        host: "live-grafana"
+        port: 3000
+        health_endpoint: "/api/health"
+        
+      alertmanager:
+        host: "live-alertmanager"
+        port: 9093
+        health_endpoint: "/api/v1/status"
+        
+      postgres:
+        host: "live-postgres"
+        port: 5432
+        database: "live_feedback_platform"
+        
+      redis:
+        host: "live-redis"
+        port: 6379
+
+# Swedish Compliance Configuration
+swedish_compliance:
+  gdpr:
+    enabled: true
+    data_protection_officer: "dpo@ai-feedback.se"
+    lawful_basis: "legitimate_interest"
+    consent_required: true
+    data_retention_days: 2555  # 7 years
+    
+    data_categories:
+      voice_recordings:
+        stored: false
+        processed: true
+        retention_days: 0
+        
+      feedback_transcripts:
+        stored: true
+        processed: true
+        retention_days: 2555
+        
+      quality_scores:
+        stored: true
+        processed: true
+        retention_days: 2555
+        
+      payment_transactions:
+        stored: true
+        processed: true
+        retention_days: 2555
+        
+      user_sessions:
+        stored: true
+        processed: true
+        retention_days: 90
+    
+    rights_management:
+      access: true
+      rectification: true
+      erasure: true
+      portability: true
+      objection: true
+      automated_decision_making: true
+      
+  finansinspektionen:
+    enabled: true
+    license_number: "FI-LICENSE-2024-001"
+    reporting_frequency: "monthly"
+    audit_retention_days: 2555
+    
+    reporting_categories:
+      - payment_transactions
+      - fraud_detection_events
+      - system_outages
+      - data_breaches
+      - compliance_violations
+      
+  data_residency:
+    sweden_only: true
+    allowed_regions:
+      - "se-central-1"    # Stockholm
+      - "se-west-1"       # Gothenburg  
+      - "se-south-1"      # Malmö
+      
+    cross_border_transfers:
+      enabled: false
+      eu_adequacy_decision: true
+      
+  language_support:
+    primary_language: "sv-SE"
+    supported_languages:
+      - "sv-SE"  # Swedish
+      - "en-US"  # English (for international staff)
+    
+    translation_requirements:
+      legal_notices: true
+      privacy_policy: true
+      terms_of_service: true
+      user_interface: true
+      error_messages: true
+
+# Data Migration Configuration
+data_migration:
+  strategy: "blue_green"
+  validation: "comprehensive"
+  integrity_checks: true
+  
+  postgresql:
+    source_host: "${ADMIN_DB_HOST}"
+    target_host: "${LIVE_DB_HOST}"
+    batch_size: 1000
+    timeout_seconds: 3600
+    
+    tables:
+      priority_high:
+        - businesses
+        - swedish_regions
+        - feedback_sessions
+        - quality_scores
+        - payment_transactions
+        
+      priority_medium:
+        - user_accounts
+        - auth_sessions
+        - audit_logs
+        
+      priority_low:
+        - system_metrics
+        - temporary_data
+        
+    filters:
+      swedish_pilot_only: true
+      country_code: "SE"
+      pilot_program: true
+      
+  redis:
+    source_host: "${ADMIN_REDIS_HOST}"
+    target_host: "${LIVE_REDIS_HOST}"
+    key_patterns:
+      - "swedish:*"
+      - "pilot:*"
+      - "session:*"
+      - "auth:*"
+      
+    exclude_patterns:
+      - "temp:*"
+      - "cache:*"
+      - "test:*"
+
+# Service Migration Configuration  
+service_migration:
+  deployment_strategy: "rolling"
+  health_check_timeout: 300
+  service_startup_timeout: 600
+  
+  services:
+    prometheus:
+      image: "prom/prometheus:latest"
+      config_path: "/opt/live-monitoring/prometheus"
+      data_retention: "30d"
+      storage_size: "10GB"
+      
+    grafana:
+      image: "grafana/grafana:latest"
+      config_path: "/opt/live-monitoring/grafana"
+      dashboard_import: true
+      plugin_requirements:
+        - "grafana-piechart-panel"
+        - "grafana-worldmap-panel"
+        
+    alertmanager:
+      image: "prom/alertmanager:latest"
+      config_path: "/opt/live-monitoring/alertmanager"
+      webhook_timeout: 30
+      
+    postgres:
+      image: "postgres:15"
+      config_optimizations:
+        shared_preload_libraries: "pg_stat_statements"
+        max_connections: 200
+        shared_buffers: "256MB"
+        
+    redis:
+      image: "redis:7-alpine"
+      config_optimizations:
+        maxmemory: "512MB"
+        maxmemory_policy: "allkeys-lru"
+
+# Network and DNS Configuration
+network:
+  load_balancer:
+    type: "haproxy"
+    health_check_interval: 30
+    failover_threshold: 3
+    
+    backends:
+      monitoring:
+        - host: "live-grafana"
+          port: 3000
+          weight: 100
+          backup: false
+          
+        - host: "admin-grafana"
+          port: 3000
+          weight: 0
+          backup: true
+          
+      api:
+        - host: "live-api"
+          port: 3000
+          weight: 100
+          backup: false
+          
+        - host: "admin-api"
+          port: 3000
+          weight: 0
+          backup: true
+          
+  dns:
+    provider: "cloudflare"
+    ttl_cutover: 300     # 5 minutes for quick cutover
+    ttl_normal: 3600     # 1 hour for normal operation
+    
+    domains:
+      monitoring:
+        admin: "admin-monitoring.ai-feedback.se"
+        live: "monitoring.ai-feedback.se"
+        
+      api:
+        admin: "admin-api.ai-feedback.se"
+        live: "api.ai-feedback.se"
+        
+      webhooks:
+        admin: "admin-webhooks.ai-feedback.se"
+        live: "webhooks.ai-feedback.se"
+        
+  ssl:
+    provider: "letsencrypt"
+    auto_renewal: true
+    key_size: 2048
+    
+    certificates:
+      - domain: "monitoring.ai-feedback.se"
+        wildcard: false
+        
+      - domain: "api.ai-feedback.se"
+        wildcard: false
+        
+      - domain: "webhooks.ai-feedback.se"
+        wildcard: false
+
+# Monitoring and Alerting Configuration
+monitoring:
+  metrics_retention: "30d"
+  alert_evaluation_interval: "15s"
+  
+  alert_routing:
+    swedish_pilot_critical:
+      severity: "critical"
+      team: "swedish_pilot"
+      channels:
+        - slack: "#swedish-pilot-alerts"
+        - email: "swedish-pilot-team@ai-feedback.se"
+        - sms: "+46-XXX-XXX-XXX"
+      
+    security_alerts:
+      severity: "critical"
+      team: "security"
+      channels:
+        - slack: "#security-alerts"
+        - email: "security-team@ai-feedback.se"
+        - pagerduty: "security-escalation"
+      
+    compliance_warnings:
+      severity: "warning"
+      team: "compliance"
+      channels:
+        - email: "compliance@ai-feedback.se"
+        - teams: "Compliance Team"
+        
+  dashboards:
+    swedish_pilot_overview:
+      title: "Swedish Pilot System Overview"
+      refresh_interval: "30s"
+      panels:
+        - "System Health"
+        - "Transaction Volume"
+        - "Quality Scores"
+        - "Fraud Detection"
+        
+    compliance_monitoring:
+      title: "Swedish Compliance Dashboard"
+      refresh_interval: "1m"
+      panels:
+        - "GDPR Metrics"
+        - "FI Reporting Status"
+        - "Data Residency"
+        - "Audit Logs"
+
+# Security Configuration
+security:
+  authentication:
+    method: "multi_factor"
+    session_timeout: 1800  # 30 minutes
+    max_concurrent_sessions: 3
+    
+    providers:
+      local:
+        enabled: true
+        password_policy:
+          min_length: 12
+          complexity: "high"
+          expiry_days: 90
+          
+      totp:
+        enabled: true
+        issuer: "AI Feedback Live"
+        window: 1
+        
+  authorization:
+    rbac_enabled: true
+    roles:
+      super_admin:
+        permissions: ["*"]
+        swedish_regions: ["all"]
+        
+      regional_admin:
+        permissions: ["read", "write", "alert_manage"]
+        swedish_regions: ["stockholm", "gothenburg", "malmö"]
+        
+      compliance_officer:
+        permissions: ["read", "audit", "compliance_report"]
+        swedish_regions: ["all"]
+        
+      pilot_manager:
+        permissions: ["read", "pilot_manage", "business_config"]
+        swedish_regions: ["all"]
+        
+      support_analyst:
+        permissions: ["read", "alert_acknowledge"]
+        swedish_regions: ["assigned"]
+        
+  encryption:
+    data_at_rest:
+      algorithm: "AES-256-GCM"
+      key_rotation: "quarterly"
+      
+    data_in_transit:
+      tls_version: "1.3"
+      cipher_suites: ["ECDHE-RSA-AES256-GCM-SHA384"]
+      
+  audit_logging:
+    enabled: true
+    log_level: "info"
+    retention_days: 2555  # 7 years
+    log_categories:
+      - user_authentication
+      - data_access
+      - system_changes
+      - compliance_activities
+      - payment_transactions
+
+# Backup and Recovery Configuration
+backup:
+  strategy: "incremental"
+  frequency: "daily"
+  retention: "90d"
+  
+  encryption:
+    enabled: true
+    algorithm: "AES-256-CBC"
+    key_derivation: "PBKDF2"
+    
+  storage:
+    primary:
+      type: "s3"
+      bucket: "ai-feedback-backups-sweden"
+      region: "eu-north-1"  # Stockholm
+      
+    secondary:
+      type: "local"
+      path: "/var/backups/live-monitoring"
+      
+  validation:
+    integrity_check: true
+    restore_test_frequency: "weekly"
+    
+recovery:
+  rto_target: "4h"  # Recovery Time Objective
+  rpo_target: "1h"  # Recovery Point Objective
+  
+  scenarios:
+    complete_system_failure:
+      priority: "critical"
+      procedure: "full_restore"
+      estimated_time: "4h"
+      
+    database_corruption:
+      priority: "high"
+      procedure: "database_restore"
+      estimated_time: "2h"
+      
+    service_failure:
+      priority: "medium"
+      procedure: "service_restart"
+      estimated_time: "15m"
+
+# Integration Configuration
+integrations:
+  payment_systems:
+    stripe:
+      live_mode: true
+      webhook_url: "https://webhooks.ai-feedback.se/stripe"
+      events:
+        - "payment_intent.succeeded"
+        - "payment_intent.payment_failed"
+        
+    swish:
+      merchant_id: "${SWISH_MERCHANT_ID}"
+      webhook_url: "https://webhooks.ai-feedback.se/swish"
+      
+    bankgiro:
+      account: "${BANKGIRO_ACCOUNT}"
+      format: "swedish_standard"
+      
+  ai_services:
+    ollama:
+      endpoint: "http://ai-evaluator:11434"
+      model: "llama3.2:latest"
+      
+    openai:
+      api_key: "${OPENAI_API_KEY}"
+      model: "gpt-4"
+      fallback: true
+      
+    anthropic:
+      api_key: "${ANTHROPIC_API_KEY}"
+      model: "claude-3-sonnet"
+      fallback: true
+      
+  external_services:
+    slack:
+      webhook_url: "${SLACK_WEBHOOK_URL}"
+      channels:
+        alerts: "#live-alerts"
+        swedish_pilot: "#swedish-pilot"
+        
+    teams:
+      webhook_url: "${TEAMS_WEBHOOK_URL}"
+      channels:
+        compliance: "Compliance Team"
+        security: "Security Team"
+
+# Validation and Testing Configuration
+validation:
+  pre_migration:
+    required_checks:
+      - admin_system_health
+      - swedish_compliance
+      - resource_availability
+      - backup_integrity
+      - live_environment_readiness
+      
+  post_migration:
+    required_tests:
+      - system_functionality
+      - data_integrity
+      - performance_benchmarks
+      - security_validation
+      - swedish_compliance_final
+      
+  performance_thresholds:
+    api_response_time: 500  # milliseconds
+    database_query_time: 100  # milliseconds
+    error_rate: 1  # percentage
+    uptime: 99.9  # percentage
+    
+  swedish_compliance_tests:
+    gdpr:
+      - data_processing_lawfulness
+      - consent_management
+      - data_subject_rights
+      - data_retention_compliance
+      
+    finansinspektionen:
+      - transaction_reporting
+      - audit_logging
+      - fraud_detection
+      - system_availability
+      
+    data_residency:
+      - storage_location_verification
+      - cross_border_transfer_prevention
+      - regional_compliance
+
+# Rollback Configuration
+rollback:
+  triggers:
+    automatic:
+      - critical_service_failure
+      - data_integrity_violation
+      - swedish_compliance_breach
+      
+    manual:
+      - performance_degradation
+      - unexpected_errors
+      - business_impact
+      
+  procedures:
+    immediate:
+      time_limit: "1h"
+      method: "automated_script"
+      data_loss_acceptable: false
+      
+    delayed:
+      time_limit: "24h" 
+      method: "manual_restoration"
+      data_loss_acceptable: "minimal"
+      
+  validation:
+    post_rollback_checks:
+      - admin_system_health
+      - data_consistency
+      - service_functionality
+      - swedish_pilot_operations
+
+# Notification Configuration
+notifications:
+  migration_start:
+    recipients:
+      - "ops-team@ai-feedback.se"
+      - "swedish-pilot-team@ai-feedback.se"
+      - "compliance@ai-feedback.se"
+    channels:
+      - email
+      - slack
+      
+  migration_complete:
+    recipients:
+      - "all-team@ai-feedback.se"
+      - "management@ai-feedback.se"
+    channels:
+      - email
+      - teams
+      - slack
+      
+  migration_failed:
+    recipients:
+      - "ops-team@ai-feedback.se"
+      - "on-call@ai-feedback.se"
+    channels:
+      - email
+      - sms
+      - pagerduty
+
+# Documentation Configuration
+documentation:
+  migration_report:
+    format: "markdown"
+    sections:
+      - executive_summary
+      - technical_details
+      - swedish_compliance_validation
+      - performance_metrics
+      - issues_and_resolutions
+      - recommendations
+      
+  runbooks:
+    location: "/opt/live-monitoring/docs"
+    formats: ["markdown", "pdf"]
+    
+  training_materials:
+    swedish_team_specific: true
+    languages: ["swedish", "english"]
+    formats: ["video", "documentation", "hands-on"]
+
+# Environment Variables Template
+environment_variables:
+  required:
+    # Database Configuration
+    - ADMIN_DB_HOST
+    - ADMIN_DB_USER
+    - ADMIN_DB_PASSWORD
+    - ADMIN_DB_NAME
+    - LIVE_DB_HOST
+    - LIVE_DB_USER
+    - LIVE_DB_PASSWORD
+    - LIVE_DB_NAME
+    
+    # Redis Configuration
+    - ADMIN_REDIS_HOST
+    - LIVE_REDIS_HOST
+    
+    # Security
+    - BACKUP_ENCRYPTION_KEY
+    - JWT_SECRET
+    - ENCRYPTION_KEY
+    - SESSION_SECRET
+    
+    # Payment Integration
+    - STRIPE_LIVE_SECRET_KEY
+    - STRIPE_WEBHOOK_SECRET
+    - SWISH_MERCHANT_ID
+    - SWISH_WEBHOOK_SECRET
+    - BANKGIRO_ACCOUNT
+    
+    # External Services
+    - SLACK_WEBHOOK_URL
+    - TEAMS_WEBHOOK_URL
+    - OPENAI_API_KEY
+    - ANTHROPIC_API_KEY
+    
+  optional:
+    - PAGERDUTY_API_KEY
+    - DATADOG_API_KEY
+    - SENTRY_DSN
+    - CUSTOM_DOMAIN

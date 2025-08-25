@@ -1,0 +1,241 @@
+global:
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'alertmanager@ai-feedback-platform.com'
+
+route:
+  group_by: ['alertname', 'category', 'provider']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'pos-team'
+  routes:
+    # Critical POS provider failures
+    - match:
+        severity: critical
+        category: pos-connectivity
+      receiver: 'pos-critical'
+      group_wait: 0s
+      repeat_interval: 5m
+
+    # Authentication failures
+    - match:
+        category: pos-authentication
+      receiver: 'pos-auth-team'
+      group_wait: 30s
+      repeat_interval: 15m
+
+    # Webhook issues
+    - match:
+        category: webhook-reliability
+      receiver: 'pos-webhook-team'
+      group_wait: 1m
+      repeat_interval: 30m
+
+    # Rate limiting issues
+    - match:
+        category: pos-rate-limit
+      receiver: 'pos-rate-limit-team'
+      group_wait: 0s
+      repeat_interval: 10m
+
+    # Business-specific issues
+    - match:
+        category: business-health
+      receiver: 'pos-business-team'
+      group_wait: 2m
+      repeat_interval: 1h
+
+    # Platform-wide issues
+    - match:
+        severity: critical
+        category: platform-health
+      receiver: 'pos-platform-team'
+      group_wait: 0s
+      repeat_interval: 5m
+
+receivers:
+  - name: 'pos-team'
+    slack_configs:
+      - api_url: '${SLACK_POS_WEBHOOK_URL}'
+        channel: '#pos-monitoring'
+        username: 'POS AlertManager'
+        icon_emoji: ':warning:'
+        title: 'POS Integration Alert - {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Action:* {{ .Annotations.action }}
+          *Provider:* {{ .Labels.provider }}
+          *Severity:* {{ .Labels.severity }}
+          {{ if .Annotations.runbook_url }}*Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ end }}
+        send_resolved: true
+
+  - name: 'pos-critical'
+    slack_configs:
+      - api_url: '${SLACK_POS_CRITICAL_WEBHOOK_URL}'
+        channel: '#pos-alerts-critical'
+        username: 'POS Critical Alert'
+        icon_emoji: ':rotating_light:'
+        title: 'CRITICAL: POS Provider Down - {{ .GroupLabels.provider }}'
+        text: |
+          {{ range .Alerts }}
+          :rotating_light: *CRITICAL POS ALERT* :rotating_light:
+          
+          *Provider:* {{ .Labels.provider }}
+          *Business:* {{ .Labels.business_id }}
+          *Issue:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Immediate Action Required:* {{ .Annotations.action }}
+          
+          *Runbook:* {{ .Annotations.runbook_url }}
+          *Started:* {{ .StartsAt }}
+          {{ end }}
+        send_resolved: true
+
+  - name: 'pos-auth-team'
+    slack_configs:
+      - api_url: '${SLACK_POS_WEBHOOK_URL}'
+        channel: '#pos-authentication'
+        username: 'POS Auth Monitor'
+        icon_emoji: ':key:'
+        title: 'POS Authentication Issue - {{ .GroupLabels.provider }}'
+        text: |
+          {{ range .Alerts }}
+          :key: *Authentication Alert*
+          
+          *Provider:* {{ .Labels.provider }}
+          *Business:* {{ .Labels.business_id }}
+          *Issue:* {{ .Annotations.summary }}
+          *Action:* {{ .Annotations.action }}
+          {{ end }}
+        send_resolved: true
+
+  - name: 'pos-webhook-team'
+    slack_configs:
+      - api_url: '${SLACK_POS_WEBHOOK_URL}'
+        channel: '#pos-webhooks'
+        username: 'POS Webhook Monitor'
+        icon_emoji: ':incoming_envelope:'
+        title: 'POS Webhook Issue - {{ .GroupLabels.provider }}'
+        text: |
+          {{ range .Alerts }}
+          :incoming_envelope: *Webhook Alert*
+          
+          *Provider:* {{ .Labels.provider }}
+          *Issue:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Action:* {{ .Annotations.action }}
+          {{ end }}
+        send_resolved: true
+
+  - name: 'pos-rate-limit-team'
+    slack_configs:
+      - api_url: '${SLACK_POS_WEBHOOK_URL}'
+        channel: '#pos-rate-limits'
+        username: 'POS Rate Limit Monitor'
+        icon_emoji: ':hourglass_flowing_sand:'
+        title: 'POS Rate Limit Alert - {{ .GroupLabels.provider }}'
+        text: |
+          {{ range .Alerts }}
+          :hourglass_flowing_sand: *Rate Limit Alert*
+          
+          *Provider:* {{ .Labels.provider }}
+          *Issue:* {{ .Annotations.summary }}
+          *Action:* {{ .Annotations.action }}
+          {{ end }}
+        send_resolved: true
+
+  - name: 'pos-business-team'
+    slack_configs:
+      - api_url: '${SLACK_POS_WEBHOOK_URL}'
+        channel: '#pos-business-health'
+        username: 'POS Business Monitor'
+        icon_emoji: ':office:'
+        title: 'Business POS Connection Issue'
+        text: |
+          {{ range .Alerts }}
+          :office: *Business Connection Alert*
+          
+          *Business ID:* {{ .Labels.business_id }}
+          *Provider:* {{ .Labels.provider }}
+          *Issue:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Action:* {{ .Annotations.action }}
+          {{ end }}
+        send_resolved: true
+
+  - name: 'pos-platform-team'
+    slack_configs:
+      - api_url: '${SLACK_POS_CRITICAL_WEBHOOK_URL}'
+        channel: '#platform-alerts'
+        username: 'Platform Alert'
+        icon_emoji: ':warning:'
+        title: 'PLATFORM ISSUE: Multiple POS Connections Affected'
+        text: |
+          {{ range .Alerts }}
+          :warning: *PLATFORM ALERT* :warning:
+          
+          *Issue:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Immediate Action:* {{ .Annotations.action }}
+          
+          This affects multiple businesses and requires immediate attention.
+          {{ end }}
+        send_resolved: true
+
+    email_configs:
+      - to: '${POS_PLATFORM_EMAIL}'
+        from: 'alertmanager@ai-feedback-platform.com'
+        subject: 'URGENT: Platform POS Integration Issue'
+        body: |
+          {{ range .Alerts }}
+          URGENT PLATFORM ALERT
+          
+          Issue: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Action Required: {{ .Annotations.action }}
+          
+          Started: {{ .StartsAt }}
+          {{ if .Annotations.runbook_url }}
+          Runbook: {{ .Annotations.runbook_url }}
+          {{ end }}
+          {{ end }}
+
+  # PagerDuty integration for critical alerts
+  - name: 'pos-pagerduty'
+    pagerduty_configs:
+      - routing_key: '${PAGERDUTY_POS_INTEGRATION_KEY}'
+        description: 'POS Integration Critical Alert - {{ .GroupLabels.provider }}'
+        details:
+          summary: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+          provider: '{{ .GroupLabels.provider }}'
+          category: '{{ .GroupLabels.category }}'
+          severity: '{{ .GroupLabels.severity }}'
+
+inhibit_rules:
+  # Inhibit webhook alerts if the provider is already down
+  - source_match:
+      category: 'pos-connectivity'
+      severity: 'critical'
+    target_match:
+      category: 'webhook-reliability'
+    equal: ['provider']
+
+  # Inhibit business-specific alerts if there's a platform-wide issue
+  - source_match:
+      category: 'platform-health'
+      severity: 'critical'
+    target_match:
+      category: 'business-health'
+    equal: ['provider']
+
+  # Inhibit rate limit warnings if we already have critical rate limit alerts
+  - source_match:
+      category: 'pos-rate-limit'
+      severity: 'critical'
+    target_match:
+      category: 'pos-rate-limit'
+      severity: 'warning'
+    equal: ['provider']

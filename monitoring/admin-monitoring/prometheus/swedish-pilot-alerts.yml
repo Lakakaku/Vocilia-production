@@ -1,0 +1,323 @@
+# Swedish Pilot Specific Alert Rules
+# Focused alerting for Swedish pilot program management and regional operations
+
+groups:
+  # Swedish Business Operations
+  - name: swedish_pilot_operations
+    interval: 60s
+    rules:
+      - alert: StockholmRegionBusinessDown
+        expr: admin_swedish_pilot_businesses_total{region="stockholm", status="approved_active"} == 0
+        for: 30m
+        labels:
+          severity: critical
+          team: pilot_management
+          region: stockholm
+          category: regional_operations
+        annotations:
+          summary: "No active businesses in Stockholm region"
+          description: "All Stockholm pilot businesses are inactive or suspended"
+          runbook_url: "https://docs.ai-feedback.se/runbooks/regional-business-outage"
+
+      - alert: RegionalBusinessImbalance
+        expr: |
+          (
+            admin_swedish_pilot_businesses_total{region="stockholm", status="approved_active"} /
+            (
+              admin_swedish_pilot_businesses_total{region="stockholm", status="approved_active"} +
+              admin_swedish_pilot_businesses_total{region="gothenburg", status="approved_active"} +
+              admin_swedish_pilot_businesses_total{region="malmo", status="approved_active"}
+            )
+          ) > 0.7
+        for: 2h
+        labels:
+          severity: warning
+          team: pilot_management
+          category: regional_balance
+        annotations:
+          summary: "Swedish pilot regional imbalance detected"
+          description: "Over 70% of businesses concentrated in Stockholm region"
+
+      - alert: SwedishBusinessTierDistribution
+        expr: admin_swedish_pilot_businesses_total{tier="1"} / ignoring(tier) group_left admin_swedish_pilot_businesses_total > 0.8
+        for: 1h
+        labels:
+          severity: info
+          team: business_development
+          category: tier_distribution
+        annotations:
+          summary: "High concentration of Tier 1 businesses in Swedish pilot"
+          description: "Over 80% of pilot businesses are Tier 1 (Startup level)"
+
+  # Swedish Payment & Financial Monitoring
+  - name: swedish_pilot_financial
+    interval: 30s
+    rules:
+      - alert: SEKRewardPayoutAnomaly
+        expr: |
+          abs(
+            rate(admin_swedish_pilot_total_rewards_sek[1h]) - 
+            rate(admin_swedish_pilot_total_rewards_sek[1h] offset 1d)
+          ) / rate(admin_swedish_pilot_total_rewards_sek[1h] offset 1d) > 0.5
+        for: 30m
+        labels:
+          severity: warning
+          team: finance
+          currency: SEK
+          category: payout_anomaly
+        annotations:
+          summary: "Unusual SEK reward payout pattern detected"
+          description: "Current payout rate differs by {{ $value | humanizePercentage }} from yesterday"
+
+      - alert: SwedishPilotRewardBudgetExceeded
+        expr: |
+          (
+            sum(increase(admin_swedish_pilot_total_rewards_sek[24h])) > 50000
+          ) and on() (
+            hour() >= 9 and hour() <= 17
+          )
+        for: 15m
+        labels:
+          severity: critical
+          team: finance
+          category: budget_control
+        annotations:
+          summary: "Swedish pilot daily reward budget exceeded"
+          description: "Daily rewards have exceeded 50,000 SEK budget"
+          runbook_url: "https://docs.ai-feedback.se/runbooks/budget-exceeded"
+
+      - alert: SwishPaymentMethodFailure
+        expr: admin_swedish_pilot_payment_method_errors_total{method="swish"} > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: payments
+          payment_method: swish
+          category: payment_failure
+        annotations:
+          summary: "Swish payment method failures detected"
+          description: "{{ $value }} Swish payment failures in Swedish pilot"
+
+  # Swedish Compliance & Regulatory
+  - name: swedish_pilot_compliance
+    interval: 120s
+    rules:
+      - alert: FinansinspektionenReportOverdue
+        expr: |
+          (time() - admin_fi_last_report_timestamp) > 2592000 and on() 
+          (day_of_month() == 1)
+        for: 1h
+        labels:
+          severity: critical
+          team: compliance
+          regulator: finansinspektionen
+          category: regulatory_reporting
+        annotations:
+          summary: "Finansinspektionen monthly report overdue"
+          description: "Monthly FI report is overdue by {{ $value | humanizeDuration }}"
+          runbook_url: "https://docs.ai-feedback.se/runbooks/fi-reporting-overdue"
+
+      - alert: GDPRDataRetentionSweden
+        expr: admin_swedish_pilot_gdpr_violations_total > 0
+        for: 0s
+        labels:
+          severity: critical
+          team: compliance
+          regulation: gdpr
+          jurisdiction: sweden
+          category: data_protection
+        annotations:
+          summary: "GDPR data retention violation in Swedish pilot"
+          description: "{{ $value }} GDPR violations detected in Swedish pilot data"
+
+      - alert: SwedishDataLocalizationViolation
+        expr: admin_swedish_pilot_data_outside_eu_total > 0
+        for: 5m
+        labels:
+          severity: critical
+          team: compliance
+          category: data_localization
+        annotations:
+          summary: "Swedish pilot data found outside EU"
+          description: "{{ $value }} data records found outside EU jurisdiction"
+
+  # Swedish Language & Localization
+  - name: swedish_pilot_localization
+    interval: 300s
+    rules:
+      - alert: NonSwedishFeedbackHigh
+        expr: |
+          (
+            admin_swedish_pilot_feedback_non_swedish_total / 
+            admin_swedish_pilot_feedback_total
+          ) > 0.3
+        for: 1h
+        labels:
+          severity: warning
+          team: localization
+          category: language_compliance
+        annotations:
+          summary: "High rate of non-Swedish feedback in pilot"
+          description: "{{ $value | humanizePercentage }} of feedback is not in Swedish"
+
+      - alert: SwedishTimezoneConfigurationError
+        expr: admin_swedish_pilot_timezone_errors_total > 0
+        for: 10m
+        labels:
+          severity: warning
+          team: operations
+          category: localization
+        annotations:
+          summary: "Swedish timezone configuration errors"
+          description: "{{ $value }} timezone configuration errors detected"
+
+  # Swedish Regional Performance
+  - name: swedish_pilot_regional_performance
+    interval: 60s
+    rules:
+      - alert: StockholmRegionLowPerformance
+        expr: |
+          admin_swedish_pilot_avg_quality_score{region="stockholm"} < 
+          avg(admin_swedish_pilot_avg_quality_score) - 10
+        for: 2h
+        labels:
+          severity: warning
+          team: pilot_management
+          region: stockholm
+          category: performance
+        annotations:
+          summary: "Stockholm region underperforming"
+          description: "Stockholm quality score is {{ $value }} points below average"
+
+      - alert: GothenburgRegionHighActivity
+        expr: |
+          rate(admin_swedish_pilot_sessions_total{region="gothenburg"}[1h]) > 
+          rate(admin_swedish_pilot_sessions_total[1h]) * 0.4
+        for: 30m
+        labels:
+          severity: info
+          team: pilot_management
+          region: gothenburg
+          category: activity_spike
+        annotations:
+          summary: "High activity in Gothenburg region"
+          description: "Gothenburg accounts for >40% of all pilot activity"
+
+      - alert: MalmoRegionLowEngagement
+        expr: rate(admin_swedish_pilot_sessions_total{region="malmo"}[24h]) < 5
+        for: 6h
+        labels:
+          severity: warning
+          team: pilot_management
+          region: malmo
+          category: low_engagement
+        annotations:
+          summary: "Low engagement in Malmö region"
+          description: "Malmö region has less than 5 sessions per day for 6 hours"
+
+  # Swedish Pilot Business Health
+  - name: swedish_pilot_business_health
+    interval: 300s
+    rules:
+      - alert: SwedishBusinessOnboardingStalled
+        expr: |
+          increase(admin_swedish_pilot_businesses_total{status="pending_approval"}[4h]) == 0
+          and admin_swedish_pilot_businesses_total{status="pending_approval"} > 0
+        for: 2h
+        labels:
+          severity: warning
+          team: business_development
+          category: onboarding
+        annotations:
+          summary: "Swedish business onboarding has stalled"
+          description: "No new business approvals in the last 4 hours with {{ $value }} pending"
+
+      - alert: SwedishBusinessChurnRateHigh
+        expr: |
+          rate(admin_swedish_pilot_businesses_total{status="suspended"}[7d]) > 0.1
+        for: 1h
+        labels:
+          severity: warning
+          team: customer_success
+          category: churn
+        annotations:
+          summary: "High business churn rate in Swedish pilot"
+          description: "Business churn rate is {{ $value }} per week"
+
+      - alert: SwedishBusinessUpgradeOpportunity
+        expr: |
+          (
+            admin_swedish_pilot_businesses_total{tier="1", status="approved_active"} and on() 
+            admin_swedish_pilot_avg_sessions_per_business > 50
+          ) > 5
+        for: 24h
+        labels:
+          severity: info
+          team: sales
+          category: upsell_opportunity
+        annotations:
+          summary: "Swedish businesses ready for tier upgrade"
+          description: "{{ $value }} Tier 1 businesses have high activity and could upgrade"
+
+  # Swedish Market Intelligence
+  - name: swedish_pilot_market_intelligence
+    interval: 600s
+    rules:
+      - alert: SwedishMarketSaturationWarning
+        expr: |
+          (
+            admin_swedish_pilot_businesses_total{status="approved_active"} / 
+            admin_swedish_pilot_target_market_size
+          ) > 0.6
+        for: 1h
+        labels:
+          severity: info
+          team: strategy
+          category: market_saturation
+        annotations:
+          summary: "Swedish pilot approaching market saturation"
+          description: "{{ $value | humanizePercentage }} of target market captured"
+
+      - alert: CompetitorActivityIncrease
+        expr: increase(admin_swedish_pilot_competitor_mentions_total[24h]) > 10
+        for: 1h
+        labels:
+          severity: info
+          team: competitive_intelligence
+          category: market_analysis
+        annotations:
+          summary: "Increased competitor mentions in Swedish pilot"
+          description: "{{ $value }} competitor mentions in the last 24 hours"
+
+  # Swedish Pilot Graduation Readiness
+  - name: swedish_pilot_graduation
+    interval: 3600s
+    rules:
+      - alert: SwedishPilotGraduationReady
+        expr: |
+          (
+            admin_swedish_pilot_businesses_total{status="approved_active"} >= 50 and
+            admin_swedish_pilot_avg_quality_score >= 75 and
+            rate(admin_swedish_pilot_sessions_total[7d]) > 10
+          )
+        for: 7d
+        labels:
+          severity: info
+          team: pilot_management
+          category: graduation_readiness
+        annotations:
+          summary: "Swedish pilot ready for graduation to production"
+          description: "Pilot has met all graduation criteria for 7 days"
+          runbook_url: "https://docs.ai-feedback.se/runbooks/pilot-graduation"
+
+      - alert: SwedishPilotProductionMigrationReady
+        expr: |
+          admin_swedish_pilot_migration_readiness_score >= 85
+        for: 48h
+        labels:
+          severity: info
+          team: migration
+          category: production_readiness
+        annotations:
+          summary: "Swedish pilot production migration ready"
+          description: "Migration readiness score is {{ $value }}/100"

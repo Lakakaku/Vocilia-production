@@ -1,0 +1,413 @@
+# Docker Compose for Location Routing Service
+# Geo-distributed deployment with regional failover
+
+version: '3.8'
+
+services:
+  # Stockholm Region - Primary
+  location-router-stockholm:
+    build:
+      context: .
+      dockerfile: services/location-routing/Dockerfile
+    environment:
+      - NODE_ENV=production
+      - REGION=stockholm
+      - DATACENTER=sto-dc1
+      - REDIS_URL=redis://redis-stockholm:6379
+      - DATABASE_URL=${DATABASE_URL_STOCKHOLM}
+      - QR_ENCRYPTION_KEY=${QR_ENCRYPTION_KEY}
+      - HEALTH_CHECK_INTERVAL=30000
+      - REGION_PRIORITY=1
+    ports:
+      - "3010:3010"
+    networks:
+      - stockholm-network
+      - cross-region-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3010/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+        reservations:
+          memory: 128M
+          cpus: "0.1"
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+    volumes:
+      - location_cache_stockholm:/app/cache
+      - qr_cache_stockholm:/app/qr-cache
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Gothenburg Region - Secondary
+  location-router-gothenburg:
+    build:
+      context: .
+      dockerfile: services/location-routing/Dockerfile
+    environment:
+      - NODE_ENV=production
+      - REGION=gothenburg
+      - DATACENTER=got-dc1
+      - REDIS_URL=redis://redis-gothenburg:6379
+      - DATABASE_URL=${DATABASE_URL_GOTHENBURG}
+      - QR_ENCRYPTION_KEY=${QR_ENCRYPTION_KEY}
+      - HEALTH_CHECK_INTERVAL=30000
+      - REGION_PRIORITY=2
+    ports:
+      - "3011:3010"
+    networks:
+      - gothenburg-network
+      - cross-region-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3010/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+        reservations:
+          memory: 128M
+          cpus: "0.1"
+      placement:
+        constraints:
+          - node.labels.region == gothenburg
+    volumes:
+      - location_cache_gothenburg:/app/cache
+      - qr_cache_gothenburg:/app/qr-cache
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Malmö Region - Tertiary
+  location-router-malmo:
+    build:
+      context: .
+      dockerfile: services/location-routing/Dockerfile
+    environment:
+      - NODE_ENV=production
+      - REGION=malmo
+      - DATACENTER=mmo-dc1
+      - REDIS_URL=redis://redis-malmo:6379
+      - DATABASE_URL=${DATABASE_URL_MALMO}
+      - QR_ENCRYPTION_KEY=${QR_ENCRYPTION_KEY}
+      - HEALTH_CHECK_INTERVAL=30000
+      - REGION_PRIORITY=3
+    ports:
+      - "3012:3010"
+    networks:
+      - malmo-network
+      - cross-region-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3010/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+        reservations:
+          memory: 128M
+          cpus: "0.1"
+      placement:
+        constraints:
+          - node.labels.region == malmo
+    volumes:
+      - location_cache_malmo:/app/cache
+      - qr_cache_malmo:/app/qr-cache
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Regional Redis Instances
+  redis-stockholm:
+    image: redis:7-alpine
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "6380:6379"
+    networks:
+      - stockholm-network
+    volumes:
+      - redis_data_stockholm:/data
+      - ./redis/redis-stockholm.conf:/etc/redis/redis.conf:ro
+    command: redis-server /etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+      placement:
+        constraints:
+          - node.labels.region == stockholm
+    restart: unless-stopped
+
+  redis-gothenburg:
+    image: redis:7-alpine
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "6381:6379"
+    networks:
+      - gothenburg-network
+    volumes:
+      - redis_data_gothenburg:/data
+      - ./redis/redis-gothenburg.conf:/etc/redis/redis.conf:ro
+    command: redis-server /etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+        reservations:
+          memory: 128M
+          cpus: "0.1"
+      placement:
+        constraints:
+          - node.labels.region == gothenburg
+    restart: unless-stopped
+
+  redis-malmo:
+    image: redis:7-alpine
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "6382:6379"
+    networks:
+      - malmo-network
+    volumes:
+      - redis_data_malmo:/data
+      - ./redis/redis-malmo.conf:/etc/redis/redis.conf:ro
+    command: redis-server /etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+        reservations:
+          memory: 128M
+          cpus: "0.1"
+      placement:
+        constraints:
+          - node.labels.region == malmo
+    restart: unless-stopped
+
+  # Cross-Region Sync Service
+  region-sync:
+    build:
+      context: .
+      dockerfile: services/location-routing/Dockerfile.sync
+    environment:
+      - NODE_ENV=production
+      - SYNC_INTERVAL=60000  # 1 minute
+      - REGIONS=stockholm,gothenburg,malmo
+      - REDIS_STOCKHOLM=redis://redis-stockholm:6379
+      - REDIS_GOTHENBURG=redis://redis-gothenburg:6379
+      - REDIS_MALMO=redis://redis-malmo:6379
+      - SYNC_ENCRYPTION_KEY=${REGION_SYNC_KEY}
+    networks:
+      - cross-region-network
+    depends_on:
+      - redis-stockholm
+      - redis-gothenburg
+      - redis-malmo
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.1"
+        reservations:
+          memory: 64M
+          cpus: "0.05"
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # Load Balancer for Location Services
+  location-loadbalancer:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - ./nginx/location-routing.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - stockholm-network
+      - gothenburg-network
+      - malmo-network
+      - cross-region-network
+    depends_on:
+      - location-router-stockholm
+      - location-router-gothenburg
+      - location-router-malmo
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.2"
+        reservations:
+          memory: 64M
+          cpus: "0.1"
+    restart: unless-stopped
+
+  # Regional Health Monitor
+  health-monitor:
+    build:
+      context: .
+      dockerfile: services/monitoring/Dockerfile.health
+    environment:
+      - NODE_ENV=production
+      - MONITOR_INTERVAL=15000  # 15 seconds
+      - REGIONS=stockholm,gothenburg,malmo
+      - ALERT_WEBHOOK_URL=${ALERT_WEBHOOK_URL}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+    networks:
+      - cross-region-network
+    ports:
+      - "9090:9090"
+    volumes:
+      - health_monitor_data:/app/data
+    depends_on:
+      - location-router-stockholm
+      - location-router-gothenburg
+      - location-router-malmo
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.2"
+        reservations:
+          memory: 128M
+          cpus: "0.1"
+    restart: unless-stopped
+
+networks:
+  stockholm-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.1.0/24
+  gothenburg-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.2.0/24
+  malmo-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.3.0/24
+  cross-region-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+volumes:
+  # Location routing caches
+  location_cache_stockholm:
+  location_cache_gothenburg:
+  location_cache_malmo:
+  
+  # QR code caches
+  qr_cache_stockholm:
+  qr_cache_gothenberg:
+  qr_cache_malmo:
+  
+  # Redis data
+  redis_data_stockholm:
+  redis_data_gothenburg:
+  redis_data_malmo:
+  
+  # Health monitor data
+  health_monitor_data:
+
+# Docker Swarm deployment configuration
+x-deploy-labels: &default-labels
+  - "traefik.enable=true"
+  - "traefik.docker.network=cross-region-network"
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+    labels: "service,region"
+
+x-restart-policy: &default-restart
+  condition: unless-stopped
+  delay: 10s
+  max_attempts: 3
+  window: 120s
+
+# Production scaling configuration
+x-production-scaling:
+  stockholm:
+    replicas: 3
+    update_config:
+      parallelism: 1
+      delay: 30s
+      failure_action: rollback
+  gothenburg:
+    replicas: 2
+    update_config:
+      parallelism: 1
+      delay: 30s
+      failure_action: rollback
+  malmo:
+    replicas: 2
+    update_config:
+      parallelism: 1
+      delay: 30s
+      failure_action: rollback

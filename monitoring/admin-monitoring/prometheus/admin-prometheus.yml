@@ -1,0 +1,236 @@
+# Prometheus Configuration for Admin Monitoring Infrastructure
+# Swedish Pilot Management and Admin System Monitoring
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    environment: 'admin-monitoring'
+    region: 'sweden'
+    cluster: 'ai-feedback-admin'
+
+# Alerting rules
+rule_files:
+  - "/etc/prometheus/rules/admin-alerts.yml"
+  - "/etc/prometheus/rules/pilot-alerts.yml"
+
+# Alert Manager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - admin-alertmanager:9093
+      timeout: 10s
+      api_version: v1
+
+# Scrape configurations for admin monitoring
+scrape_configs:
+  # Admin Metrics Exporter - Core admin metrics
+  - job_name: 'admin-metrics-exporter'
+    static_configs:
+      - targets: ['admin-metrics-exporter:3000']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    scheme: http
+    params:
+      collect[]: ['admin_metrics']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: admin-metrics-exporter:3000
+
+  # Admin Activity Logger - Authentication and activity metrics
+  - job_name: 'admin-activity-logger'
+    static_configs:
+      - targets: ['admin-activity-logger:3000']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    scheme: http
+    honor_labels: true
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'admin-activity-logger'
+
+  # Swedish Pilot Management API
+  - job_name: 'pilot-management-api'
+    static_configs:
+      - targets: ['pilot-management-api:3000']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    scheme: http
+    honor_labels: true
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'pilot-management-api'
+
+  # Admin Authentication Service
+  - job_name: 'admin-auth-service'
+    static_configs:
+      - targets: ['admin-auth-service:3000']
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    scheme: http
+    honor_labels: true
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'admin-auth-service'
+
+  # Admin Session Manager (Redis)
+  - job_name: 'admin-session-manager'
+    static_configs:
+      - targets: ['admin-session-manager:6379']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    scheme: http
+    honor_labels: true
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'admin-session-manager'
+
+  # Admin Log Aggregator (Fluent Bit)
+  - job_name: 'admin-log-aggregator'
+    static_configs:
+      - targets: ['admin-log-aggregator:2020']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: /api/v1/metrics/prometheus
+    scheme: http
+    honor_labels: true
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'admin-log-aggregator'
+
+  # Pilot Status Monitor
+  - job_name: 'pilot-status-monitor'
+    static_configs:
+      - targets: ['pilot-status-monitor:8080']
+    scrape_interval: 60s
+    scrape_timeout: 15s
+    metrics_path: /metrics
+    scheme: http
+    honor_labels: true
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'pilot-status-monitor'
+
+  # Admin Notification Service
+  - job_name: 'admin-notification-service'
+    static_configs:
+      - targets: ['admin-notification-service:8080']
+    scrape_interval: 60s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    scheme: http
+    honor_labels: true
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'admin-notification-service'
+
+  # External Payment System Integration (from payment infrastructure)
+  - job_name: 'payment-system-integration'
+    static_configs:
+      - targets: ['payments-test-gateway:3000', 'payments-monitoring:9090']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    scheme: http
+    honor_labels: true
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: external_service
+        replacement: 'payment-system'
+
+  # Main System Integration (federate from main Prometheus)
+  - job_name: 'federate-main-system'
+    scrape_interval: 60s
+    scrape_timeout: 30s
+    honor_labels: true
+    metrics_path: '/federate'
+    params:
+      'match[]':
+        # Business metrics
+        - '{__name__=~"business_.*"}'
+        - '{__name__=~"feedback_.*"}'
+        - '{__name__=~"payment_.*"}'
+        # System health
+        - '{__name__=~"up|http_.*|process_.*"}'
+        # Application metrics
+        - '{__name__=~"app_.*|api_.*"}'
+    static_configs:
+      - targets:
+        - prometheus:9090
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: federated_from
+        replacement: 'main-prometheus'
+
+  # Self-monitoring
+  - job_name: 'admin-prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    scheme: http
+
+  # Node Exporter for system metrics (if available)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    honor_labels: true
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'node-exporter'
+
+# Remote write configuration for long-term storage (optional)
+remote_write:
+  - url: "http://victoriametrics:8428/api/v1/write"
+    write_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'admin_.*|pilot_.*|auth_.*'
+        target_label: __name__
+        replacement: '${1}'
+    queue_config:
+      max_samples_per_send: 1000
+      batch_send_deadline: 5s
+      min_shards: 1
+      max_shards: 10
+      capacity: 2500
+
+# Storage configuration
+storage:
+  tsdb:
+    # Retention for admin monitoring data (30 days)
+    retention.time: 30d
+    retention.size: 10GB
+    # Compaction settings optimized for admin monitoring workload
+    min-block-duration: 2h
+    max-block-duration: 25h
+
+# Query configuration
+query:
+  # Timeout for queries
+  timeout: 2m
+  # Maximum number of samples a single query can load
+  max_samples: 50000000
+  # Maximum number of queries executed concurrently
+  max_concurrency: 20

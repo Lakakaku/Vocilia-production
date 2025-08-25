@@ -56,12 +56,44 @@ const navigationItems: NavigationItem[] = [
     description: 'Bedrägeridetektering och hantering'
   },
   {
+    id: 'bans',
+    label: 'Blockering & Överklaganden',
+    icon: '🚫',
+    href: '/bans',
+    permission: 'bans:read',
+    description: 'Hantera kund- och företagsblockningar med överklagandeprocess'
+  },
+  {
     id: 'overrides',
     label: 'Manuella Ändringar',
     icon: '✏️',
     href: '/overrides',
     permission: 'feedback:override',
     description: 'Åsidosätt AI-poängsättning'
+  },
+  {
+    id: 'tiers',
+    label: 'Tier-hantering',
+    icon: '📊',
+    href: '/tiers',
+    permission: 'business:approve',
+    description: 'Hantera företag tier-nivåer och uppgraderingar'
+  },
+  {
+    id: 'limits',
+    label: 'Gräns-hantering',
+    icon: '⚖️',
+    href: '/limits',
+    permission: 'limits:read',
+    description: 'Övervaka och hantera tier-baserade gränser'
+  },
+  {
+    id: 'recommendations',
+    label: 'AI-rekommendationer',
+    icon: '🤖',
+    href: '/recommendations',
+    permission: 'analytics:read',
+    description: 'Performance-baserade tier-rekommendationer'
   },
   {
     id: 'audit',
@@ -78,6 +110,14 @@ const navigationItems: NavigationItem[] = [
     href: '/users',
     permission: 'admin:read',
     description: 'Hantera administratörsanvändare'
+  },
+  {
+    id: 'system-metrics',
+    label: 'Systemstatistik',
+    icon: '🔧',
+    href: '/system-metrics',
+    permission: 'system:read',
+    description: 'System hälsoövervakning och prestanda'
   }
 ];
 

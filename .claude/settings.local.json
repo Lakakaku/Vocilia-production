@@ -47,7 +47,16 @@
       "Bash(curl:*)",
       "Bash(scripts/deploy-dev.sh:*)",
       "Bash(open:*)",
-      "Bash(docker:*)"
+      "Bash(docker:*)",
+      "mcp__serena__check_onboarding_performed",
+      "mcp__serena__think_about_collected_information",
+      "Bash(ollama pull:*)",
+      "Bash(docker-compose:*)",
+      "mcp__serena__insert_after_symbol",
+      "mcp__serena__list_memories",
+      "mcp__serena__insert_before_symbol",
+      "mcp__serena__think_about_task_adherence",
+      "mcp__serena__think_about_whether_you_are_done"
     ],
     "deny": [],
     "additionalDirectories": [
