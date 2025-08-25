@@ -2,9 +2,21 @@ import { Router, type Request, type Response } from 'express';
 import { POSProvider } from '@ai-feedback-platform/shared-types';
 import { POSMetricsCollector } from '../services/pos-metrics-collector';
 import { WebhookProcessor } from '../services/webhook-processor';
+import { SquareWebhookProcessor } from '../../../packages/pos-adapters/src/webhooks/SquareWebhookProcessor';
 import { logger } from '../utils/logger';
 import crypto from 'crypto';
 import { db } from '@ai-feedback/database';
+
+// Initialize Square webhook processor for Swedish market
+const squareProcessor = new SquareWebhookProcessor({
+  baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
+  webhookPath: '/webhooks/square',
+  credentials: {
+    accessToken: process.env.SQUARE_ACCESS_TOKEN || 'sandbox-token',
+    applicationId: process.env.SQUARE_APPLICATION_ID || 'sandbox-app-id',
+    environment: (process.env.SQUARE_ENVIRONMENT as 'sandbox' | 'production') || 'sandbox'
+  }
+});
 
 const router = Router();
 const metricsCollector = new POSMetricsCollector();
@@ -40,52 +52,55 @@ const validateWebhookSignature = (provider: POSProvider) => {
   };
 };
 
-// Square webhook endpoint
-router.post('/square', validateWebhookSignature('square'), async (req: Request, res: Response) => {
+// Square webhook endpoint with enhanced processing
+router.post('/square', async (req: Request, res: Response) => {
   const startTime = Date.now();
   
   try {
-    const webhookEvent = req.body;
+    // Use raw body for signature verification
+    const rawBody = JSON.stringify(req.body);
+    const headers = req.headers as Record<string, string>;
     
-    logger.info('Received Square webhook:', {
-      type: webhookEvent.type,
-      id: webhookEvent.data?.id
+    logger.info('🔔 Received Square webhook:', {
+      event_type: req.body.event_type,
+      event_id: req.body.event_id,
+      location_id: req.body.location_id
     });
 
-    // Process webhook
-    const result = await webhookProcessor.processSquareWebhook(webhookEvent);
+    // Process webhook using enhanced Square processor
+    const result = await squareProcessor.processWebhook(rawBody, headers);
     
     const processingTime = Date.now() - startTime;
     
     // Record metrics
     metricsCollector.recordWebhookDelivery(
       'square',
-      webhookEvent.type || 'unknown',
+      req.body.event_type || 'unknown',
       result.success,
       processingTime
     );
 
-    // Log webhook delivery
+    // Log webhook delivery for monitoring
     await logWebhookDelivery(req, 'square', result.success, processingTime);
 
-    if (result.success) {
-      res.status(200).json({ 
-        success: true, 
-        message: 'Webhook processed successfully',
-        processingTime: `${processingTime}ms`
-      });
-    } else {
-      res.status(422).json({ 
-        success: false, 
-        error: result.error,
-        processingTime: `${processingTime}ms`
-      });
-    }
-  } catch (error) {
+    // Return success response
+    res.status(200).json({ 
+      success: true, 
+      eventId: result.eventId,
+      message: 'Square webhook processed successfully',
+      processingTime: `${processingTime}ms`
+    });
+    
+  } catch (error: any) {
     const processingTime = Date.now() - startTime;
     
-    logger.error('Square webhook processing error:', error);
+    logger.error('❌ Square webhook processing error:', {
+      error: error.message,
+      code: error.code,
+      eventId: req.body?.event_id
+    });
     
+    // Record failure metrics
     metricsCollector.recordWebhookDelivery(
       'square',
       'error',
@@ -95,9 +110,14 @@ router.post('/square', validateWebhookSignature('square'), async (req: Request, 
 
     await logWebhookDelivery(req, 'square', false, processingTime, error);
 
-    res.status(500).json({ 
+    // Return appropriate error status
+    const statusCode = error.code === 'WEBHOOK_INVALID_SIGNATURE' ? 401 :
+                      error.code === 'WEBHOOK_INVALID_EVENT' ? 422 : 500;
+
+    res.status(statusCode).json({ 
       success: false, 
-      error: 'Internal server error',
+      error: error.message || 'Square webhook processing failed',
+      code: error.code || 'INTERNAL_ERROR',
       processingTime: `${processingTime}ms`
     });
   }
@@ -226,6 +246,106 @@ router.post('/zettle', validateWebhookSignature('zettle'), async (req: Request, 
       success: false, 
       error: 'Internal server error',
       processingTime: `${processingTime}ms`
+    });
+  }
+});
+
+// Square webhook status and management endpoints
+router.get('/square/status', async (req: Request, res: Response) => {
+  try {
+    const status = await squareProcessor.getSubscriptionStatus();
+    
+    res.json({
+      success: true,
+      provider: 'square',
+      ...status,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error: any) {
+    logger.error('Failed to get Square webhook status:', error);
+    
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get webhook status'
+    });
+  }
+});
+
+// Initialize Square webhooks
+router.post('/square/initialize', async (req: Request, res: Response) => {
+  try {
+    await squareProcessor.initializeWebhooks();
+    
+    const status = await squareProcessor.getSubscriptionStatus();
+    
+    res.json({
+      success: true,
+      message: 'Square webhooks initialized successfully',
+      subscriptions: status.subscriptions
+    });
+    
+  } catch (error: any) {
+    logger.error('Failed to initialize Square webhooks:', error);
+    
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to initialize webhooks'
+    });
+  }
+});
+
+// Update Square webhook subscription
+router.put('/square/subscription/:subscriptionId', async (req: Request, res: Response) => {
+  try {
+    const { subscriptionId } = req.params;
+    const { eventTypes } = req.body;
+    
+    if (!eventTypes || !Array.isArray(eventTypes)) {
+      return res.status(400).json({
+        success: false,
+        error: 'eventTypes array is required'
+      });
+    }
+    
+    const updatedSubscription = await squareProcessor.updateSubscription(
+      subscriptionId, 
+      eventTypes
+    );
+    
+    res.json({
+      success: true,
+      subscription: updatedSubscription
+    });
+    
+  } catch (error: any) {
+    logger.error('Failed to update Square webhook subscription:', error);
+    
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to update subscription'
+    });
+  }
+});
+
+// Disable Square webhook subscription
+router.delete('/square/subscription/:subscriptionId', async (req: Request, res: Response) => {
+  try {
+    const { subscriptionId } = req.params;
+    
+    await squareProcessor.disableSubscription(subscriptionId);
+    
+    res.json({
+      success: true,
+      message: 'Subscription disabled successfully'
+    });
+    
+  } catch (error: any) {
+    logger.error('Failed to disable Square webhook subscription:', error);
+    
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to disable subscription'
     });
   }
 });

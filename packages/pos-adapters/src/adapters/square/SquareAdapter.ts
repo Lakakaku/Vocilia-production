@@ -26,6 +26,7 @@ import {
 } from './types';
 import { SquareAPIClient } from './SquareAPIClient';
 import { SquareMockData } from './SquareMockData';
+import { SquareLocationMapper, createSquareLocationMapper } from '../../location/SquareLocationMapper';
 import crypto from 'crypto';
 
 /**
@@ -51,6 +52,7 @@ export class SquareAdapter extends BasePOSAdapter implements POSAdapter {
   private mockData: SquareMockData;
   private transactionCache = new Map<string, SquareTransactionCache>();
   private readonly cacheExpiryMs = 5 * 60 * 1000; // 5 minutes
+  private locationMapper?: SquareLocationMapper;
 
   constructor() {
     super('square', ['transactions', 'webhooks', 'inventory', 'customers']);
@@ -589,9 +591,57 @@ export class SquareAdapter extends BasePOSAdapter implements POSAdapter {
     return eventMap[event] || event;
   }
 
+  // Location Mapping Methods
+
+  /**
+   * Get location mapper instance (creates if not exists)
+   */
+  getLocationMapper(businessId: string): SquareLocationMapper {
+    if (!this.locationMapper) {
+      const credentials = this.getCredentials();
+      this.locationMapper = createSquareLocationMapper(credentials, businessId);
+    }
+    return this.locationMapper;
+  }
+
+  /**
+   * Initialize location mapping for a business
+   */
+  async initializeLocationMapping(businessId: string): Promise<{
+    discovered: number;
+    mapped: number;
+    requiresVerification: number;
+  }> {
+    this.ensureInitialized();
+    const mapper = this.getLocationMapper(businessId);
+    return await mapper.initializeMapping();
+  }
+
+  /**
+   * Get business location for a Square location ID
+   */
+  async getBusinessLocationForSquareLocation(squareLocationId: string, businessId: string) {
+    const mapper = this.getLocationMapper(businessId);
+    return mapper.getBusinessLocation(squareLocationId);
+  }
+
+  /**
+   * Create manual location mapping
+   */
+  async createManualLocationMapping(
+    businessId: string,
+    squareLocationId: string,
+    businessLocationId: string,
+    verifiedBy: string
+  ) {
+    const mapper = this.getLocationMapper(businessId);
+    return await mapper.createManualMapping(squareLocationId, businessLocationId, verifiedBy);
+  }
+
   async disconnect(): Promise<void> {
     await super.disconnect();
     this.apiClient = undefined;
+    this.locationMapper = undefined;
     this.transactionCache.clear();
   }
 }
