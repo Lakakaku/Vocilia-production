@@ -1,70 +1,158 @@
-# AlertManager Configuration for Swedish Pilot Program
+# AlertManager Configuration for AI Feedback Platform
+# Enhanced for Performance & Load Testing Monitoring
 global:
-  smtp_smarthost: 'smtp.gmail.com:587'
-  smtp_from: 'pilot-alerts@feedbackai.se'
+  smtp_smarthost: '${SMTP_HOST:-smtp.gmail.com:587}'
+  smtp_from: '${SMTP_FROM:-alerts@feedback.your-domain.com}'
   smtp_auth_username: '${SMTP_USERNAME}'
   smtp_auth_password: '${SMTP_PASSWORD}'
   smtp_require_tls: true
 
-# Routing tree for pilot program alerts
+  # Slack configuration
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+
+  # HTTP configuration for webhooks
+  http_config:
+    tls_config:
+      insecure_skip_verify: false
+
+# Alert routing tree - Enhanced for Performance & Load Testing
 route:
-  group_by: ['alertname', 'cluster', 'service', 'cafe_name']
-  group_wait: 30s
-  group_interval: 5m
-  repeat_interval: 4h
-  receiver: 'pilot-default'
+  # Default receiver for unmatched alerts
+  receiver: 'default-team'
   
+  # Group alerts by these labels to reduce noise
+  group_by: ['alertname', 'cluster', 'service', 'region']
+  
+  # Time to wait before sending a notification for a group of alerts
+  group_wait: 30s
+  
+  # Time to wait before sending notification about changes to existing group
+  group_interval: 5m
+  
+  # Time to wait before re-sending a notification
+  repeat_interval: 4h
+
+  # Routing rules for different types of alerts
   routes:
-    # Critical alerts - immediate response
+    # Critical system alerts - immediate notification
     - match:
         severity: critical
-      receiver: 'pilot-critical'
+      receiver: 'critical-alerts'
       group_wait: 10s
       group_interval: 1m
-      repeat_interval: 10m
-      routes:
-        # Voice processing critical - SMS + Slack + Email
-        - match:
-            component: voice
-          receiver: 'pilot-voice-critical'
-        # Payment processing critical - SMS + Slack + PagerDuty
-        - match:
-            component: payments
-          receiver: 'pilot-payment-critical'
-        # System downtime - All channels + PagerDuty
-        - match:
-            component: system
-          receiver: 'pilot-system-critical'
+      repeat_interval: 30m
+      continue: true
 
-    # High priority alerts - 1 hour response
-    - match:
-        severity: high
-      receiver: 'pilot-high'
-      group_wait: 1m
-      group_interval: 5m
+    # Performance SLA violations - urgent response
+    - match_re:
+        alertname: 'VoiceProcessingLatencyHigh|APIResponseTimeHigh|LoadTestFailure'
+      receiver: 'performance-critical'
+      group_wait: 15s
+      group_interval: 2m
       repeat_interval: 1h
       routes:
-        # Business KPI issues - Business team + Slack
-        - match:
-            component: business
-          receiver: 'pilot-business-high'
-        # Fraud detection - Security team + Slack
-        - match:
-            component: fraud
-          receiver: 'pilot-fraud-high'
+        # Voice processing SLA violations
+        - match_re:
+            alertname: 'VoiceProcessingLatency.*'
+        - receiver: 'voice-sla-team'
+          group_by: ['alertname', 'region', 'business_tier']
+        
+        # API performance SLA violations
+        - match_re:
+            alertname: 'APIResponseTime.*'
+          receiver: 'api-performance-team'
+          group_by: ['alertname', 'service', 'endpoint']
+        
+        # Load testing failures
+        - match_re:
+            alertname: 'LoadTest.*'
+          receiver: 'load-testing-team'
+          group_by: ['alertname', 'test_type', 'scenario']
 
-    # Medium priority alerts - 4 hour response
+    # High severity alerts - quick notification
     - match:
-        severity: medium
-      receiver: 'pilot-medium'
-      group_wait: 5m
-      group_interval: 30m
+        severity: high
+      receiver: 'high-priority-alerts'
+      group_wait: 30s
+      group_interval: 2m
+      repeat_interval: 1h
+
+    # Voice processing alerts
+    - match_re:
+        service: 'voice.*|websocket.*'
+      receiver: 'voice-team'
+      group_by: ['alertname', 'service', 'region']
+      group_interval: 3m
+      repeat_interval: 2h
+
+    # AI and ML system alerts
+    - match_re:
+        service: 'ai.*|ml.*|evaluation.*'
+      receiver: 'ai-team'
+      group_by: ['alertname', 'service', 'model']
+      group_interval: 5m
+      repeat_interval: 2h
+
+    # Payment processing alerts
+    - match_re:
+        service: 'payment.*|stripe.*|billing.*'
+      receiver: 'payments-team'
+      group_by: ['alertname', 'service', 'payment_method']
+      group_interval: 2m
+      repeat_interval: 1h
+
+    # Fraud detection alerts
+    - match_re:
+        service: 'fraud.*|security.*'
+      receiver: 'security-team'
+      group_by: ['alertname', 'service', 'risk_level']
+      group_interval: 1m
+      repeat_interval: 30m
+      continue: true
+
+    # Business KPI alerts - Swedish regions
+    - match_re:
+        region: 'stockholm|gothenburg|malmo|sweden'
+      receiver: 'swedish-operations'
+      group_by: ['alertname', 'region', 'business_tier']
+      group_interval: 10m
       repeat_interval: 4h
+
+    # Load testing and performance alerts
+    - match_re:
+        service: 'load.*|performance.*|sla.*'
+      receiver: 'performance-team'
+      group_by: ['alertname', 'test_type', 'region']
+      group_interval: 5m
+      repeat_interval: 2h
+
+    # Database alerts
+    - match_re:
+        service: 'postgres.*|database.*'
+      receiver: 'database-team'
+      group_by: ['alertname', 'service', 'database']
+      group_interval: 3m
+      repeat_interval: 1h
+
+    # Infrastructure alerts
+    - match_re:
+        service: 'node.*|container.*|system.*'
+      receiver: 'infrastructure-team'
+      group_by: ['alertname', 'service', 'instance']
+      group_interval: 5m
+      repeat_interval: 2h
+
+    # Warning level alerts - less frequent
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_interval: 10m
+      repeat_interval: 6h
 
     # Business hours only alerts
     - match:
         severity: low
-      receiver: 'pilot-business-hours'
+      receiver: 'business-hours-alerts'
       group_wait: 10m
       group_interval: 1h
       repeat_interval: 24h
@@ -104,64 +192,102 @@ inhibit_rules:
       - alertname="StripeWebhookDown"
     equal: ['cafe_name']
 
-# Alert receivers and notification channels
+# Notification receivers - Enhanced for Performance & Load Testing
 receivers:
-  # Default receiver
-  - name: 'pilot-default'
+  # Default team for unclassified alerts
+  - name: 'default-team'
+    email_configs:
+      - to: '${ALERT_EMAIL_DEFAULT:-team@feedback.your-domain.com}'
+        subject: '[AI Feedback Alert] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Severity: {{ .Labels.severity }}
+          Service: {{ .Labels.service }}
+          Instance: {{ .Labels.instance }}
+          Value: {{ .Annotations.value }}
+          Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+          {{ end }}
+    
     slack_configs:
       - api_url: '${SLACK_WEBHOOK_URL}'
-        channel: '#pilot-program-alerts'
-        title: '🇸🇪 Pilot Alert: {{ .CommonAnnotations.summary }}'
+        channel: '#general-alerts'
+        title: '{{ .GroupLabels.alertname }}'
         text: |
           {{ range .Alerts }}
           *Alert:* {{ .Annotations.summary }}
           *Severity:* {{ .Labels.severity }}
-          *Component:* {{ .Labels.component }}
-          *Café:* {{ .Labels.cafe_name }}
-          *Description:* {{ .Annotations.description }}
-          *Runbook:* {{ .Annotations.runbook_url }}
+          *Service:* {{ .Labels.service }}
+          *Started:* {{ .StartsAt.Format "2006-01-02 15:04:05" }}
           {{ end }}
 
-  # Critical alerts - all channels
-  - name: 'pilot-critical'
+  # Critical system alerts
+  - name: 'critical-alerts'
     email_configs:
-      - to: 'pilot-critical@feedbackai.se'
-        subject: '🚨 CRITICAL: {{ .CommonAnnotations.summary }}'
+      - to: '${ALERT_EMAIL_CRITICAL:-critical-alerts@feedback.your-domain.com,on-call@feedback.your-domain.com}'
+        subject: '🚨 CRITICAL ALERT: {{ .GroupLabels.alertname }}'
         body: |
-          Critical alert for Swedish Pilot Program:
+          CRITICAL SYSTEM ALERT DETECTED
           
           {{ range .Alerts }}
-          Alert: {{ .Annotations.summary }}
-          Severity: {{ .Labels.severity }}
-          Component: {{ .Labels.component }}
-          Café: {{ .Labels.cafe_name }}
-          Description: {{ .Annotations.description }}
+          🔥 ALERT: {{ .Annotations.summary }}
+          📝 Description: {{ .Annotations.description }}
+          🏷️ Severity: {{ .Labels.severity }}
+          🔧 Service: {{ .Labels.service }}
+          🖥️ Instance: {{ .Labels.instance }}
+          📊 Value: {{ .Annotations.value }}
+          ⏰ Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+          🌍 Region: {{ .Labels.region }}
           
-          Runbook: {{ .Annotations.runbook_url }}
-          
-          Started: {{ .StartsAt }}
+          ACTION REQUIRED: Immediate investigation needed
           {{ end }}
+    
     slack_configs:
       - api_url: '${SLACK_WEBHOOK_URL}'
-        channel: '#incident-response'
-        title: '🚨 CRITICAL PILOT ALERT'
+        channel: '#critical-alerts'
+        title: '🚨 Critical Alert: {{ .GroupLabels.alertname }}'
         text: |
-          <!channel> Critical issue detected in Swedish Pilot Program
-          
+          <!channel> Critical issue detected in AI Feedback Platform
           {{ range .Alerts }}
           *Alert:* {{ .Annotations.summary }}
-          *Component:* {{ .Labels.component }}
-          *Café:* {{ .Labels.cafe_name }}
-          *Description:* {{ .Annotations.description }}
-          *Runbook:* <{{ .Annotations.runbook_url }}|View Runbook>
+          *Service:* {{ .Labels.service }}
+          *Instance:* {{ .Labels.instance }}
+          *Started:* {{ .StartsAt.Format "2006-01-02 15:04:05" }}
           {{ end }}
-        actions:
-          - type: button
-            text: 'Acknowledge'
-            url: '{{ .GeneratorURL }}'
-          - type: button
-            text: 'View Dashboard'
-            url: 'https://staging.feedbackai.se:3100/d/pilot-overview'
+
+  # Performance SLA critical alerts
+  - name: 'performance-critical'
+    email_configs:
+      - to: '${ALERT_EMAIL_PERFORMANCE:-performance-critical@feedback.your-domain.com}'
+        subject: '⚡ PERFORMANCE SLA VIOLATION: {{ .GroupLabels.alertname }}'
+        body: |
+          PERFORMANCE SLA VIOLATION DETECTED
+          
+          {{ range .Alerts }}
+          🎯 SLA Alert: {{ .Annotations.summary }}
+          📝 Description: {{ .Annotations.description }}
+          🔧 Service: {{ .Labels.service }}
+          🌍 Region: {{ .Labels.region }}
+          📊 Current Value: {{ .Annotations.value }}
+          🎯 SLA Target: {{ .Annotations.sla_target }}
+          ⏰ Started: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+          
+          IMMEDIATE ACTION REQUIRED: SLA breach detected
+          {{ end }}
+    
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#performance-alerts'
+        title: '⚡ Performance SLA Violation'
+        text: |
+          <!channel> Performance SLA violation detected
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Service:* {{ .Labels.service }}
+          *Current Value:* {{ .Annotations.value }}
+          *SLA Target:* {{ .Annotations.sla_target }}
+          {{ end }}
 
   # Voice processing critical
   - name: 'pilot-voice-critical'

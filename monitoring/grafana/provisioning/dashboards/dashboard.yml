@@ -1,13 +1,71 @@
+# Grafana Dashboard Provisioning Configuration
+# Auto-loads dashboards for AI Feedback Platform Performance Monitoring
+
 apiVersion: 1
 
 providers:
-  - name: 'AI Feedback Platform'
+  # Main performance dashboards
+  - name: 'ai-feedback-performance'
     orgId: 1
-    folder: ''
+    folder: 'AI Feedback Platform'
     type: file
     disableDeletion: false
-    editable: true
-    updateIntervalSeconds: 10
+    updateIntervalSeconds: 30
     allowUiUpdates: true
     options:
-      path: /etc/grafana/provisioning/dashboards
+      path: /var/lib/grafana/dashboards/performance
+
+  # Swedish regional dashboards
+  - name: 'swedish-regional'
+    orgId: 1
+    folder: 'Swedish Operations'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 60
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/swedish-regional
+
+  # Load testing dashboards
+  - name: 'load-testing'
+    orgId: 1
+    folder: 'Load Testing & Performance'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 60
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/load-testing
+
+  # SLA monitoring dashboards
+  - name: 'sla-monitoring'
+    orgId: 1
+    folder: 'SLA Monitoring'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/sla-monitoring
+
+  # Business KPI dashboards
+  - name: 'business-kpis'
+    orgId: 1
+    folder: 'Business KPIs'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 120
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/business-kpis
+
+  # System infrastructure dashboards
+  - name: 'infrastructure'
+    orgId: 1
+    folder: 'Infrastructure'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 60
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/infrastructure

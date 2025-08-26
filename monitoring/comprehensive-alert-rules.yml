@@ -1,0 +1,388 @@
+# Comprehensive Alert Rules for AI Feedback Platform
+# Performance & Load Testing Focused
+
+groups:
+  # Voice Processing Performance Alerts
+  - name: voice_processing_performance
+    rules:
+      # Voice processing latency SLA violation (<2s target)
+      - alert: VoiceProcessingLatencyHigh
+        expr: histogram_quantile(0.95, ai_feedback_voice_processing_latency_seconds_bucket) > 2
+        for: 2m
+        labels:
+          severity: critical
+          service: voice-processing
+          component: voice
+        annotations:
+          summary: "Voice processing latency exceeds SLA target"
+          description: "95th percentile voice processing latency is {{ $value }}s, exceeding the 2s SLA target"
+          value: "{{ $value }}s"
+          sla_target: "2s"
+          runbook_url: "https://docs.feedback.your-domain.com/runbooks/voice-latency"
+
+      # Voice session success rate below threshold
+      - alert: VoiceSessionFailureRateHigh
+        expr: (rate(ai_feedback_voice_sessions_failed_total[5m]) / rate(ai_feedback_voice_sessions_total[5m])) > 0.05
+        for: 3m
+        labels:
+          severity: high
+          service: voice-processing
+          component: voice
+        annotations:
+          summary: "Voice session failure rate is high"
+          description: "Voice session failure rate is {{ $value | humanizePercentage }}, above 5% threshold"
+          value: "{{ $value | humanizePercentage }}"
+          sla_target: "< 5%"
+
+      # WebSocket connection drops
+      - alert: WebSocketConnectionDropsHigh
+        expr: rate(ai_feedback_websocket_disconnections_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: high
+          service: websocket
+          component: voice
+        annotations:
+          summary: "WebSocket connection drops are high"
+          description: "WebSocket connections are dropping at {{ $value }} per second"
+          value: "{{ $value }}/s"
+
+  # API Performance Alerts
+  - name: api_performance
+    rules:
+      # API response time SLA violation (<500ms target)
+      - alert: APIResponseTimeHigh
+        expr: histogram_quantile(0.95, ai_feedback_http_request_duration_seconds_bucket{app="api-gateway"}) > 0.5
+        for: 3m
+        labels:
+          severity: critical
+          service: api-gateway
+          component: api
+        annotations:
+          summary: "API response time exceeds SLA target"
+          description: "95th percentile API response time is {{ $value }}s, exceeding 500ms SLA target"
+          value: "{{ $value }}s"
+          sla_target: "500ms"
+          runbook_url: "https://docs.feedback.your-domain.com/runbooks/api-performance"
+
+      # High error rate
+      - alert: APIErrorRateHigh
+        expr: (rate(ai_feedback_http_requests_total{status_code=~"5.."}[5m]) / rate(ai_feedback_http_requests_total[5m])) > 0.01
+        for: 2m
+        labels:
+          severity: high
+          service: api-gateway
+          component: api
+        annotations:
+          summary: "API error rate is high"
+          description: "API error rate is {{ $value | humanizePercentage }}, above 1% threshold"
+          value: "{{ $value | humanizePercentage }}"
+          sla_target: "< 1%"
+
+      # Too many requests (possible DDoS)
+      - alert: APIRequestRateVeryHigh
+        expr: rate(ai_feedback_http_requests_total[1m]) > 100
+        for: 1m
+        labels:
+          severity: warning
+          service: api-gateway
+          component: api
+        annotations:
+          summary: "API request rate is very high"
+          description: "API receiving {{ $value }} requests/second, possible DDoS attack"
+          value: "{{ $value }}/s"
+
+  # AI Processing Performance
+  - name: ai_processing_performance
+    rules:
+      # AI processing time SLA violation (<1s target)
+      - alert: AIProcessingTimeHigh
+        expr: histogram_quantile(0.95, ai_feedback_ai_processing_duration_seconds_bucket) > 1
+        for: 2m
+        labels:
+          severity: high
+          service: ai-evaluation
+          component: ai
+        annotations:
+          summary: "AI processing time exceeds target"
+          description: "95th percentile AI processing time is {{ $value }}s, exceeding 1s target"
+          value: "{{ $value }}s"
+          sla_target: "1s"
+
+      # AI model accuracy drop
+      - alert: AIModelAccuracyLow
+        expr: ai_feedback_ai_model_accuracy < 0.85
+        for: 5m
+        labels:
+          severity: high
+          service: ai-evaluation
+          component: ai
+        annotations:
+          summary: "AI model accuracy has dropped"
+          description: "AI model accuracy is {{ $value | humanizePercentage }}, below 85% threshold"
+          value: "{{ $value | humanizePercentage }}"
+          sla_target: "> 85%"
+
+  # Load Testing Results Monitoring
+  - name: load_testing_monitoring
+    rules:
+      # Load test failure
+      - alert: LoadTestFailure
+        expr: load_test_sla_compliance < 90
+        for: 1m
+        labels:
+          severity: critical
+          service: load-testing
+          component: performance
+        annotations:
+          summary: "Load test SLA compliance below threshold"
+          description: "Load test {{ $labels.test_type }} SLA compliance is {{ $value }}%, below 90% threshold"
+          value: "{{ $value }}%"
+          sla_target: "> 90%"
+          test_type: "{{ $labels.test_type }}"
+
+      # Peak capacity utilization too high
+      - alert: PeakCapacityUtilizationHigh
+        expr: peak_capacity_utilization > 85
+        for: 2m
+        labels:
+          severity: high
+          service: "{{ $labels.component }}"
+          component: infrastructure
+        annotations:
+          summary: "Peak capacity utilization is high"
+          description: "{{ $labels.component }} utilization is {{ $value }}%, above 85% threshold during peak testing"
+          value: "{{ $value }}%"
+          sla_target: "< 85%"
+
+      # Concurrent user handling failure
+      - alert: ConcurrentUserHandlingIssue
+        expr: ai_feedback_concurrent_users_peak < 80 and ai_feedback_load_test_result{metric="target_users"} == 100
+        for: 1m
+        labels:
+          severity: high
+          service: load-testing
+          component: performance
+        annotations:
+          summary: "Concurrent user handling below target"
+          description: "System handled {{ $value }} concurrent users, below 100 user target"
+          value: "{{ $value }}"
+          sla_target: "100 users"
+
+  # Payment Processing Alerts
+  - name: payment_processing
+    rules:
+      # Payment processing time SLA violation (<10s target)
+      - alert: PaymentProcessingTimeHigh
+        expr: histogram_quantile(0.95, ai_feedback_payment_processing_duration_seconds_bucket) > 10
+        for: 3m
+        labels:
+          severity: high
+          service: payments
+          component: payment
+        annotations:
+          summary: "Payment processing time exceeds SLA target"
+          description: "95th percentile payment processing time is {{ $value }}s, exceeding 10s target"
+          value: "{{ $value }}s"
+          sla_target: "10s"
+
+      # Payment failure rate high
+      - alert: PaymentFailureRateHigh
+        expr: (rate(ai_feedback_payment_failures_total[5m]) / rate(ai_feedback_payments_total[5m])) > 0.02
+        for: 2m
+        labels:
+          severity: high
+          service: payments
+          component: payment
+        annotations:
+          summary: "Payment failure rate is high"
+          description: "Payment failure rate is {{ $value | humanizePercentage }}, above 2% threshold"
+          value: "{{ $value | humanizePercentage }}"
+          sla_target: "< 2%"
+
+      # Stripe API latency high
+      - alert: StripeAPILatencyHigh
+        expr: histogram_quantile(0.95, ai_feedback_stripe_api_latency_seconds_bucket) > 5
+        for: 3m
+        labels:
+          severity: high
+          service: stripe-api
+          component: payment
+        annotations:
+          summary: "Stripe API latency is high"
+          description: "95th percentile Stripe API latency is {{ $value }}s, above 5s threshold"
+          value: "{{ $value }}s"
+          sla_target: "< 5s"
+
+  # Fraud Detection Alerts
+  - name: fraud_detection
+    rules:
+      # Fraud detection processing time high
+      - alert: FraudDetectionTimeHigh
+        expr: histogram_quantile(0.95, ai_feedback_fraud_detection_duration_seconds_bucket) > 0.5
+        for: 2m
+        labels:
+          severity: medium
+          service: fraud-detection
+          component: fraud
+        annotations:
+          summary: "Fraud detection processing time is high"
+          description: "95th percentile fraud detection time is {{ $value }}s, above 500ms threshold"
+          value: "{{ $value }}s"
+          sla_target: "< 500ms"
+
+      # Suspicious activity rate spike
+      - alert: SuspiciousActivitySpike
+        expr: rate(ai_feedback_fraud_actions_total{action="block"}[5m]) > 0.1
+        for: 1m
+        labels:
+          severity: high
+          service: fraud-detection
+          component: fraud
+          risk_level: high
+        annotations:
+          summary: "Suspicious activity spike detected"
+          description: "Fraud blocks occurring at {{ $value }} per second, possible attack"
+          value: "{{ $value }}/s"
+
+  # Database Performance
+  - name: database_performance
+    rules:
+      # Database query time high
+      - alert: DatabaseQueryTimeHigh
+        expr: histogram_quantile(0.95, ai_feedback_db_query_duration_seconds_bucket) > 0.1
+        for: 3m
+        labels:
+          severity: high
+          service: database
+          component: database
+        annotations:
+          summary: "Database query time is high"
+          description: "95th percentile database query time is {{ $value }}s, above 100ms threshold"
+          value: "{{ $value }}s"
+          sla_target: "< 100ms"
+
+      # Database connections high
+      - alert: DatabaseConnectionsHigh
+        expr: ai_feedback_db_connections_active / ai_feedback_db_connections_max > 0.8
+        for: 2m
+        labels:
+          severity: warning
+          service: database
+          component: database
+        annotations:
+          summary: "Database connections are high"
+          description: "Database connections at {{ $value | humanizePercentage }} of maximum capacity"
+          value: "{{ $value | humanizePercentage }}"
+          sla_target: "< 80%"
+
+  # Business KPIs - Swedish Operations
+  - name: swedish_business_kpis
+    rules:
+      # Low daily feedback volume in Swedish regions
+      - alert: SwedishFeedbackVolumeLow
+        expr: sweden_daily_feedback_volume < 10
+        for: 30m
+        labels:
+          severity: medium
+          service: business-metrics
+          component: business
+          region: "{{ $labels.region }}"
+        annotations:
+          summary: "Daily feedback volume is low in {{ $labels.region }}"
+          description: "Only {{ $value }} feedback sessions today in {{ $labels.region }}, below 10 session threshold"
+          value: "{{ $value }}"
+          sla_target: "> 10 sessions/day"
+
+      # Low average feedback quality
+      - alert: SwedishFeedbackQualityLow
+        expr: sweden_avg_feedback_quality_score < 60
+        for: 15m
+        labels:
+          severity: high
+          service: business-metrics
+          component: business
+          region: "{{ $labels.region }}"
+        annotations:
+          summary: "Average feedback quality is low in {{ $labels.region }}"
+          description: "Average feedback quality score is {{ $value }}, below 60 threshold in {{ $labels.region }}"
+          value: "{{ $value }}"
+          sla_target: "> 60"
+
+  # System Resource Alerts  
+  - name: system_resources
+    rules:
+      # High CPU usage
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+          component: system
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+          value: "{{ $value }}%"
+          sla_target: "< 80%"
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+          component: system
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+          value: "{{ $value }}%"
+          sla_target: "< 85%"
+
+      # Disk space low
+      - alert: LowDiskSpace
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+          service: system
+          component: system
+        annotations:
+          summary: "Disk space is low"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }} ({{ $labels.mountpoint }})"
+          value: "{{ $value }}%"
+          sla_target: "< 85%"
+
+  # SLA Compliance Tracking
+  - name: sla_compliance
+    rules:
+      # Overall SLA compliance below target
+      - alert: SLAComplianceLow
+        expr: ai_feedback_sla_compliance_percentage < 99
+        for: 5m
+        labels:
+          severity: high
+          service: sla-monitoring
+          component: sla
+        annotations:
+          summary: "SLA compliance is below target"
+          description: "{{ $labels.sla_type }} SLA compliance is {{ $value }}%, below 99% target"
+          value: "{{ $value }}%"
+          sla_target: "> 99%"
+          sla_type: "{{ $labels.sla_type }}"
+
+      # Service availability below target
+      - alert: ServiceAvailabilityLow
+        expr: ai_feedback_availability_uptime_percentage < 99.9
+        for: 1m
+        labels:
+          severity: critical
+          service: "{{ $labels.service }}"
+          component: availability
+        annotations:
+          summary: "Service availability below SLA"
+          description: "{{ $labels.service }} availability is {{ $value }}%, below 99.9% SLA"
+          value: "{{ $value }}%"
+          sla_target: "> 99.9%"
+          service_name: "{{ $labels.service }}"

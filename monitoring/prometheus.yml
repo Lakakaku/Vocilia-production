@@ -83,3 +83,78 @@ scrape_configs:
     static_configs:
       - targets: ['api-gateway:3001']
     metrics_path: '/metrics/fraud'
+    scrape_interval: 10s
+
+  # Enhanced Performance Monitoring Metrics
+  - job_name: 'performance-metrics'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+
+  # Payment Processing Metrics
+  - job_name: 'payment-metrics'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics/payments'
+    scrape_interval: 10s
+
+  # Business KPI Metrics
+  - job_name: 'business-kpi-metrics'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics/business'
+    scrape_interval: 30s
+
+  # SLA Tracking Metrics
+  - job_name: 'sla-metrics'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics/sla'
+    scrape_interval: 15s
+
+  # Load Testing Results
+  - job_name: 'load-testing-metrics'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics/load-testing'
+    scrape_interval: 60s
+
+  # Database Metrics (if using Postgres exporter)
+  - job_name: 'postgres-metrics'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    scrape_interval: 15s
+
+  # Redis Detailed Metrics
+  - job_name: 'redis-detailed'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_interval: 10s
+
+  # Business Dashboard Metrics (Enhanced)
+  - job_name: 'business-dashboard-detailed'
+    static_configs:
+      - targets: ['business-dashboard:3002']
+    metrics_path: '/api/metrics/detailed'
+    scrape_interval: 30s
+
+  # Admin Dashboard Metrics (Enhanced)
+  - job_name: 'admin-dashboard-detailed'
+    static_configs:
+      - targets: ['admin-dashboard:3003']
+    metrics_path: '/api/metrics/admin'
+    scrape_interval: 30s
+
+  # Custom Exporter for Swedish Business Metrics
+  - job_name: 'swedish-business-metrics'
+    static_configs:
+      - targets: ['business-metrics-exporter:9090']
+    scrape_interval: 60s
+
+  # WebSocket Connection Metrics
+  - job_name: 'websocket-metrics'
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics/websockets'
+    scrape_interval: 5s

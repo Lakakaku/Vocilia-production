@@ -14,6 +14,7 @@ import { adminRoutes } from './routes/admin';
 import { paymentsRoutes } from './routes/payments';
 import { posHealthRoutes } from './routes/pos-health';
 import { posWebhookRoutes } from './routes/pos-webhooks';
+import { swedishOperationsRoutes } from './routes/swedish-operations';
 import locationMappingRoutes from './routes/location-mapping';
 import integrationMonitoringRoutes from './routes/integration-monitoring';
 import manualOverrideRoutes from './routes/manual-overrides';
@@ -23,6 +24,8 @@ import { setupWebSocket } from './websocket/voiceHandler';
 import { setupAdminWebSocket, cleanupAdminWebSocket } from './websocket/adminHandler';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './docs/openapi';
+import metricsEndpoints from './middleware/metricsEndpoint';
+import { createMetricsMiddleware } from '@/packages/shared/src/metrics/PrometheusMetricsCollector';
 
 const app = express();
 const server = createServer(app);
@@ -51,6 +54,9 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Metrics collection middleware (before rate limiting to capture all requests)
+app.use(createMetricsMiddleware('api-gateway'));
+
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -78,6 +84,9 @@ const voiceLimiter = rateLimit({
 // Voice-specific user rate limiting
 const voiceUserLimit = createUserRateLimit(60 * 1000, 5); // 5 voice requests per minute per user
 
+// Metrics endpoints (before other routes to avoid rate limiting on metrics collection)
+app.use(metricsEndpoints);
+
 // Routes
 app.use('/health', healthRoutes);
 app.use('/api/qr', qrRoutes);
@@ -86,6 +95,7 @@ app.use('/api/business', businessRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/pos', posHealthRoutes);
 app.use('/webhooks', posWebhookRoutes);
+app.use('/swedish-ops', swedishOperationsRoutes);
 app.use('/location-mapping', locationMappingRoutes);
 app.get('/openapi.json', (req, res) => res.json(swaggerSpec));
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));

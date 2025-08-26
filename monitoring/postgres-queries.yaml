@@ -1,0 +1,332 @@
+# Custom PostgreSQL queries for AI Feedback Platform monitoring
+
+# Business-specific metrics queries
+ai_feedback_business_metrics:
+  query: |
+    SELECT 
+      status,
+      CASE 
+        WHEN trial_feedbacks_remaining > 0 THEN 'trial'
+        ELSE 'paid'
+      END as tier,
+      COUNT(*) as count
+    FROM businesses 
+    GROUP BY status, tier
+  master: true
+  metrics:
+    - count:
+        usage: "GAUGE"
+        description: "Number of businesses by status and tier"
+      status:
+        usage: "LABEL"
+        description: "Business status"
+      tier:
+        usage: "LABEL"
+        description: "Business tier"
+
+ai_feedback_session_metrics:
+  query: |
+    SELECT 
+      status,
+      COUNT(*) as total_sessions,
+      AVG(quality_score) as avg_quality_score,
+      SUM(reward_amount) as total_rewards
+    FROM feedback_sessions 
+    WHERE created_at > NOW() - INTERVAL '1 hour'
+    GROUP BY status
+  master: true
+  metrics:
+    - total_sessions:
+        usage: "GAUGE"
+        description: "Total feedback sessions in last hour"
+    - avg_quality_score:
+        usage: "GAUGE"
+        description: "Average quality score in last hour"
+    - total_rewards:
+        usage: "GAUGE"
+        description: "Total rewards distributed in last hour (SEK)"
+      status:
+        usage: "LABEL"
+        description: "Session status"
+
+ai_feedback_fraud_metrics:
+  query: |
+    SELECT 
+      fraud_review_status,
+      COUNT(*) as total_sessions,
+      AVG(fraud_risk_score) as avg_fraud_score,
+      COUNT(CASE WHEN fraud_risk_score > 0.7 THEN 1 END) as high_risk_sessions
+    FROM feedback_sessions 
+    WHERE created_at > NOW() - INTERVAL '1 hour'
+    AND fraud_risk_score IS NOT NULL
+    GROUP BY fraud_review_status
+  master: true
+  metrics:
+    - total_sessions:
+        usage: "GAUGE"
+        description: "Total sessions with fraud scoring in last hour"
+    - avg_fraud_score:
+        usage: "GAUGE"
+        description: "Average fraud risk score in last hour"
+    - high_risk_sessions:
+        usage: "GAUGE"
+        description: "Sessions with high fraud risk (>0.7) in last hour"
+      fraud_review_status:
+        usage: "LABEL"
+        description: "Fraud review status"
+
+ai_feedback_payment_metrics:
+  query: |
+    SELECT 
+      CASE 
+        WHEN stripe_transfer_id IS NOT NULL THEN 'completed'
+        WHEN reward_amount > 0 THEN 'pending'
+        ELSE 'none'
+      END as payment_status,
+      COUNT(*) as sessions_count,
+      SUM(reward_amount) as total_amount,
+      AVG(reward_amount) as avg_amount
+    FROM feedback_sessions 
+    WHERE created_at > NOW() - INTERVAL '1 hour'
+    GROUP BY payment_status
+  master: true
+  metrics:
+    - sessions_count:
+        usage: "GAUGE"
+        description: "Sessions count by payment status in last hour"
+    - total_amount:
+        usage: "GAUGE"
+        description: "Total payment amount by status in last hour (SEK)"
+    - avg_amount:
+        usage: "GAUGE"
+        description: "Average payment amount by status in last hour (SEK)"
+      payment_status:
+        usage: "LABEL"
+        description: "Payment processing status"
+
+ai_feedback_quality_distribution:
+  query: |
+    SELECT 
+      CASE 
+        WHEN quality_score >= 90 THEN '90-100'
+        WHEN quality_score >= 75 THEN '75-89'
+        WHEN quality_score >= 60 THEN '60-74'
+        WHEN quality_score >= 0 THEN '0-59'
+        ELSE 'null'
+      END as quality_range,
+      COUNT(*) as sessions_count
+    FROM feedback_sessions 
+    WHERE created_at > NOW() - INTERVAL '1 hour'
+    GROUP BY quality_range
+  master: true
+  metrics:
+    - sessions_count:
+        usage: "GAUGE"
+        description: "Sessions count by quality score range in last hour"
+      quality_range:
+        usage: "LABEL"
+        description: "Quality score range"
+
+ai_feedback_regional_metrics:
+  query: |
+    SELECT 
+      CASE 
+        WHEN bl.address ILIKE '%stockholm%' THEN 'stockholm'
+        WHEN bl.address ILIKE '%gothenburg%' OR bl.address ILIKE '%göteborg%' THEN 'gothenburg'
+        WHEN bl.address ILIKE '%malmö%' OR bl.address ILIKE '%malmo%' THEN 'malmo'
+        ELSE 'other'
+      END as region,
+      COUNT(*) as sessions_count,
+      AVG(fs.quality_score) as avg_quality,
+      SUM(fs.reward_amount) as total_rewards
+    FROM feedback_sessions fs
+    JOIN business_locations bl ON fs.location_id = bl.id
+    WHERE fs.created_at > NOW() - INTERVAL '1 hour'
+    GROUP BY region
+  master: true
+  metrics:
+    - sessions_count:
+        usage: "GAUGE"
+        description: "Sessions count by Swedish region in last hour"
+    - avg_quality:
+        usage: "GAUGE"
+        description: "Average quality score by region in last hour"
+    - total_rewards:
+        usage: "GAUGE"
+        description: "Total rewards by region in last hour (SEK)"
+      region:
+        usage: "LABEL"
+        description: "Swedish region"
+
+ai_feedback_performance_metrics:
+  query: |
+    SELECT 
+      'voice_processing' as metric_type,
+      AVG(EXTRACT(EPOCH FROM (completed_at - created_at))) as avg_duration_seconds,
+      COUNT(*) as total_sessions,
+      COUNT(CASE WHEN EXTRACT(EPOCH FROM (completed_at - created_at)) <= 2 THEN 1 END) as sla_compliant_sessions
+    FROM feedback_sessions 
+    WHERE completed_at IS NOT NULL
+    AND created_at > NOW() - INTERVAL '1 hour'
+  master: true
+  metrics:
+    - avg_duration_seconds:
+        usage: "GAUGE"
+        description: "Average voice processing duration in last hour"
+    - total_sessions:
+        usage: "GAUGE"
+        description: "Total completed sessions in last hour"
+    - sla_compliant_sessions:
+        usage: "GAUGE"
+        description: "Sessions meeting SLA target (<= 2s) in last hour"
+      metric_type:
+        usage: "LABEL"
+        description: "Performance metric type"
+
+ai_feedback_database_health:
+  query: |
+    SELECT 
+      schemaname,
+      tablename,
+      n_tup_ins as inserts,
+      n_tup_upd as updates,
+      n_tup_del as deletes,
+      n_live_tup as live_tuples,
+      n_dead_tup as dead_tuples
+    FROM pg_stat_user_tables
+    WHERE schemaname = 'public'
+    AND tablename IN ('businesses', 'feedback_sessions', 'business_locations')
+  master: true
+  metrics:
+    - inserts:
+        usage: "COUNTER"
+        description: "Number of rows inserted"
+    - updates:
+        usage: "COUNTER"
+        description: "Number of rows updated"
+    - deletes:
+        usage: "COUNTER"
+        description: "Number of rows deleted"
+    - live_tuples:
+        usage: "GAUGE"
+        description: "Number of live tuples"
+    - dead_tuples:
+        usage: "GAUGE"
+        description: "Number of dead tuples"
+      schemaname:
+        usage: "LABEL"
+        description: "Schema name"
+      tablename:
+        usage: "LABEL"
+        description: "Table name"
+
+ai_feedback_connection_stats:
+  query: |
+    SELECT 
+      state,
+      COUNT(*) as connection_count
+    FROM pg_stat_activity
+    WHERE datname = 'ai_feedback'
+    GROUP BY state
+  master: true
+  metrics:
+    - connection_count:
+        usage: "GAUGE"
+        description: "Database connections by state"
+      state:
+        usage: "LABEL"
+        description: "Connection state"
+
+ai_feedback_query_performance:
+  query: |
+    SELECT 
+      query_type,
+      AVG(mean_exec_time) as avg_execution_time_ms,
+      SUM(calls) as total_calls,
+      SUM(total_exec_time) as total_execution_time_ms
+    FROM (
+      SELECT 
+        CASE 
+          WHEN query ILIKE '%feedback_sessions%' THEN 'feedback_queries'
+          WHEN query ILIKE '%businesses%' THEN 'business_queries'
+          WHEN query ILIKE '%business_locations%' THEN 'location_queries'
+          ELSE 'other_queries'
+        END as query_type,
+        mean_exec_time,
+        calls,
+        total_exec_time
+      FROM pg_stat_statements
+      WHERE query NOT ILIKE '%pg_stat%'
+    ) q
+    GROUP BY query_type
+  master: true
+  metrics:
+    - avg_execution_time_ms:
+        usage: "GAUGE"
+        description: "Average query execution time in milliseconds"
+    - total_calls:
+        usage: "COUNTER"
+        description: "Total number of query calls"
+    - total_execution_time_ms:
+        usage: "COUNTER"
+        description: "Total query execution time in milliseconds"
+      query_type:
+        usage: "LABEL"
+        description: "Type of queries"
+
+# System-wide PostgreSQL metrics
+pg_database:
+  query: |
+    SELECT 
+      datname,
+      pg_database_size(datname) as size_bytes,
+      numbackends,
+      xact_commit,
+      xact_rollback,
+      blks_read,
+      blks_hit,
+      tup_returned,
+      tup_fetched,
+      tup_inserted,
+      tup_updated,
+      tup_deleted
+    FROM pg_stat_database
+    WHERE datname = 'ai_feedback'
+  master: true
+  metrics:
+    - size_bytes:
+        usage: "GAUGE"
+        description: "Database size in bytes"
+    - numbackends:
+        usage: "GAUGE"
+        description: "Number of backends currently connected"
+    - xact_commit:
+        usage: "COUNTER"
+        description: "Number of transactions committed"
+    - xact_rollback:
+        usage: "COUNTER"
+        description: "Number of transactions rolled back"
+    - blks_read:
+        usage: "COUNTER"
+        description: "Number of disk blocks read"
+    - blks_hit:
+        usage: "COUNTER"
+        description: "Number of buffer hits"
+    - tup_returned:
+        usage: "COUNTER"
+        description: "Number of tuples returned by queries"
+    - tup_fetched:
+        usage: "COUNTER"
+        description: "Number of tuples fetched by queries"
+    - tup_inserted:
+        usage: "COUNTER"
+        description: "Number of tuples inserted"
+    - tup_updated:
+        usage: "COUNTER"
+        description: "Number of tuples updated"
+    - tup_deleted:
+        usage: "COUNTER"
+        description: "Number of tuples deleted"
+      datname:
+        usage: "LABEL"
+        description: "Database name"
