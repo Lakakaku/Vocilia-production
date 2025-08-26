@@ -1,0 +1,528 @@
+# Swedish Business Hours Aware Monitoring Configuration
+# Comprehensive monitoring system for AI Feedback Platform Swedish pilot
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    region: 'stockholm'
+    environment: 'swedish-pilot'
+    timezone: 'Europe/Stockholm'
+
+# Recording rules for Swedish business context
+rule_files:
+  - "swedish-business-rules.yml"
+  - "pos-integration-rules.yml" 
+  - "performance-rules.yml"
+  - "security-rules.yml"
+
+# Alerting configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - 'alertmanager:9093'
+      path_prefix: '/alertmanager'
+      scheme: 'http'
+      timeout: '10s'
+
+# Scrape configurations
+scrape_configs:
+  # API Gateway metrics with Swedish context
+  - job_name: 'api-gateway-swedish'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/metrics'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 'api-gateway:3001'
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'pos_.*'
+        target_label: 'service'
+        replacement: 'pos_integration'
+      - source_labels: [__name__]
+        regex: 'webhook_.*'
+        target_label: 'service'
+        replacement: 'webhook_processing'
+
+  # POS Provider health checks
+  - job_name: 'pos-health-square'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/pos/health/square'
+    params:
+      format: ['prometheus']
+    relabel_configs:
+      - target_label: 'provider'
+        replacement: 'square'
+      - target_label: 'market'
+        replacement: 'swedish'
+
+  - job_name: 'pos-health-shopify'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/pos/health/shopify'
+    params:
+      format: ['prometheus']
+    relabel_configs:
+      - target_label: 'provider'
+        replacement: 'shopify'
+      - target_label: 'market'
+        replacement: 'swedish'
+
+  - job_name: 'pos-health-zettle'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['api-gateway:3001']
+    metrics_path: '/pos/health/zettle'
+    params:
+      format: ['prometheus']
+    relabel_configs:
+      - target_label: 'provider'
+        replacement: 'zettle'
+      - target_label: 'market'
+        replacement: 'swedish'
+
+  # Database monitoring
+  - job_name: 'postgres-exporter'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    relabel_configs:
+      - target_label: 'service'
+        replacement: 'postgresql'
+      - target_label: 'region'
+        replacement: 'stockholm'
+
+  # Redis monitoring
+  - job_name: 'redis-exporter'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    relabel_configs:
+      - target_label: 'service'
+        replacement: 'redis'
+      - target_label: 'cache_type'
+        replacement: 'pos_cache'
+
+  # Swedish business metrics exporter
+  - job_name: 'swedish-business-metrics'
+    scrape_interval: 60s
+    static_configs:
+      - targets: ['business-metrics-exporter:3004']
+    metrics_path: '/metrics/swedish-business'
+    relabel_configs:
+      - target_label: 'market'
+        replacement: 'swedish'
+      - target_label: 'business_model'
+        replacement: 'b2b_feedback'
+
+  # Infrastructure monitoring
+  - job_name: 'node-exporter'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['node-exporter:9100']
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: '(.*):(.*)'
+        target_label: 'instance'
+        replacement: '${1}'
+
+  # Container monitoring
+  - job_name: 'cadvisor'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['cadvisor:8080']
+    relabel_configs:
+      - target_label: 'service'
+        replacement: 'container_monitoring'
+
+  # Network monitoring
+  - job_name: 'blackbox-exporter'
+    scrape_interval: 60s
+    metrics_path: '/probe'
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+        - 'https://api.ai-feedback.se/health'
+        - 'https://api.ai-feedback.se/pos/health'
+        - 'https://business.ai-feedback.se'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 'blackbox-exporter:9115'
+
+  # Swedish timezone webhook monitoring
+  - job_name: 'webhook-delivery-monitor'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['webhook-monitor:3005']
+    metrics_path: '/metrics/delivery-stats'
+    params:
+      timezone: ['Europe/Stockholm']
+      business_hours: ['true']
+
+# Remote write for long-term storage
+remote_write:
+  - url: "https://prometheus-remote-write.ai-feedback.se/api/v1/write"
+    basic_auth:
+      username: "prometheus"
+      password_file: "/etc/prometheus/remote-write-password"
+    write_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'pos_.*|webhook_.*|swedish_.*'
+        action: keep
+    queue_config:
+      max_samples_per_send: 1000
+      max_shards: 10
+      capacity: 10000
+
+# Storage configuration for Swedish compliance
+storage:
+  tsdb:
+    retention.time: 90d  # Extended retention for Swedish business compliance
+    retention.size: 50GB
+    wal-compression: true
+  exemplars:
+    max-exemplars: 100000
+
+# Swedish business hours function (used in recording rules)
+---
+# Swedish Business Rules (swedish-business-rules.yml)
+groups:
+  - name: swedish_business_hours
+    interval: 60s
+    rules:
+      # Define Swedish business hours
+      - record: swedish_business_hours
+        expr: |
+          (
+            (hour() >= 9 and hour() < 18 and day_of_week() > 0 and day_of_week() < 6) or
+            (hour() >= 10 and hour() < 16 and (day_of_week() == 0 or day_of_week() == 6))
+          ) and (
+            swedish_holiday() == 0
+          )
+
+      # Extended hours (early/late but not off-hours)
+      - record: swedish_extended_hours
+        expr: |
+          (
+            (hour() >= 7 and hour() < 20 and day_of_week() > 0 and day_of_week() < 6) or
+            (hour() >= 8 and hour() < 18 and (day_of_week() == 0 or day_of_week() == 6))
+          ) and (
+            swedish_business_hours == 0 and swedish_holiday() == 0
+          )
+
+      # Swedish holiday detection (simplified - in production use more sophisticated method)
+      - record: swedish_holiday
+        expr: |
+          (
+            (month() == 1 and day() == 1) or    # New Year
+            (month() == 1 and day() == 6) or    # Epiphany  
+            (month() == 5 and day() == 1) or    # Labour Day
+            (month() == 6 and day() == 6) or    # National Day
+            (month() == 12 and day() >= 24)     # Christmas period
+          )
+
+      # Business impact multiplier based on time
+      - record: business_impact_multiplier
+        expr: |
+          (
+            swedish_business_hours * 3 +        # 3x during business hours
+            swedish_extended_hours * 1.5 +      # 1.5x during extended hours
+            (1 - swedish_business_hours - swedish_extended_hours) * 0.5  # 0.5x during off-hours
+          )
+
+  - name: pos_integration_health
+    interval: 30s
+    rules:
+      # POS provider availability
+      - record: pos_provider_available
+        expr: pos_connection_status
+        labels:
+          service: "pos_integration"
+
+      # POS API response time percentiles
+      - record: pos_api_response_time_p95
+        expr: histogram_quantile(0.95, pos_api_response_time_seconds_bucket)
+
+      - record: pos_api_response_time_p99
+        expr: histogram_quantile(0.99, pos_api_response_time_seconds_bucket)
+
+      # POS error rate by provider
+      - record: pos_error_rate_by_provider
+        expr: |
+          rate(pos_api_requests_total{status="error"}[5m]) / 
+          rate(pos_api_requests_total[5m]) * 100
+
+      # Webhook delivery success rate
+      - record: webhook_success_rate
+        expr: |
+          rate(pos_webhook_deliveries_total{status="success"}[5m]) /
+          rate(pos_webhook_deliveries_total[5m]) * 100
+
+      # Swedish business context weighted metrics
+      - record: pos_error_rate_weighted
+        expr: pos_error_rate_by_provider * business_impact_multiplier
+
+  - name: performance_metrics
+    interval: 30s
+    rules:
+      # Application response time
+      - record: app_response_time_p95
+        expr: histogram_quantile(0.95, http_request_duration_seconds_bucket)
+
+      # Database query performance
+      - record: db_query_time_p95
+        expr: histogram_quantile(0.95, postgres_query_duration_seconds_bucket)
+
+      # Cache performance
+      - record: cache_hit_rate
+        expr: |
+          rate(redis_keyspace_hits_total[5m]) /
+          (rate(redis_keyspace_hits_total[5m]) + rate(redis_keyspace_misses_total[5m])) * 100
+
+      # Swedish business weighted performance score
+      - record: swedish_performance_score
+        expr: |
+          (
+            (app_response_time_p95 < 2.0) * 40 +
+            (db_query_time_p95 < 0.5) * 30 +
+            (cache_hit_rate > 70) * 20 +
+            (pos_error_rate_by_provider < 1) * 10
+          ) * business_impact_multiplier
+
+  - name: capacity_planning
+    interval: 300s  # 5 minute intervals for capacity metrics
+    rules:
+      # Request rate trends
+      - record: request_rate_5m
+        expr: rate(http_requests_total[5m])
+
+      - record: request_rate_1h
+        expr: rate(http_requests_total[1h])
+
+      # Database connection usage
+      - record: db_connection_utilization
+        expr: |
+          postgres_stat_database_numbackends /
+          postgres_settings_max_connections * 100
+
+      # Memory utilization
+      - record: memory_utilization
+        expr: |
+          (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) /
+          node_memory_MemTotal_bytes * 100
+
+      # CPU utilization
+      - record: cpu_utilization
+        expr: 100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+
+      # Predictive scaling recommendations
+      - record: scaling_recommendation
+        expr: |
+          (
+            (request_rate_5m > request_rate_1h * 1.5) * 2 +     # Traffic spike
+            (cpu_utilization > 70) * 1.5 +                      # High CPU
+            (memory_utilization > 80) * 1.5 +                   # High memory
+            (db_connection_utilization > 80) * 2                # Database pressure
+          ) * business_impact_multiplier
+
+---
+# Alert Rules (pos-integration-alerts.yml)
+groups:
+  - name: critical_swedish_business
+    rules:
+      # Critical: POS provider down during business hours
+      - alert: POSProviderDown_BusinessHours
+        expr: pos_provider_available == 0 and swedish_business_hours == 1
+        for: 1m
+        labels:
+          severity: critical
+          impact: high
+          market: swedish
+          escalation: immediate
+        annotations:
+          summary: "POS provider {{ $labels.provider }} is down during Swedish business hours"
+          description: |
+            POS provider {{ $labels.provider }} has been unavailable for {{ $value }} minutes 
+            during Swedish business hours. This prevents businesses from collecting customer feedback.
+            
+            Impact: Swedish businesses cannot process feedback requests
+            Action: Immediate investigation and failover if needed
+          runbook_url: "https://docs.ai-feedback.se/runbook/pos-provider-down"
+          dashboard_url: "https://monitoring.ai-feedback.se/d/pos-overview"
+
+      # Critical: High error rate during business hours
+      - alert: HighErrorRate_BusinessHours
+        expr: pos_error_rate_weighted > 5
+        for: 2m
+        labels:
+          severity: critical
+          impact: high
+          market: swedish
+        annotations:
+          summary: "High error rate ({{ $value }}%) during Swedish business hours"
+          description: |
+            Error rate has exceeded 5% for {{ $labels.provider }} during Swedish business hours.
+            Current rate: {{ $value }}%
+            
+            This may indicate API issues, rate limiting, or service degradation.
+
+      # Critical: Database connectivity lost
+      - alert: DatabaseConnectionLost
+        expr: postgres_up == 0
+        for: 30s
+        labels:
+          severity: critical
+          impact: critical
+          market: swedish
+          escalation: immediate
+        annotations:
+          summary: "Database connection lost - complete service outage"
+          description: "PostgreSQL database is unreachable. Complete service outage in progress."
+
+  - name: high_swedish_business
+    rules:
+      # High: Slow response times during business hours
+      - alert: SlowResponseTimes_BusinessHours
+        expr: app_response_time_p95 > 2.0 and swedish_business_hours == 1
+        for: 5m
+        labels:
+          severity: high
+          impact: medium
+          market: swedish
+        annotations:
+          summary: "Slow response times ({{ $value }}s) during Swedish business hours"
+          description: |
+            95th percentile response time is {{ $value }} seconds, exceeding 2-second SLA
+            during Swedish business hours.
+
+      # High: Webhook delivery failures
+      - alert: WebhookDeliveryFailures
+        expr: webhook_success_rate < 90
+        for: 5m
+        labels:
+          severity: high
+          impact: medium
+          market: swedish
+        annotations:
+          summary: "Webhook delivery success rate below 90% ({{ $value }}%)"
+          description: |
+            Webhook delivery success rate has dropped to {{ $value }}% for {{ $labels.provider }}.
+            This may affect POS data synchronization.
+
+      # High: Cache performance degraded
+      - alert: CacheHitRateLow
+        expr: cache_hit_rate < 60 and swedish_business_hours == 1
+        for: 10m
+        labels:
+          severity: high
+          impact: medium
+          market: swedish
+        annotations:
+          summary: "Cache hit rate low ({{ $value }}%) during business hours"
+          description: |
+            Redis cache hit rate has dropped to {{ $value }}% during Swedish business hours.
+            This may cause increased database load and slower response times.
+
+  - name: warning_swedish_business
+    rules:
+      # Warning: Performance degradation outside business hours
+      - alert: PerformanceDegradation_OffHours
+        expr: swedish_performance_score < 70 and swedish_business_hours == 0
+        for: 15m
+        labels:
+          severity: warning
+          impact: low
+          market: swedish
+        annotations:
+          summary: "Performance score low ({{ $value }}) outside business hours"
+          description: |
+            Overall performance score has dropped to {{ $value }} outside Swedish business hours.
+            Monitor for trends and address before next business day.
+
+      # Warning: Capacity planning alerts
+      - alert: CapacityPlanningWarning
+        expr: scaling_recommendation > 3
+        for: 30m
+        labels:
+          severity: warning
+          impact: low
+          market: swedish
+        annotations:
+          summary: "System may need scaling - recommendation score: {{ $value }}"
+          description: |
+            Scaling recommendation score is {{ $value }}, indicating potential capacity issues.
+            Consider scaling resources proactively.
+
+  - name: swedish_compliance_monitoring
+    rules:
+      # Monitor GDPR compliance - no voice data retention
+      - alert: VoiceDataRetention_GDPR
+        expr: increase(voice_data_stored_total[1h]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          impact: legal
+          market: swedish
+          compliance: gdpr
+        annotations:
+          summary: "GDPR VIOLATION: Voice data being retained"
+          description: |
+            Voice data retention detected. This violates GDPR requirements and Swedish privacy laws.
+            Immediate action required to purge data and investigate cause.
+
+      # Monitor Swedish VAT calculation accuracy
+      - alert: VATCalculationError
+        expr: swedish_vat_calculation_errors_total > 0
+        for: 1m
+        labels:
+          severity: high
+          impact: financial
+          market: swedish
+          compliance: tax
+        annotations:
+          summary: "Swedish VAT calculation errors detected"
+          description: |
+            Errors in Swedish VAT (25%) calculations detected. This may affect financial reporting
+            and compliance with Skatteverket requirements.
+
+  - name: business_hours_transitions
+    rules:
+      # Alert when transitioning to business hours
+      - alert: BusinessHoursStarting
+        expr: swedish_business_hours == 1 and swedish_business_hours offset 5m == 0
+        for: 0s
+        labels:
+          severity: info
+          impact: operational
+          market: swedish
+        annotations:
+          summary: "Swedish business hours starting - switching to active monitoring"
+          description: "Transitioning to active monitoring mode for Swedish business hours"
+
+      # Alert when business hours end
+      - alert: BusinessHoursEnding
+        expr: swedish_business_hours == 0 and swedish_business_hours offset 5m == 1
+        for: 0s
+        labels:
+          severity: info
+          impact: operational
+          market: swedish
+        annotations:
+          summary: "Swedish business hours ending - switching to reduced monitoring"
+          description: "Transitioning to reduced monitoring mode for Swedish off-hours"

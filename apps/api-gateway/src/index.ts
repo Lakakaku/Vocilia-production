@@ -15,6 +15,8 @@ import { paymentsRoutes } from './routes/payments';
 import { posHealthRoutes } from './routes/pos-health';
 import { posWebhookRoutes } from './routes/pos-webhooks';
 import locationMappingRoutes from './routes/location-mapping';
+import integrationMonitoringRoutes from './routes/integration-monitoring';
+import manualOverrideRoutes from './routes/manual-overrides';
 import { errorHandler } from './middleware/errorHandler';
 import { optionalAuth, createUserRateLimit } from './middleware/auth';
 import { setupWebSocket } from './websocket/voiceHandler';
@@ -88,6 +90,8 @@ app.use('/location-mapping', locationMappingRoutes);
 app.get('/openapi.json', (req, res) => res.json(swaggerSpec));
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin', integrationMonitoringRoutes);
+app.use('/api/admin', manualOverrideRoutes);
 
 // WebSocket setup for voice streaming and admin dashboard
 setupWebSocket(wss);

@@ -97,6 +97,39 @@ Voice Feedback → 30-60 second AI conversation
 Quality Evaluation → AI scores feedback (0-100)
 Instant Reward → Cashback via Stripe
 
+## 🏪 POS Integration System
+
+### Supported Providers
+- **Square**: Complete OAuth2, real-time transactions, webhooks, location mapping
+- **Shopify**: Full POS integration with multi-store support and inventory sync
+- **Zettle**: Swedish-optimized with Swish, Kassaregister, VAT reporting
+
+### Key Capabilities
+- 🔄 **Intelligent Retry System**: Exponential backoff with circuit breaker pattern
+- 🏥 **Health Monitoring**: Real-time status tracking with automatic failover
+- 🧪 **Testing Framework**: Comprehensive test suites with mock servers for CI/CD
+- 🧭 **Setup Wizard**: Step-by-step guided integration (Swedish/English)
+- 📚 **Interactive Tutorials**: Provider-specific guides with visual aids
+- 🔧 **Troubleshooting System**: Built-in diagnostics with 7+ common issue resolutions
+- 📊 **Performance Benchmarking**: Integration latency tracking and optimization
+
+### Quick Integration
+```typescript
+import { posAdapterFactory, POSSetupWizard } from '@ai-feedback-platform/pos-adapters';
+
+// Auto-detect best provider for business
+const recommendation = await posAdapterFactory.getRecommendation(businessContext);
+
+// Create adapter with automatic configuration
+const adapter = await posAdapterFactory.createAdapter(recommendation.provider, {
+  accessToken: process.env.POS_ACCESS_TOKEN
+});
+
+// Validate connection
+const validation = await adapter.testConnection();
+console.log(`POS Integration Status: ${validation.success ? '✅' : '❌'}`);
+```
+
 🎯 Quality Scoring System
 Feedback is evaluated on three criteria:
 
@@ -172,7 +205,12 @@ STRIPE_WEBHOOK_SECRET="whsec_..."
 
 # POS Integrations
 SQUARE_CLIENT_ID="..."
-SHOPIFY_CLIENT_ID="..."
+SQUARE_CLIENT_SECRET="..."
+SQUARE_WEBHOOK_SECRET="..."
+SHOPIFY_CLIENT_ID="..."  
+SHOPIFY_CLIENT_SECRET="..."
+ZETTLE_CLIENT_ID="..."
+ZETTLE_CLIENT_SECRET="..."
 🚦 Testing
 Test Coverage Requirements
 

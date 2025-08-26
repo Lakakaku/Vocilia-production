@@ -96,6 +96,22 @@ const navigationItems: NavigationItem[] = [
     description: 'Performance-baserade tier-rekommendationer'
   },
   {
+    id: 'integration-monitoring',
+    label: 'Integration Övervakning',
+    icon: '🔌',
+    href: '/integration-monitoring',
+    permission: 'system:read',
+    description: 'Real-time POS integration hälsa och prestanda'
+  },
+  {
+    id: 'manual-overrides',
+    label: 'Manuell Kontroll',
+    icon: '🛠️',
+    href: '/manual-overrides',
+    permission: 'system:admin',
+    description: 'Manuella override verktyg för POS integrationer'
+  },
+  {
     id: 'audit',
     label: 'Granskningslogg',
     icon: '📋',
