@@ -257,6 +257,252 @@ export interface Database {
           updated_at?: string
         }
       }
+      consent_records: {
+        Row: {
+          id: string
+          session_id: string | null
+          customer_hash: string
+          consent_type: string
+          granted: boolean
+          ip_address: string | null
+          user_agent: string | null
+          consent_version: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          session_id?: string | null
+          customer_hash: string
+          consent_type: string
+          granted: boolean
+          ip_address?: string | null
+          user_agent?: string | null
+          consent_version?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string | null
+          customer_hash?: string
+          consent_type?: string
+          granted?: boolean
+          ip_address?: string | null
+          user_agent?: string | null
+          consent_version?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      data_requests: {
+        Row: {
+          id: string
+          customer_hash: string
+          request_type: string
+          status: string
+          requested_at: string
+          completed_at: string | null
+          download_url: string | null
+          download_token: string | null
+          expires_at: string | null
+          data_size_bytes: number | null
+          error_message: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          customer_hash: string
+          request_type: string
+          status?: string
+          requested_at?: string
+          completed_at?: string | null
+          download_url?: string | null
+          download_token?: string | null
+          expires_at?: string | null
+          data_size_bytes?: number | null
+          error_message?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          customer_hash?: string
+          request_type?: string
+          status?: string
+          requested_at?: string
+          completed_at?: string | null
+          download_url?: string | null
+          download_token?: string | null
+          expires_at?: string | null
+          data_size_bytes?: number | null
+          error_message?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      data_retention_log: {
+        Row: {
+          id: string
+          data_category: string
+          retention_policy: string
+          records_processed: number
+          records_deleted: number
+          records_anonymized: number
+          cutoff_date: string
+          execution_started_at: string
+          execution_completed_at: string | null
+          execution_duration_seconds: number | null
+          status: string
+          error_message: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          data_category: string
+          retention_policy: string
+          records_processed?: number
+          records_deleted?: number
+          records_anonymized?: number
+          cutoff_date: string
+          execution_started_at: string
+          execution_completed_at?: string | null
+          execution_duration_seconds?: number | null
+          status?: string
+          error_message?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          data_category?: string
+          retention_policy?: string
+          records_processed?: number
+          records_deleted?: number
+          records_anonymized?: number
+          cutoff_date?: string
+          execution_started_at?: string
+          execution_completed_at?: string | null
+          execution_duration_seconds?: number | null
+          status?: string
+          error_message?: string | null
+          created_at?: string
+        }
+      }
+      voice_data_tracking: {
+        Row: {
+          id: string
+          session_id: string
+          customer_hash: string
+          audio_file_path: string | null
+          audio_size_bytes: number | null
+          processing_started_at: string
+          processing_completed_at: string | null
+          deletion_scheduled_at: string | null
+          deleted_at: string | null
+          status: string
+          error_message: string | null
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          customer_hash: string
+          audio_file_path?: string | null
+          audio_size_bytes?: number | null
+          processing_started_at?: string
+          processing_completed_at?: string | null
+          deletion_scheduled_at?: string | null
+          deleted_at?: string | null
+          status?: string
+          error_message?: string | null
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          customer_hash?: string
+          audio_file_path?: string | null
+          audio_size_bytes?: number | null
+          processing_started_at?: string
+          processing_completed_at?: string | null
+          deletion_scheduled_at?: string | null
+          deleted_at?: string | null
+          status?: string
+          error_message?: string | null
+        }
+      }
+      gdpr_audit_log: {
+        Row: {
+          id: string
+          customer_hash: string | null
+          action_type: string
+          action_details: Json | null
+          admin_id: string | null
+          ip_address: string | null
+          user_agent: string | null
+          legal_basis: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          customer_hash?: string | null
+          action_type: string
+          action_details?: Json | null
+          admin_id?: string | null
+          ip_address?: string | null
+          user_agent?: string | null
+          legal_basis?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          customer_hash?: string | null
+          action_type?: string
+          action_details?: Json | null
+          admin_id?: string | null
+          ip_address?: string | null
+          user_agent?: string | null
+          legal_basis?: string | null
+          created_at?: string
+        }
+      }
+      pii_detection_log: {
+        Row: {
+          id: string
+          source_table: string
+          source_id: string
+          source_field: string
+          pii_types: string[] | null
+          anonymization_method: string | null
+          confidence_score: number | null
+          detected_at: string
+          anonymized_at: string | null
+          status: string
+        }
+        Insert: {
+          id?: string
+          source_table: string
+          source_id: string
+          source_field: string
+          pii_types?: string[] | null
+          anonymization_method?: string | null
+          confidence_score?: number | null
+          detected_at?: string
+          anonymized_at?: string | null
+          status?: string
+        }
+        Update: {
+          id?: string
+          source_table?: string
+          source_id?: string
+          source_field?: string
+          pii_types?: string[] | null
+          anonymization_method?: string | null
+          confidence_score?: number | null
+          detected_at?: string
+          anonymized_at?: string | null
+          status?: string
+        }
+      }
     }
   }
 }

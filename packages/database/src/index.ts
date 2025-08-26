@@ -199,5 +199,8 @@ export class DatabaseService {
 // Export default instance
 export const db = new DatabaseService();
 
+// Export GDPR database service
+export { GDPRDatabaseService, gdprDb } from './GDPRDatabaseService';
+
 // Export types
 export type { Database } from './types';

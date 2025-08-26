@@ -1,0 +1,26 @@
+{
+  "name": "@feedback-platform/gdpr-compliance",
+  "version": "1.0.0",
+  "description": "GDPR compliance module for data protection, consent management, and privacy controls",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@feedback-platform/database": "*",
+    "@feedback-platform/shared-types": "*",
+    "crypto": "^1.0.1",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/node-cron": "^3.0.11",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
