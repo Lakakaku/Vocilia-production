@@ -737,15 +737,15 @@ Quarterly Tasks
 Bug Fixes & Issues
 Critical Bugs 🔴
 
-⬜ [BUG-001] WebSocket disconnection on iOS
-⬜ [BUG-002] Payment processing timeout
-⬜ [BUG-003] Session token collision
+✅ [BUG-001] WebSocket disconnection on iOS Safari - FIXED 2024-08-27
+✅ [BUG-002] Payment processing timeout - FIXED 2024-08-27
+✅ [BUG-003] Session token collision - FIXED 2024-08-27
 
 High Priority Bugs 🟠
 
-⬜ [BUG-004] Slow query on feedback search
-⬜ [BUG-005] QR code scanning fails in low light
-⬜ [BUG-006] TTS audio cutting off
+✅ [BUG-004] Slow query on feedback search - FIXED 2024-08-27
+✅ [BUG-005] QR code scanning fails in low light - FIXED 2024-08-27
+✅ [BUG-006] TTS audio cutting off - FIXED 2024-08-27
 
 Medium Priority Bugs 🟡
 

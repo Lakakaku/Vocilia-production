@@ -24,6 +24,10 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioBufferRef = useRef<ArrayBuffer[]>([]);
+  const [isTTSPlaying, setIsTTSPlaying] = useState(false);
+  const [ttsText, setTTSText] = useState<string>('');
 
   // WebSocket connection for real-time streaming
   useEffect(() => {
@@ -59,14 +63,274 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
     };
   }, [state]);
 
+  // TTS Audio handling methods
+  const handleTTSAudioResponse = async (message: any) => {
+    try {
+      console.log('🔊 Handling TTS audio response:', message);
+      setTTSText(message.text || message.response || '');
+      
+      if (message.audioData) {
+        // Handle base64 encoded audio data
+        const audioData = atob(message.audioData);
+        const audioArray = new Uint8Array(audioData.length);
+        for (let i = 0; i < audioData.length; i++) {
+          audioArray[i] = audioData.charCodeAt(i);
+        }
+        
+        const audioBlob = new Blob([audioArray], { type: 'audio/wav' });
+        await playTTSAudio(audioBlob);
+      } else if (message.audioUrl) {
+        // Handle audio URL
+        await playTTSAudioFromUrl(message.audioUrl);
+      }
+    } catch (err) {
+      console.error('❌ TTS audio response error:', err);
+      setError('Kunde inte spela upp AI-svar');
+      setTimeout(() => setError(null), 3000);
+    }
+  };
+
+  const handleTTSAudioChunk = (message: any) => {
+    try {
+      console.log('🔊 Handling TTS audio chunk:', message.chunkIndex);
+      
+      if (message.audioChunk) {
+        // Store audio chunks for later assembly
+        const audioData = atob(message.audioChunk);
+        const audioArray = new Uint8Array(audioData.length);
+        for (let i = 0; i < audioData.length; i++) {
+          audioArray[i] = audioData.charCodeAt(i);
+        }
+        
+        audioBufferRef.current[message.chunkIndex || 0] = audioArray.buffer;
+      }
+    } catch (err) {
+      console.error('❌ TTS audio chunk error:', err);
+    }
+  };
+
+  const handleTTSComplete = async (message: any) => {
+    try {
+      console.log('🔊 TTS complete, assembling audio chunks');
+      
+      if (audioBufferRef.current.length > 0) {
+        // Combine all audio chunks
+        const totalLength = audioBufferRef.current.reduce((sum: number, buffer: ArrayBuffer) => sum + buffer.byteLength, 0);
+        const combinedArray = new Uint8Array(totalLength);
+        let offset = 0;
+        
+        for (const buffer of audioBufferRef.current) {
+          combinedArray.set(new Uint8Array(buffer), offset);
+          offset += buffer.byteLength;
+        }
+        
+        const audioBlob = new Blob([combinedArray], { type: 'audio/wav' });
+        await playTTSAudio(audioBlob);
+        
+        // Clear buffer
+        audioBufferRef.current = [];
+      }
+    } catch (err) {
+      console.error('❌ TTS complete error:', err);
+      setError('Kunde inte spela upp komplett AI-svar');
+      setTimeout(() => setError(null), 3000);
+    }
+  };
+
+  const playTTSAudio = async (audioBlob: Blob): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      try {
+        console.log('🔊 Playing TTS audio blob');
+        
+        // Stop any currently playing TTS audio
+        if (ttsAudioRef.current) {
+          ttsAudioRef.current.pause();
+          ttsAudioRef.current = null;
+        }
+        
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        ttsAudioRef.current = audio;
+        
+        // Enhanced audio settings for iOS Safari
+        audio.preload = 'auto';
+        audio.crossOrigin = 'anonymous';
+        
+        // iOS Safari optimizations
+        const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        if (isIOSSafari) {
+          audio.muted = false;
+          audio.volume = 1.0;
+          // Prevent audio interruption on iOS
+          audio.addEventListener('pause', () => {
+            if (!audio.ended && isTTSPlaying) {
+              console.log('🍎 iOS audio pause detected, resuming...');
+              setTimeout(() => audio.play().catch(console.error), 100);
+            }
+          });
+        }
+        
+        audio.onloadstart = () => console.log('🔊 TTS audio loading started');
+        audio.oncanplay = () => console.log('🔊 TTS audio can play');
+        
+        audio.onplay = () => {
+          setIsTTSPlaying(true);
+          console.log('🔊 TTS audio playback started');
+        };
+        
+        audio.onended = () => {
+          setIsTTSPlaying(false);
+          URL.revokeObjectURL(audioUrl);
+          console.log('🔊 TTS audio playback completed');
+          resolve();
+        };
+        
+        audio.onerror = (err) => {
+          setIsTTSPlaying(false);
+          URL.revokeObjectURL(audioUrl);
+          console.error('❌ TTS audio playback error:', err);
+          reject(err);
+        };
+        
+        // Start playback with error handling
+        audio.play().catch(err => {
+          console.error('❌ TTS audio play failed:', err);
+          setIsTTSPlaying(false);
+          reject(err);
+        });
+        
+      } catch (err) {
+        console.error('❌ TTS audio setup error:', err);
+        setIsTTSPlaying(false);
+        reject(err);
+      }
+    });
+  };
+
+  const playTTSAudioFromUrl = async (audioUrl: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      try {
+        console.log('🔊 Playing TTS audio from URL:', audioUrl);
+        
+        // Stop any currently playing TTS audio
+        if (ttsAudioRef.current) {
+          ttsAudioRef.current.pause();
+          ttsAudioRef.current = null;
+        }
+        
+        const audio = new Audio(audioUrl);
+        ttsAudioRef.current = audio;
+        
+        // Enhanced audio settings
+        audio.preload = 'auto';
+        audio.crossOrigin = 'anonymous';
+        
+        // iOS Safari optimizations
+        const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        if (isIOSSafari) {
+          audio.muted = false;
+          audio.volume = 1.0;
+          audio.addEventListener('pause', () => {
+            if (!audio.ended && isTTSPlaying) {
+              console.log('🍎 iOS TTS audio pause detected, resuming...');
+              setTimeout(() => audio.play().catch(console.error), 100);
+            }
+          });
+        }
+        
+        audio.onplay = () => {
+          setIsTTSPlaying(true);
+          console.log('🔊 TTS URL audio playback started');
+        };
+        
+        audio.onended = () => {
+          setIsTTSPlaying(false);
+          console.log('🔊 TTS URL audio playback completed');
+          resolve();
+        };
+        
+        audio.onerror = (err) => {
+          setIsTTSPlaying(false);
+          console.error('❌ TTS URL audio playback error:', err);
+          reject(err);
+        };
+        
+        // Start playback
+        audio.play().catch(err => {
+          console.error('❌ TTS URL audio play failed:', err);
+          setIsTTSPlaying(false);
+          reject(err);
+        });
+        
+      } catch (err) {
+        console.error('❌ TTS URL audio setup error:', err);
+        setIsTTSPlaying(false);
+        reject(err);
+      }
+    });
+  };
+
   const setupWebSocket = () => {
     try {
       const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
+      // Detect iOS Safari for optimizations
+      const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent) && 
+                         /Safari/.test(navigator.userAgent) && 
+                         !/CriOS|FxiOS|OPiOS|mercury/.test(navigator.userAgent);
+
       ws.onopen = () => {
         console.log('WebSocket connected');
+        
+        if (isIOSSafari) {
+          console.log('🍎 Applying iOS Safari WebSocket optimizations for voice recording');
+          
+          // Set up iOS Safari specific keepalive
+          const keepAliveInterval = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'keepalive', timestamp: Date.now() }));
+            } else {
+              clearInterval(keepAliveInterval);
+            }
+          }, 15000); // Every 15 seconds
+          
+          (ws as any).keepAliveInterval = keepAliveInterval;
+
+          // iOS Safari visibility handling
+          const visibilityHandler = () => {
+            if (document.hidden) {
+              console.log('🍎 Voice recording app backgrounded');
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'background_mode', sessionId }));
+              }
+            } else {
+              console.log('🍎 Voice recording app foregrounded');
+              if (ws.readyState !== WebSocket.OPEN && state === 'recording') {
+                // Reconnect if we were recording
+                console.log('🍎 Reconnecting WebSocket after foreground');
+                setupWebSocket();
+              }
+            }
+          };
+          document.addEventListener('visibilitychange', visibilityHandler);
+          (ws as any).visibilityHandler = visibilityHandler;
+
+          // iOS Safari memory pressure handling
+          if ('onmemorywarning' in window) {
+            const memoryHandler = () => {
+              console.log('🍎 iOS memory warning during voice recording');
+              if (state === 'recording') {
+                // Emergency stop recording to free memory
+                stopRecording();
+                setError('Inspelning stoppad på grund av minnesbrist');
+              }
+            };
+            window.addEventListener('memorywarning', memoryHandler);
+            (ws as any).memoryHandler = memoryHandler;
+          }
+        }
       };
 
       ws.onmessage = (event) => {
@@ -90,15 +354,25 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
             // Show quality evaluation results
             console.log('Quality evaluation complete:', message.qualityScore);
           } else if (message.type === 'conversation_response') {
-            // Show AI conversation response
+            // Show AI conversation response with enhanced TTS handling
             console.log('AI response:', message.response);
+            handleTTSAudioResponse(message);
           } else if (message.type === 'processing_complete') {
             // Show final completion with performance metrics
             console.log('Processing complete. Total time:', message.totalProcessingTimeMs + 'ms');
             console.log('Latency breakdown:', message.latencyBreakdown);
           } else if (message.type === 'ai_response') {
-            // Legacy AI response handling
+            // Legacy AI response handling with TTS improvements
             console.log('AI response (legacy):', message.response);
+            handleTTSAudioResponse(message);
+          } else if (message.type === 'tts_audio_chunk') {
+            // Handle streaming TTS audio chunks to prevent cutting
+            handleTTSAudioChunk(message);
+          } else if (message.type === 'tts_complete') {
+            // Handle TTS completion
+            handleTTSComplete(message);
+          } else if (message.type === 'keepalive' || message.type === 'pong') {
+            // Handle keepalive responses
           }
         } catch (err) {
           console.error('WebSocket message parse error:', err);
@@ -107,15 +381,40 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
 
       ws.onerror = (error) => {
         console.error('WebSocket error:', error);
-        // Don't fail completely on WebSocket errors, continue with local recording
+        // Don't fail completely on WebSocket errors for iOS Safari
+        if (isIOSSafari) {
+          console.log('🍎 iOS Safari WebSocket error, will attempt reconnect if needed');
+        }
       };
 
-      ws.onclose = () => {
-        console.log('WebSocket disconnected');
+      ws.onclose = (event) => {
+        console.log('WebSocket disconnected:', event.code, event.reason);
+        
+        // Cleanup iOS Safari handlers
+        const wsAny = ws as any;
+        if (wsAny.keepAliveInterval) {
+          clearInterval(wsAny.keepAliveInterval);
+        }
+        if (wsAny.visibilityHandler) {
+          document.removeEventListener('visibilitychange', wsAny.visibilityHandler);
+        }
+        if (wsAny.memoryHandler) {
+          window.removeEventListener('memorywarning', wsAny.memoryHandler);
+        }
+
+        // Attempt reconnection if we were recording and it wasn't intentional
+        if (state === 'recording' && event.code !== 1000) {
+          console.log('🔄 Attempting WebSocket reconnection during recording');
+          setTimeout(() => {
+            if (state === 'recording') {
+              setupWebSocket();
+            }
+          }, 2000); // Wait 2 seconds before reconnecting
+        }
       };
     } catch (err) {
       console.error('WebSocket setup error:', err);
-      // Continue without WebSocket
+      // Continue without WebSocket for iOS Safari compatibility
     }
   };
 
@@ -274,7 +573,7 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
 
         // Convert audio chunks to blob
         if (audioChunks && audioChunks.length > 0) {
-          const totalLength = audioChunks.reduce((acc, chunk) => acc + chunk.length, 0);
+          const totalLength = audioChunks.reduce((acc: number, chunk: Float32Array) => acc + chunk.length, 0);
           const combinedArray = new Float32Array(totalLength);
           let offset = 0;
 
@@ -300,7 +599,7 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
 
       // Cleanup stream
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current.getTracks().forEach((track: MediaStreamTrack) => track.stop());
       }
 
     } catch (err) {
@@ -402,22 +701,31 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
     }
     
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach((track: MediaStreamTrack) => track.stop());
     }
 
     if (audioElementRef.current) {
       audioElementRef.current.pause();
     }
 
+    if (ttsAudioRef.current) {
+      ttsAudioRef.current.pause();
+      setIsTTSPlaying(false);
+    }
+
     if (wsRef.current) {
       wsRef.current.close();
     }
+
+    // Clear TTS buffer
+    audioBufferRef.current = [];
   };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    const secsStr = secs < 10 ? `0${secs}` : `${secs}`;
+    return `${mins}:${secsStr}`;
   };
 
   return (
@@ -517,7 +825,20 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
               <div className="text-3xl font-mono font-bold text-gray-900 mb-2" data-testid="recording-timer">
                 {formatTime(duration)}
               </div>
-              <p className="text-gray-600 mb-6" data-testid="recording-status">Inspelning pågår...</p>
+              <p className="text-gray-600 mb-6" data-testid="recording-status">
+                {isTTSPlaying ? 'AI svarar...' : 'Inspelning pågår...'}
+              </p>
+              
+              {/* TTS Status and Text Display */}
+              {isTTSPlaying && ttsText && (
+                <div className="bg-blue-50 rounded-lg p-4 mb-4 max-w-sm">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                    <span className="text-sm font-medium text-blue-800">AI-assistent:</span>
+                  </div>
+                  <p className="text-sm text-blue-700">{ttsText}</p>
+                </div>
+              )}
 
               <button
                 onClick={stopRecording}

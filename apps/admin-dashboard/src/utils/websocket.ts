@@ -86,7 +86,7 @@ class AdminWebSocketClient {
 
     try {
       this.updateState({ status: 'connecting' });
-      const wsUrl = await getWebSocketUrl();
+      const wsUrl = await this.getWebSocketUrl();
       
       console.log('Connecting to admin WebSocket:', wsUrl);
       this.ws = new WebSocket(wsUrl);
@@ -111,6 +111,9 @@ class AdminWebSocketClient {
       this.updateState({ status: 'authenticating' });
       this.reconnectCount = 0;
       this.authenticate();
+      
+      // Apply iOS Safari optimizations after connection
+      this.setupIOSSafariOptimizations();
     };
 
     this.ws.onmessage = (event) => {
@@ -126,6 +129,7 @@ class AdminWebSocketClient {
       console.log('🔌 Admin WebSocket disconnected:', event.code, event.reason);
       this.updateState({ status: 'disconnected' });
       this.clearTimers();
+      this.cleanupIOSSafariHandlers();
       
       // Attempt to reconnect if not a clean close
       if (event.code !== 1000) {
@@ -140,6 +144,111 @@ class AdminWebSocketClient {
         error: 'WebSocket anslutningsfel' // Swedish: WebSocket connection error
       });
     };
+  }
+
+  // iOS Safari specific WebSocket optimization
+  private setupIOSSafariOptimizations(): void {
+    if (!this.ws) return;
+
+    // Detect iOS Safari
+    const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent) && 
+                       /Safari/.test(navigator.userAgent) && 
+                       !/CriOS|FxiOS|OPiOS|mercury/.test(navigator.userAgent);
+
+    if (isIOSSafari) {
+      console.log('🍎 Applying iOS Safari WebSocket optimizations');
+
+      // iOS Safari specific ping interval (more frequent)
+      this.pingInterval = 15000; // 15 seconds instead of 30
+
+      // iOS Safari connection state monitoring
+      const connectionMonitor = setInterval(() => {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          // Send keepalive ping
+          this.send({ type: 'keepalive', timestamp: Date.now() });
+        } else if (this.ws && this.ws.readyState === WebSocket.CLOSED) {
+          clearInterval(connectionMonitor);
+          // Trigger reconnection if not intentional
+          if (this.state.status === 'connected') {
+            console.log('🍎 iOS Safari connection lost, attempting reconnect');
+            this.scheduleReconnect();
+          }
+        }
+      }, 10000); // Check every 10 seconds
+
+      // Store monitor reference for cleanup
+      (this.ws as any).iosConnectionMonitor = connectionMonitor;
+
+      // iOS Safari memory pressure handling
+      if ('onmemorywarning' in window) {
+        const memoryHandler = () => {
+          console.log('🍎 iOS memory warning - preparing WebSocket for background');
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.send({ type: 'prepare_background' });
+          }
+        };
+        window.addEventListener('memorywarning', memoryHandler);
+        (this.ws as any).memoryHandler = memoryHandler;
+      }
+
+      // iOS Safari visibility change handling
+      const visibilityHandler = () => {
+        if (document.hidden) {
+          console.log('🍎 App backgrounded - reducing WebSocket activity');
+          this.pingInterval = 30000; // Reduce ping frequency
+        } else {
+          console.log('🍎 App foregrounded - resuming normal WebSocket activity');
+          this.pingInterval = 15000; // Resume normal ping frequency
+          // Check connection and reconnect if needed
+          if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            this.reconnect();
+          }
+        }
+      };
+      document.addEventListener('visibilitychange', visibilityHandler);
+      (this.ws as any).visibilityHandler = visibilityHandler;
+
+      // iOS Safari page unload handling
+      const beforeUnloadHandler = () => {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          // Clean close before page unload
+          this.ws.close(1000, 'Page unload');
+        }
+      };
+      window.addEventListener('beforeunload', beforeUnloadHandler);
+      (this.ws as any).beforeUnloadHandler = beforeUnloadHandler;
+    }
+  }
+
+  // Cleanup iOS Safari specific handlers
+  private cleanupIOSSafariHandlers(): void {
+    if (!this.ws) return;
+
+    const ws = this.ws as any;
+
+    // Clear connection monitor
+    if (ws.iosConnectionMonitor) {
+      clearInterval(ws.iosConnectionMonitor);
+      ws.iosConnectionMonitor = null;
+    }
+
+    // Remove memory warning handler
+    if (ws.memoryHandler) {
+      window.removeEventListener('memorywarning', ws.memoryHandler);
+      ws.memoryHandler = null;
+    }
+
+    // Remove visibility change handler
+    if (ws.visibilityHandler) {
+      document.removeEventListener('visibilitychange', ws.visibilityHandler);
+      ws.visibilityHandler = null;
+    }
+
+    // Remove beforeunload handler
+    if (ws.beforeUnloadHandler) {
+      window.removeEventListener('beforeunload', ws.beforeUnloadHandler);
+      ws.beforeUnloadHandler = null;
+    }
   }
 
   // Authenticate with WebSocket server
@@ -322,6 +431,7 @@ class AdminWebSocketClient {
   disconnect(): void {
     console.log('🔌 Disconnecting admin WebSocket');
     this.clearTimers();
+    this.cleanupIOSSafariHandlers();
     
     if (this.ws) {
       this.ws.close(1000, 'User disconnect');

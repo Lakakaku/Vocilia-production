@@ -192,7 +192,105 @@ export class DatabaseService {
 
   // Helper method to generate QR tokens
   generateQRToken(): string {
-    return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');
+    // Generate a high-entropy token with timestamp prefix to prevent collisions
+    const timestamp = Date.now().toString(36); // Base36 timestamp
+    const randomBytes = crypto.getRandomValues(new Uint8Array(32));
+    const randomString = Buffer.from(randomBytes).toString('base64url');
+    
+    // Combine timestamp with random data and truncate to reasonable length
+    return `${timestamp}_${randomString}`.substring(0, 48);
+  }
+
+  // Enhanced method to generate unique QR tokens with collision detection
+  async generateUniqueQRToken(maxAttempts: number = 5): Promise<string> {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const token = this.generateQRToken();
+      
+      try {
+        // Check if token already exists in database
+        const { data, error } = await this.client
+          .from('feedback_sessions')
+          .select('id')
+          .eq('qr_token', token)
+          .maybeSingle();
+        
+        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found, which is what we want
+          throw error;
+        }
+        
+        // If no existing session found, token is unique
+        if (!data) {
+          if (attempt > 1) {
+            console.log(`✅ Generated unique QR token on attempt ${attempt}: ${token.substring(0, 12)}...`);
+          }
+          return token;
+        }
+        
+        console.log(`⚠️ QR token collision detected on attempt ${attempt}, retrying...`);
+        
+        // Add exponential backoff delay for subsequent attempts
+        if (attempt < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 1) * 100));
+        }
+      } catch (error) {
+        console.error(`❌ Error checking QR token uniqueness on attempt ${attempt}:`, error);
+        
+        // On database errors, still try to continue with other attempts
+        if (attempt === maxAttempts) {
+          throw new Error(`Failed to generate unique QR token after ${maxAttempts} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+    }
+    
+    throw new Error(`Failed to generate unique QR token after ${maxAttempts} attempts due to persistent collisions`);
+  }
+
+  // Enhanced session creation with collision-resistant token generation
+  async createFeedbackSessionWithUniqueToken(session: Omit<FeedbackSession, 'id' | 'createdAt' | 'updatedAt' | 'qrToken'>) {
+    const maxRetries = 3;
+    
+    for (let retry = 1; retry <= maxRetries; retry++) {
+      try {
+        // Generate unique QR token
+        const qrToken = await this.generateUniqueQRToken();
+        
+        // Create session with unique token
+        const sessionWithToken = {
+          ...session,
+          qrToken
+        };
+        
+        const { data, error } = await this.client
+          .from('feedback_sessions')
+          .insert([sessionWithToken])
+          .select()
+          .single();
+        
+        if (error) {
+          // Check if it's a unique constraint violation on qr_token
+          if (error.code === '23505' && error.message.includes('qr_token')) {
+            console.log(`⚠️ QR token constraint violation on retry ${retry}, generating new token...`);
+            
+            if (retry < maxRetries) {
+              // Wait a bit before retrying
+              await new Promise(resolve => setTimeout(resolve, retry * 200));
+              continue;
+            }
+          }
+          throw error;
+        }
+        
+        if (retry > 1) {
+          console.log(`✅ Feedback session created successfully on retry ${retry}`);
+        }
+        
+        return data;
+      } catch (error) {
+        if (retry === maxRetries) {
+          throw new Error(`Failed to create feedback session after ${maxRetries} retries: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+    }
   }
 }
 

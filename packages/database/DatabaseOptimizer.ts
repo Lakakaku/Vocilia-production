@@ -319,25 +319,307 @@ export class DatabaseOptimizer {
   async searchFeedbackSessions(
     businessId: string, 
     searchTerm: string, 
-    limit: number = 50
-  ): Promise<any[]> {
-    const query = `
-      SELECT 
-        id, transcript, quality_score, sentiment_score, 
-        feedback_categories, created_at,
-        ts_rank(to_tsvector('swedish', transcript), plainto_tsquery('swedish', $2)) as rank
-      FROM feedback_sessions
-      WHERE business_id = $1
-      AND to_tsvector('swedish', transcript) @@ plainto_tsquery('swedish', $2)
-      AND transcript IS NOT NULL
-      ORDER BY rank DESC, created_at DESC
-      LIMIT $3
+    limit: number = 50,
+    offset: number = 0,
+    dateRange?: { start: Date; end: Date },
+    qualityScoreRange?: { min: number; max: number },
+    categories?: string[]
+  ): Promise<{ results: any[]; totalCount: number; executionTime: number }> {
+    const startTime = performance.now();
+    
+    // Generate cache key for complex searches
+    const cacheKey = this.generateCacheKey(
+      'search_feedback_sessions',
+      [businessId, searchTerm, limit, offset, dateRange, qualityScoreRange, categories]
+    );
+    
+    // Check cache first (2-minute TTL for search results)
+    if (this.config.enableQueryCache) {
+      const cached = this.getFromCache(cacheKey);
+      if (cached && (Date.now() - cached.timestamp) < 120000) { // 2 minutes
+        const executionTime = performance.now() - startTime;
+        return {
+          results: cached.result.rows,
+          totalCount: cached.result.rows.length,
+          executionTime
+        };
+      }
+    }
+
+    // Build optimized query with proper indexing hints
+    let query = `
+      WITH search_results AS (
+        SELECT 
+          id, 
+          transcript, 
+          quality_score, 
+          sentiment_score, 
+          feedback_categories, 
+          created_at,
+          reward_amount,
+          status,
+          -- Use GIN index for full-text search performance
+          ts_rank(
+            to_tsvector('swedish', COALESCE(transcript, '')), 
+            plainto_tsquery('swedish', $2)
+          ) as rank
+        FROM feedback_sessions
+        WHERE business_id = $1
+          AND transcript IS NOT NULL
+          AND length(trim(transcript)) > 0
+          AND to_tsvector('swedish', transcript) @@ plainto_tsquery('swedish', $2)
     `;
     
-    const params = [businessId, searchTerm, limit];
-    const result = await this.query(query, params);
+    const params: any[] = [businessId, searchTerm];
+    let paramIndex = 3;
     
-    return result.rows;
+    // Add optional date range filter
+    if (dateRange) {
+      query += ` AND created_at BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
+      params.push(dateRange.start.toISOString(), dateRange.end.toISOString());
+      paramIndex += 2;
+    }
+    
+    // Add quality score range filter
+    if (qualityScoreRange) {
+      query += ` AND quality_score BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
+      params.push(qualityScoreRange.min, qualityScoreRange.max);
+      paramIndex += 2;
+    }
+    
+    // Add category filter
+    if (categories && categories.length > 0) {
+      query += ` AND feedback_categories && $${paramIndex}::text[]`;
+      params.push(categories);
+      paramIndex++;
+    }
+    
+    query += `
+        ORDER BY 
+          rank DESC,
+          quality_score DESC,
+          created_at DESC
+      ),
+      total_count AS (
+        SELECT COUNT(*) as total FROM search_results
+      )
+      SELECT 
+        sr.*,
+        tc.total
+      FROM search_results sr
+      CROSS JOIN total_count tc
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+    
+    params.push(limit, offset);
+    
+    try {
+      const result = await this.query(query, params);
+      const executionTime = performance.now() - startTime;
+      
+      const results = result.rows;
+      const totalCount = results.length > 0 ? results[0].total : 0;
+      
+      // Remove total count from individual result rows
+      results.forEach(row => delete row.total);
+      
+      // Cache the results if reasonable size
+      if (results.length <= 100 && this.config.enableQueryCache) {
+        this.queryCache.set(cacheKey, {
+          query: 'search_feedback_sessions',
+          params,
+          result: { ...result, rows: results },
+          timestamp: Date.now(),
+          ttl: 120000 // 2 minutes
+        });
+      }
+      
+      // Log slow searches
+      if (executionTime > 500) {
+        console.warn(`🔍 Slow feedback search (${executionTime.toFixed(1)}ms): "${searchTerm}" for business ${businessId}`);
+      }
+      
+      return {
+        results,
+        totalCount,
+        executionTime
+      };
+      
+    } catch (error) {
+      const executionTime = performance.now() - startTime;
+      console.error(`❌ Feedback search failed after ${executionTime.toFixed(1)}ms:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get optimized business analytics with indexed aggregation queries
+   */
+  async getOptimizedBusinessAnalytics(
+    businessId: string, 
+    dateRange: { start: Date; end: Date },
+    granularity: 'hour' | 'day' | 'week' | 'month' = 'day'
+  ): Promise<{ analytics: any; executionTime: number }> {
+    const startTime = performance.now();
+    
+    // Use materialized views for better performance
+    const cacheKey = `business_analytics_${businessId}_${dateRange.start.toISOString()}_${dateRange.end.toISOString()}_${granularity}`;
+    
+    // Check cache with longer TTL for analytics
+    if (this.config.enableQueryCache) {
+      const cached = this.getFromCache(cacheKey);
+      if (cached && (Date.now() - cached.timestamp) < 900000) { // 15 minutes
+        return {
+          analytics: cached.result.rows[0],
+          executionTime: performance.now() - startTime
+        };
+      }
+    }
+
+    // Use optimized CTE query with proper indexes
+    const query = `
+      WITH date_series AS (
+        SELECT generate_series(
+          $2::timestamp, 
+          $3::timestamp, 
+          CASE 
+            WHEN $4 = 'hour' THEN '1 hour'::interval
+            WHEN $4 = 'day' THEN '1 day'::interval  
+            WHEN $4 = 'week' THEN '1 week'::interval
+            ELSE '1 month'::interval
+          END
+        ) as period_start
+      ),
+      session_metrics AS (
+        SELECT 
+          date_trunc($4, created_at) as period,
+          COUNT(*) as session_count,
+          COUNT(*) FILTER (WHERE status = 'completed') as completed_sessions,
+          AVG(quality_score) FILTER (WHERE quality_score IS NOT NULL) as avg_quality_score,
+          SUM(reward_amount) FILTER (WHERE reward_amount IS NOT NULL) as total_rewards,
+          COUNT(DISTINCT customer_hash) as unique_customers,
+          AVG(audio_duration_seconds) FILTER (WHERE audio_duration_seconds IS NOT NULL) as avg_duration,
+          -- Performance metrics
+          COUNT(*) FILTER (WHERE fraud_risk_score > 0.7) as high_risk_sessions,
+          -- Category analysis
+          array_agg(DISTINCT unnest(feedback_categories)) FILTER (WHERE feedback_categories IS NOT NULL) as all_categories
+        FROM feedback_sessions 
+        WHERE business_id = $1
+          AND created_at BETWEEN $2 AND $3
+          AND status != 'failed'
+        GROUP BY date_trunc($4, created_at)
+      ),
+      quality_distribution AS (
+        SELECT 
+          COUNT(*) FILTER (WHERE quality_score >= 90) as exceptional_count,
+          COUNT(*) FILTER (WHERE quality_score >= 75 AND quality_score < 90) as very_good_count,
+          COUNT(*) FILTER (WHERE quality_score >= 60 AND quality_score < 75) as acceptable_count,
+          COUNT(*) FILTER (WHERE quality_score < 60) as insufficient_count,
+          -- Sentiment analysis
+          AVG(sentiment_score) FILTER (WHERE sentiment_score IS NOT NULL) as avg_sentiment
+        FROM feedback_sessions 
+        WHERE business_id = $1
+          AND created_at BETWEEN $2 AND $3
+          AND quality_score IS NOT NULL
+      ),
+      top_categories AS (
+        SELECT 
+          unnest(feedback_categories) as category,
+          COUNT(*) as category_count
+        FROM feedback_sessions 
+        WHERE business_id = $1
+          AND created_at BETWEEN $2 AND $3
+          AND feedback_categories IS NOT NULL
+        GROUP BY unnest(feedback_categories)
+        ORDER BY COUNT(*) DESC
+        LIMIT 10
+      )
+      SELECT 
+        json_build_object(
+          'summary', json_build_object(
+            'total_sessions', COALESCE(SUM(sm.session_count), 0),
+            'completed_sessions', COALESCE(SUM(sm.completed_sessions), 0),
+            'completion_rate', 
+              CASE 
+                WHEN COALESCE(SUM(sm.session_count), 0) = 0 THEN 0
+                ELSE ROUND((COALESCE(SUM(sm.completed_sessions), 0) * 100.0) / COALESCE(SUM(sm.session_count), 1), 2)
+              END,
+            'avg_quality_score', ROUND(AVG(sm.avg_quality_score), 2),
+            'total_rewards', COALESCE(SUM(sm.total_rewards), 0),
+            'unique_customers', COUNT(DISTINCT customer_hash),
+            'avg_session_duration', ROUND(AVG(sm.avg_duration), 2),
+            'high_risk_sessions', COALESCE(SUM(sm.high_risk_sessions), 0)
+          ),
+          'quality_distribution', (
+            SELECT json_build_object(
+              'exceptional', qd.exceptional_count,
+              'very_good', qd.very_good_count, 
+              'acceptable', qd.acceptable_count,
+              'insufficient', qd.insufficient_count,
+              'avg_sentiment', ROUND(qd.avg_sentiment, 2)
+            ) FROM quality_distribution qd
+          ),
+          'time_series', json_agg(
+            json_build_object(
+              'period', sm.period,
+              'session_count', sm.session_count,
+              'completed_sessions', sm.completed_sessions,
+              'avg_quality_score', ROUND(sm.avg_quality_score, 2),
+              'total_rewards', sm.total_rewards,
+              'unique_customers', sm.unique_customers
+            ) ORDER BY sm.period
+          ),
+          'top_categories', (
+            SELECT json_agg(
+              json_build_object(
+                'category', tc.category,
+                'count', tc.category_count
+              )
+            ) FROM top_categories tc
+          )
+        ) as analytics
+      FROM session_metrics sm
+      FULL OUTER JOIN date_series ds ON sm.period = ds.period_start
+    `;
+
+    try {
+      const params = [businessId, dateRange.start.toISOString(), dateRange.end.toISOString(), granularity];
+      const result = await this.query(query, params);
+      const executionTime = performance.now() - startTime;
+      
+      const analytics = result.rows[0]?.analytics || {
+        summary: { total_sessions: 0, completed_sessions: 0, completion_rate: 0 },
+        quality_distribution: { exceptional: 0, very_good: 0, acceptable: 0, insufficient: 0 },
+        time_series: [],
+        top_categories: []
+      };
+      
+      // Cache results
+      if (this.config.enableQueryCache) {
+        this.queryCache.set(cacheKey, {
+          query: 'optimized_business_analytics',
+          params,
+          result: { rows: [{ analytics }] },
+          timestamp: Date.now(),
+          ttl: 900000 // 15 minutes
+        });
+      }
+      
+      // Log slow analytics queries
+      if (executionTime > 1000) {
+        console.warn(`📊 Slow analytics query (${executionTime.toFixed(1)}ms) for business ${businessId}`);
+      }
+      
+      return {
+        analytics,
+        executionTime
+      };
+      
+    } catch (error) {
+      const executionTime = performance.now() - startTime;
+      console.error(`❌ Business analytics failed after ${executionTime.toFixed(1)}ms:`, error);
+      throw error;
+    }
   }
 
   private async executeQuery(text: string, params?: any[]): Promise<QueryResult> {

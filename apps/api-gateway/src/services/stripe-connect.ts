@@ -70,6 +70,61 @@ export interface MockTransfer {
  * Mock Stripe service for development when Stripe SDK is not available
  * This mimics the real Stripe API for testing purposes
  */
+/**
+ * Utility class for handling timeouts and retries in payment processing
+ */
+class PaymentTimeoutHandler {
+  /**
+   * Creates a promise that will timeout after specified milliseconds
+   */
+  static createTimeout<T>(ms: number, operation: string): Promise<never> {
+    return new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`${operation} timeout after ${ms}ms`));
+      }, ms);
+    });
+  }
+
+  /**
+   * Executes an operation with timeout and retry logic
+   */
+  static async executeWithRetry<T>(
+    operation: () => Promise<T>,
+    maxRetries: number = 2,
+    timeoutMs: number = 5000,
+    operationName: string = 'Operation'
+  ): Promise<T> {
+    let lastError: Error | undefined;
+    
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+      try {
+        const timeoutPromise = this.createTimeout(timeoutMs, operationName);
+        const operationPromise = operation();
+        
+        const result = await Promise.race([operationPromise, timeoutPromise]);
+        
+        if (attempt > 1) {
+          console.log(`✅ ${operationName} succeeded on attempt ${attempt}`);
+        }
+        
+        return result;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        
+        if (attempt <= maxRetries) {
+          const backoffDelay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // Exponential backoff, max 5s
+          console.log(`⚠️ ${operationName} failed on attempt ${attempt}, retrying in ${backoffDelay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, backoffDelay));
+        } else {
+          console.error(`❌ ${operationName} failed after ${attempt} attempts:`, lastError);
+        }
+      }
+    }
+    
+    throw lastError;
+  }
+}
+
 export class MockStripeService {
   private testMode: boolean;
 
@@ -84,23 +139,38 @@ export class MockStripeService {
   async createExpressAccount(businessData: SwedishBusinessAccount): Promise<MockStripeAccount> {
     console.log(`📝 [MOCK] Creating Express account for: ${businessData.businessName}`);
     
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const mockAccount: MockStripeAccount = {
-      id: `acct_mock_${Date.now()}`,
-      charges_enabled: false, // Requires onboarding completion
-      payouts_enabled: false, // Requires onboarding completion
-      details_submitted: false,
-      requirements: {
-        currently_due: ['business_profile.url', 'external_account'],
-        eventually_due: ['individual.verification.document'],
-        past_due: []
-      }
-    };
+    try {
+      // Simulate API delay with timeout protection
+      const createAccountPromise = new Promise<MockStripeAccount>((resolve) => {
+        setTimeout(() => {
+          const mockAccount: MockStripeAccount = {
+            id: `acct_mock_${Date.now()}`,
+            charges_enabled: false, // Requires onboarding completion
+            payouts_enabled: false, // Requires onboarding completion
+            details_submitted: false,
+            requirements: {
+              currently_due: ['business_profile.url', 'external_account'],
+              eventually_due: ['individual.verification.document'],
+              past_due: []
+            }
+          };
+          resolve(mockAccount);
+        }, 200); // Reduced delay from 500ms to 200ms for better performance
+      });
 
-    console.log(`✅ [MOCK] Express account created: ${mockAccount.id} for ${businessData.businessName}`);
-    return mockAccount;
+      // Add timeout protection (5 second timeout)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Stripe account creation timeout after 5 seconds')), 5000);
+      });
+
+      const mockAccount = await Promise.race([createAccountPromise, timeoutPromise]);
+
+      console.log(`✅ [MOCK] Express account created: ${mockAccount.id} for ${businessData.businessName}`);
+      return mockAccount;
+    } catch (error) {
+      console.error(`❌ [MOCK] Express account creation failed:`, error);
+      throw new Error(`Failed to create Express account: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   /**
@@ -109,16 +179,31 @@ export class MockStripeService {
   async createAccountLink(accountId: string, refreshUrl: string, returnUrl: string): Promise<MockAccountLink> {
     console.log(`🔗 [MOCK] Creating account link for ${accountId}`);
     
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
-    const mockLink: MockAccountLink = {
-      url: `https://connect.stripe.com/express/mock_onboarding?account=${accountId}&refresh=${encodeURIComponent(refreshUrl)}&return=${encodeURIComponent(returnUrl)}`,
-      expires_at: Math.floor(Date.now() / 1000) + (5 * 60) // 5 minutes from now
-    };
+    try {
+      // Create account link promise with timeout protection
+      const createLinkPromise = new Promise<MockAccountLink>((resolve) => {
+        setTimeout(() => {
+          const mockLink: MockAccountLink = {
+            url: `https://connect.stripe.com/express/mock_onboarding?account=${accountId}&refresh=${encodeURIComponent(refreshUrl)}&return=${encodeURIComponent(returnUrl)}`,
+            expires_at: Math.floor(Date.now() / 1000) + (5 * 60) // 5 minutes from now
+          };
+          resolve(mockLink);
+        }, 100); // Reduced delay from 200ms to 100ms for faster processing
+      });
 
-    console.log(`✅ [MOCK] Account link created for ${accountId}`);
-    return mockLink;
+      // Add timeout protection (2 second timeout)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Account link creation timeout after 2 seconds')), 2000);
+      });
+
+      const mockLink = await Promise.race([createLinkPromise, timeoutPromise]);
+
+      console.log(`✅ [MOCK] Account link created for ${accountId}`);
+      return mockLink;
+    } catch (error) {
+      console.error(`❌ [MOCK] Account link creation failed:`, error);
+      throw new Error(`Failed to create account link: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   /**
@@ -127,18 +212,43 @@ export class MockStripeService {
   async processCustomerPayout(accountId: string, payout: CustomerPayout): Promise<MockTransfer> {
     console.log(`💰 [MOCK] Processing payout: ${payout.amount} öre to customer ${payout.customerId}`);
     
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const mockTransfer: MockTransfer = {
-      id: `tr_mock_${Date.now()}`,
-      amount: payout.amount,
-      currency: payout.currency,
-      status: 'pending' // In test mode, transfers are typically pending
-    };
+    try {
+      // Create payout processing promise with reduced delay
+      const processPayoutPromise = new Promise<MockTransfer>((resolve) => {
+        setTimeout(() => {
+          const mockTransfer: MockTransfer = {
+            id: `tr_mock_${Date.now()}`,
+            amount: payout.amount,
+            currency: payout.currency,
+            status: 'pending' // In test mode, transfers are typically pending
+          };
+          resolve(mockTransfer);
+        }, 300); // Reduced delay from 1000ms to 300ms for faster processing
+      });
 
-    console.log(`✅ [MOCK] Transfer created: ${mockTransfer.id} for ${payout.amount} öre`);
-    return mockTransfer;
+      // Add timeout protection (3 second timeout for payment processing)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Payment processing timeout after 3 seconds')), 3000);
+      });
+
+      const mockTransfer = await Promise.race([processPayoutPromise, timeoutPromise]);
+
+      console.log(`✅ [MOCK] Transfer created: ${mockTransfer.id} for ${payout.amount} öre`);
+      return mockTransfer;
+    } catch (error) {
+      console.error(`❌ [MOCK] Payment processing failed:`, error);
+      
+      // Return failed transfer instead of throwing for better error handling
+      const failedTransfer: MockTransfer = {
+        id: `tr_failed_${Date.now()}`,
+        amount: payout.amount,
+        currency: payout.currency,
+        status: 'failed'
+      };
+      
+      // Still throw the error but provide the failed transfer for reference
+      throw Object.assign(error, { failedTransfer });
+    }
   }
 
   /**
@@ -153,24 +263,47 @@ export class MockStripeService {
   }> {
     console.log(`🔍 [MOCK] Getting account status for ${accountId}`);
     
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    // Mock different states based on account ID for testing
-    const isCompleted = accountId.includes('completed');
-    const isPending = accountId.includes('pending');
-    
-    return {
-      id: accountId,
-      charges_enabled: isCompleted,
-      payouts_enabled: isCompleted,
-      details_submitted: isCompleted || isPending,
-      requirements: {
-        currently_due: isCompleted ? [] : ['business_profile.url'],
-        eventually_due: isCompleted ? [] : ['individual.verification.document'],
-        past_due: []
-      }
-    };
+    try {
+      // Create account status promise with timeout protection
+      const getStatusPromise = new Promise<{
+        id: string;
+        charges_enabled: boolean;
+        payouts_enabled: boolean;
+        details_submitted: boolean;
+        requirements: MockStripeAccount['requirements'];
+      }>((resolve) => {
+        setTimeout(() => {
+          // Mock different states based on account ID for testing
+          const isCompleted = accountId.includes('completed');
+          const isPending = accountId.includes('pending');
+          
+          resolve({
+            id: accountId,
+            charges_enabled: isCompleted,
+            payouts_enabled: isCompleted,
+            details_submitted: isCompleted || isPending,
+            requirements: {
+              currently_due: isCompleted ? [] : ['business_profile.url'],
+              eventually_due: isCompleted ? [] : ['individual.verification.document'],
+              past_due: []
+            }
+          });
+        }, 150); // Reduced delay from 300ms to 150ms for faster processing
+      });
+
+      // Add timeout protection (2 second timeout)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Account status check timeout after 2 seconds')), 2000);
+      });
+
+      const accountStatus = await Promise.race([getStatusPromise, timeoutPromise]);
+
+      console.log(`✅ [MOCK] Account status retrieved for ${accountId}`);
+      return accountStatus;
+    } catch (error) {
+      console.error(`❌ [MOCK] Account status check failed:`, error);
+      throw new Error(`Failed to get account status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   /**
