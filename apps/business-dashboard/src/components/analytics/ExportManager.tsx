@@ -42,12 +42,24 @@ const availableCategories = [
   'Service', 'Produkter', 'Atmosfär', 'Priser', 'Renlighet', 'Tillgänglighet'
 ];
 
+// Helper function to get Swedish date string
+const getSwedishDateString = (date: Date): string => {
+  const swedenTime = new Intl.DateTimeFormat('sv-SE', { 
+    timeZone: 'Europe/Stockholm',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const parts = swedenTime.formatToParts(date);
+  return `${parts.find(p => p.type === 'year')?.value}-${parts.find(p => p.type === 'month')?.value}-${parts.find(p => p.type === 'day')?.value}`;
+};
+
 export function ExportManager() {
   const [options, setOptions] = useState<ExportOptions>({
     format: 'csv',
     dateRange: {
-      from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      to: new Date().toISOString().split('T')[0]
+      from: getSwedishDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)),
+      to: getSwedishDateString(new Date())
     },
     dataType: 'feedback',
     filters: {
@@ -91,7 +103,7 @@ export function ExportManager() {
       // });
 
       // Simulate file download
-      const filename = `feedback-export-${options.dataType}-${new Date().toISOString().split('T')[0]}.${options.format}`;
+      const filename = `feedback-export-${options.dataType}-${getSwedishDateString(new Date())}.${options.format}`;
       
       // Create a mock file blob
       let content: string;
@@ -143,19 +155,56 @@ export function ExportManager() {
       'Kategori', 'Sentiment', 'Belöning (SEK)', 'Kommentar'
     ];
     
+    // Generate sample data with proper Swedish timezone handling
+    const now = new Date();
+    const swedenTime = new Intl.DateTimeFormat('sv-SE', { 
+      timeZone: 'Europe/Stockholm',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    
+    const getSwedishDateTime = (offsetHours: number) => {
+      const date = new Date(now.getTime() - (offsetHours * 60 * 60 * 1000));
+      const parts = swedenTime.formatToParts(date);
+      const datePart = `${parts.find(p => p.type === 'year')?.value}-${parts.find(p => p.type === 'month')?.value}-${parts.find(p => p.type === 'day')?.value}`;
+      const timePart = `${parts.find(p => p.type === 'hour')?.value}:${parts.find(p => p.type === 'minute')?.value}`;
+      return [datePart, timePart];
+    };
+    
     const sampleData = [
-      ['2024-12-19', '14:30', '76', '75', '78', '75', 'Service', 'Positiv', '23.50', 'Mycket bra service idag'],
-      ['2024-12-19', '13:15', '82', '80', '85', '81', 'Produkter', 'Positiv', '31.20', 'Fantastiska bagels'],
-      ['2024-12-18', '16:45', '65', '70', '60', '65', 'Atmosfär', 'Neutral', '15.75', 'Lite stökigt men okej kaffe']
+      [...getSwedishDateTime(2), '76', '75', '78', '75', 'Service', 'Positiv', '23,50', 'Mycket bra service idag'],
+      [...getSwedishDateTime(5), '82', '80', '85', '81', 'Produkter', 'Positiv', '31,20', 'Fantastiska bagels'],
+      [...getSwedishDateTime(18), '65', '70', '60', '65', 'Atmosfär', 'Neutral', '15,75', 'Lite stökigt men okej kaffe'],
+      [...getSwedishDateTime(24), '88', '90', '85', '89', 'Service', 'Positiv', '42,30', 'Personalen var mycket hjälpsam, "toppenklass"'],
+      [...getSwedishDateTime(48), '72', '75', '70', '71', 'Produkter', 'Positiv', '28,60', 'Gott kaffe, men kakan var lite torr']
     ];
 
-    return [headers.join(','), ...sampleData.map(row => row.join(','))].join('\n');
-  };
+    // Proper CSV escaping function
+    const escapeCSVField = (field: string): string => {
+      // If field contains comma, quote, or newline, wrap in quotes and escape internal quotes
+      if (field.includes(',') || field.includes('"') || field.includes('\n') || field.includes('\r')) {
+        return `"${field.replace(/"/g, '""')}"`;
+      }
+      return field;
+    };
+
+    // Create CSV with BOM for proper Swedish character encoding
+    const BOM = '\uFEFF';
+    const csvHeaders = headers.map(escapeCSVField).join(',');
+    const csvData = sampleData.map(row => 
+      row.map(field => escapeCSVField(field.toString())).join(',')
+    ).join('\n');
+    
+    return BOM + csvHeaders + '\n' + csvData;
+  };;
 
   const generateJSONContent = () => {
     const sampleData = {
       exportInfo: {
-        generatedAt: new Date().toISOString(),
+        generatedAt: new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm' }),
         dateRange: options.dateRange,
         format: options.format,
         dataType: options.dataType,
@@ -174,7 +223,7 @@ export function ExportManager() {
       feedback: [
         {
           id: 1,
-          timestamp: '2024-12-19T14:30:00Z',
+          timestamp: new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm' }),
           qualityScore: { total: 76, authenticity: 75, concreteness: 78, depth: 75 },
           category: 'Service',
           sentiment: 'positive',

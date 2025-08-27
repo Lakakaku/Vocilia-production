@@ -63,6 +63,18 @@ const reportTemplates: ReportTemplate[] = [
   }
 ];
 
+// Helper function to get Swedish date string
+const getSwedishDateString = (date: Date): string => {
+  const swedenTime = new Intl.DateTimeFormat('sv-SE', { 
+    timeZone: 'Europe/Stockholm',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const parts = swedenTime.formatToParts(date);
+  return `${parts.find(p => p.type === 'year')?.value}-${parts.find(p => p.type === 'month')?.value}-${parts.find(p => p.type === 'day')?.value}`;
+};
+
 export function PrintReports() {
   const [reportConfig, setReportConfig] = useState<ReportConfig>({
     id: '',
@@ -77,8 +89,8 @@ export function PrintReports() {
       recommendations: true
     },
     dateRange: {
-      from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days ago
-      to: new Date().toISOString().split('T')[0] // today
+      from: getSwedishDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)), // 30 days ago in Swedish timezone
+      to: getSwedishDateString(new Date()) // today in Swedish timezone
     },
     locations: ['all'],
     format: 'pdf',
