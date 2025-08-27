@@ -43,6 +43,13 @@ export default function App({ Component, pageProps }: AppProps) {
         <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180x180.png" />
         <link rel="apple-touch-startup-image" href="/icons/icon-512x512.png" />
         
+        {/* Android Chrome specific optimizations */}
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-status-bar-style" content="default" />
+        <meta name="mobile-web-app-title" content="Feedback" />
+        <meta httpEquiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+        <meta name="msapplication-tap-highlight" content="no" />
+        
         {/* Web app manifest */}
         <link rel="manifest" href="/manifest.json" />
         

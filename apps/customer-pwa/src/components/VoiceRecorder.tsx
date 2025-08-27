@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, MicOff, Square, Play, Pause, RotateCcw } from 'lucide-react';
+import { useDeviceOptimization } from '../utils/deviceOptimization';
 
 interface VoiceRecorderProps {
   sessionId: string;
@@ -16,6 +17,9 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
   const [error, setError] = useState<string | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  
+  // Device optimization
+  const deviceOptimization = useDeviceOptimization();
 
   // Refs for media handling
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -276,10 +280,13 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
-      // Detect iOS Safari for optimizations
+      // Detect iOS Safari and Android Chrome for optimizations
       const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent) && 
                          /Safari/.test(navigator.userAgent) && 
                          !/CriOS|FxiOS|OPiOS|mercury/.test(navigator.userAgent);
+      const isAndroidChrome = /Android/.test(navigator.userAgent) && 
+                             /Chrome/.test(navigator.userAgent) && 
+                             !/Edge|OPR/.test(navigator.userAgent);
 
       ws.onopen = () => {
         console.log('WebSocket connected');
@@ -330,6 +337,53 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
             window.addEventListener('memorywarning', memoryHandler);
             (ws as any).memoryHandler = memoryHandler;
           }
+        }
+        
+        // Android Chrome specific optimizations
+        if (isAndroidChrome) {
+          console.log('🤖 Applying Android Chrome WebSocket optimizations for voice recording');
+          
+          // Android Chrome specific keepalive (shorter interval)
+          const keepAliveInterval = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'keepalive', timestamp: Date.now(), browser: 'chrome' }));
+            } else {
+              clearInterval(keepAliveInterval);
+            }
+          }, 10000); // Every 10 seconds for Android Chrome
+          
+          (ws as any).keepAliveInterval = keepAliveInterval;
+          
+          // Android Chrome visibility handling
+          const visibilityHandler = () => {
+            if (document.hidden) {
+              console.log('🤖 Android Chrome app backgrounded');
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'background_mode', sessionId, browser: 'chrome' }));
+              }
+            } else {
+              console.log('🤖 Android Chrome app foregrounded');
+              if (ws.readyState !== WebSocket.OPEN && state === 'recording') {
+                // Reconnect if we were recording
+                console.log('🤖 Reconnecting WebSocket after Android Chrome foreground');
+                setupWebSocket();
+              }
+            }
+          };
+          document.addEventListener('visibilitychange', visibilityHandler);
+          (ws as any).visibilityHandler = visibilityHandler;
+          
+          // Android Chrome performance optimization
+          const performanceHandler = () => {
+            // Optimize for Android Chrome memory management
+            if ('gc' in window && typeof (window as any).gc === 'function') {
+              (window as any).gc();
+            }
+          };
+          
+          // Run performance optimization every 30 seconds
+          const performanceInterval = setInterval(performanceHandler, 30000);
+          (ws as any).performanceInterval = performanceInterval;
         }
       };
 
@@ -760,7 +814,7 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
               >
                 <button
                   onClick={startRecording}
-                  className="w-32 h-32 bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-full shadow-2xl flex items-center justify-center mb-6 mx-auto"
+                  className="w-32 h-32 bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-full shadow-2xl flex items-center justify-center mb-6 mx-auto android-chrome-fix touch-manipulation"
                   data-testid="start-recording-button"
                 >
                   <Mic className="w-12 h-12" />
@@ -809,16 +863,23 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
               className="text-center"
             >
               <motion.div
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
+                animate={deviceOptimization.shouldReduceAnimations ? {} : { scale: [1, 1.1, 1] }}
+                transition={deviceOptimization.shouldReduceAnimations ? {} : { duration: 2, repeat: Infinity }}
               >
-                <div className="w-32 h-32 bg-gradient-to-br from-red-500 to-pink-600 text-white rounded-full shadow-2xl flex items-center justify-center mb-6 mx-auto relative">
+                <div className={`w-32 h-32 bg-gradient-to-br from-red-500 to-pink-600 text-white rounded-full shadow-2xl flex items-center justify-center mb-6 mx-auto relative ${
+                  deviceOptimization.getOptimizedClasses('recording-pulse')
+                }`}>
                   <Mic className="w-12 h-12" />
-                  <motion.div
-                    animate={{ scale: [1, 1.5] }}
-                    transition={{ duration: 1, repeat: Infinity, repeatType: "reverse" }}
-                    className="absolute inset-0 border-4 border-red-300 rounded-full opacity-50"
-                  />
+                  {!deviceOptimization.shouldReduceAnimations && (
+                    <motion.div
+                      animate={deviceOptimization.shouldUseSimpleAnimations ? { opacity: [1, 0.5] } : { scale: [1, 1.5] }}
+                      transition={deviceOptimization.shouldUseSimpleAnimations ? 
+                        { duration: 1.5, repeat: Infinity, repeatType: "reverse" } :
+                        { duration: 1, repeat: Infinity, repeatType: "reverse" }
+                      }
+                      className="absolute inset-0 border-4 border-red-300 rounded-full opacity-50"
+                    />
+                  )}
                 </div>
               </motion.div>
 
@@ -842,7 +903,7 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
 
               <button
                 onClick={stopRecording}
-                className="w-16 h-16 bg-gray-800 text-white rounded-full shadow-lg flex items-center justify-center"
+                className="w-16 h-16 bg-gray-800 text-white rounded-full shadow-lg flex items-center justify-center android-chrome-fix touch-manipulation"
                 data-testid="stop-recording-button"
               >
                 <Square className="w-6 h-6" />
@@ -880,7 +941,7 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
               <div className="space-y-4">
                 <button
                   onClick={playRecording}
-                  className="w-full flex items-center justify-center space-x-2 py-3 px-4 bg-gray-100 text-gray-700 rounded-xl font-medium"
+                  className="w-full flex items-center justify-center space-x-2 py-3 px-4 bg-gray-100 text-gray-700 rounded-xl font-medium android-chrome-fix touch-manipulation"
                   data-testid="play-recording-button"
                 >
                   {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
@@ -890,7 +951,7 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
                 <div className="flex space-x-3">
                   <button
                     onClick={retryRecording}
-                    className="flex-1 flex items-center justify-center space-x-2 py-3 px-4 border border-gray-300 text-gray-700 rounded-xl font-medium"
+                    className="flex-1 flex items-center justify-center space-x-2 py-3 px-4 border border-gray-300 text-gray-700 rounded-xl font-medium android-chrome-fix touch-manipulation"
                     data-testid="retry-recording-button"
                   >
                     <RotateCcw className="w-4 h-4" />
@@ -899,7 +960,7 @@ export function VoiceRecorder({ sessionId, onComplete, onBack }: VoiceRecorderPr
 
                   <button
                     onClick={submitRecording}
-                    className="flex-1 py-3 px-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-semibold shadow-lg"
+                    className="flex-1 py-3 px-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-semibold shadow-lg android-chrome-fix touch-manipulation"
                     data-testid="submit-recording-button"
                   >
                     Skicka feedback

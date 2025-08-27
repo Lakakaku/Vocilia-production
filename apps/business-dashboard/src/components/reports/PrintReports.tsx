@@ -527,7 +527,7 @@ export function PrintReports() {
             <div className="p-6">
               {/* Mock Report Preview */}
               <div className="bg-white border rounded-lg p-8 print-styles">
-                <div className="mb-8">
+                <div className="mb-8 print-header">
                   <h1 className="text-3xl font-bold text-gray-900 mb-2">{reportConfig.name}</h1>
                   <p className="text-gray-600">
                     Period: {reportConfig.dateRange.from} - {reportConfig.dateRange.to}
