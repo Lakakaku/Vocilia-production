@@ -64,8 +64,11 @@ router.get('/:businessId/dashboard',
       // Get analytics data
       const analytics = await db.getBusinessAnalytics(businessId, days);
 
-      // Get recent feedback sessions
-      const recentSessions = await db.getFeedbackSessionsByBusiness(businessId, 10);
+      // Get recent feedback sessions (with proper verification filtering for delayed delivery)
+      const recentSessions = await db.getFeedbackSessionsWithVerification(businessId, 10, false);
+
+      // Get pending feedback awaiting verification release (if using simple verification)
+      const pendingFeedback = await db.getPendingFeedbackSessions(businessId);
 
       const response: APIResponse<{
         business: {
@@ -87,6 +90,10 @@ router.get('/:businessId/dashboard',
           categories: string[];
           createdAt: string;
         }>;
+        pendingFeedback: {
+          count: number;
+          awaitingVerificationRelease: number;
+        };
       }> = {
         success: true,
         data: {
@@ -103,7 +110,11 @@ router.get('/:businessId/dashboard',
             rewardAmount: parseFloat(session.reward_amount?.toString() || '0'),
             categories: session.feedback_categories || [],
             createdAt: session.created_at
-          }))
+          })),
+          pendingFeedback: {
+            count: pendingFeedback.length,
+            awaitingVerificationRelease: pendingFeedback.length
+          }
         }
       };
 
@@ -139,7 +150,8 @@ router.post('/',
     body('orgNumber').optional().matches(/^\d{6}-\d{4}$/).withMessage('Valid Swedish organization number required (XXXXXX-XXXX)'),
     body('phone').optional().isMobilePhone('sv-SE').withMessage('Valid Swedish phone number required'),
     body('address').optional().isObject().withMessage('Address must be an object'),
-    body('createStripeAccount').optional().isBoolean().withMessage('Create Stripe account flag must be boolean')
+    body('createStripeAccount').optional().isBoolean().withMessage('Create Stripe account flag must be boolean'),
+    body('verificationMethod').optional().isIn(['pos_integration', 'simple_verification']).withMessage('Verification method must be pos_integration or simple_verification')
   ],
   async (req: Request, res: Response) => {
     const errors = validationResult(req);
@@ -155,7 +167,7 @@ router.post('/',
     }
 
     try {
-      const { createStripeAccount = true, ...businessData } = req.body;
+      const { createStripeAccount = true, verificationMethod = 'pos_integration', ...businessData } = req.body;
 
       // Check if business with this email already exists
       const { data: existingBusiness } = await db.client
@@ -174,10 +186,88 @@ router.post('/',
         });
       }
 
-      // Create business first
-      const business = await db.createBusiness(businessData);
+      // Create business with verification method
+      const business = await db.createBusiness({
+        ...businessData,
+        verificationMethod,
+        verificationPreferences: {
+          pos_integration: {
+            preferred_provider: null,
+            auto_connect: verificationMethod === 'pos_integration',
+            require_transaction_match: true
+          },
+          simple_verification: {
+            enabled: verificationMethod === 'simple_verification',
+            verification_tolerance: {
+              time_minutes: 5,
+              amount_sek: 0.5
+            },
+            review_period_days: 14,
+            auto_approve_threshold: 0.1,
+            daily_limits: {
+              max_per_phone: 3,
+              max_per_ip: 10
+            },
+            fraud_settings: {
+              auto_reject_threshold: 0.7,
+              manual_review_threshold: 0.3
+            }
+          }
+        }
+      });
 
-      // Create Stripe Connect TEST account if requested
+      // Create store code for simple verification businesses
+      let storeCode = null;
+      if (verificationMethod === 'simple_verification') {
+        try {
+          // Generate a unique 6-digit store code
+          let code: string;
+          let isUnique = false;
+          let attempts = 0;
+          
+          do {
+            // Generate random 6-digit code
+            code = Math.floor(100000 + Math.random() * 900000).toString();
+            
+            // Check if code is unique
+            const { data: existingCode } = await db.client
+              .from('store_codes')
+              .select('id')
+              .eq('code', code)
+              .single();
+              
+            isUnique = !existingCode;
+            attempts++;
+          } while (!isUnique && attempts < 10);
+          
+          if (!isUnique) {
+            throw new Error('Could not generate unique store code');
+          }
+          
+          // Create store code record
+          const { data: storeCodeData, error } = await db.client
+            .from('store_codes')
+            .insert({
+              business_id: business.id,
+              code,
+              name: 'Main Store Code',
+              active: true,
+              expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1 year
+            })
+            .select()
+            .single();
+            
+          if (error) throw error;
+          storeCode = code;
+          
+          console.log(`🏪 Generated store code ${code} for simple verification business ${business.id}`);
+        } catch (storeCodeError) {
+          console.error('Store code creation failed:', storeCodeError);
+          // Continue without store code - can be created later
+        }
+      }
+
+      // Create Stripe Connect TEST account if requested and using POS integration
       let stripeAccountId = null;
       let onboardingUrl = null;
       
@@ -239,10 +329,12 @@ router.post('/',
         business: Business; 
         stripeAccountId?: string;
         onboardingUrl?: string;
+        storeCode?: string;
         verification: {
           required: boolean;
           status: string;
           documents: string[];
+          method: string;
         };
       }> = {
         success: true,
@@ -250,14 +342,20 @@ router.post('/',
           business,
           stripeAccountId: stripeAccountId || undefined,
           onboardingUrl: onboardingUrl || undefined,
+          storeCode: storeCode || undefined,
           verification: {
             required: true,
             status: 'pending',
-            documents: [
+            method: verificationMethod,
+            documents: verificationMethod === 'pos_integration' ? [
               'business_registration',
               'tax_document',
               'id_verification',
               'bank_statement'
+            ] : [
+              'business_registration',
+              'tax_document',
+              'id_verification'
             ]
           }
         }
@@ -921,6 +1019,233 @@ router.post('/:businessId/verification/approve',
         error: {
           code: 'APPROVAL_ERROR',
           message: 'Failed to approve business'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * @openapi
+ * /api/business/{businessId}/feedback/pending:
+ *   get:
+ *     summary: Get pending feedback awaiting verification release
+ *     tags: [Business]
+ *     parameters:
+ *       - in: path
+ *         name: businessId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Pending feedback data
+ */
+router.get('/:businessId/feedback/pending',
+  [
+    param('businessId').isUUID('4').withMessage('Valid business ID required')
+  ],
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid business ID'
+        }
+      });
+    }
+
+    try {
+      const { businessId } = req.params;
+
+      // Verify business exists
+      const business = await db.getBusiness(businessId);
+      if (!business) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'BUSINESS_NOT_FOUND',
+            message: 'Business not found'
+          }
+        });
+      }
+
+      // Get pending feedback sessions awaiting verification release
+      const pendingFeedback = await db.getPendingFeedbackSessions(businessId);
+
+      // Group by billing batch for better organization
+      const batchGroups = new Map();
+      for (const session of pendingFeedback) {
+        const verification = session.simple_verification;
+        if (verification?.billing_batch_id) {
+          const batchId = verification.billing_batch_id;
+          if (!batchGroups.has(batchId)) {
+            batchGroups.set(batchId, {
+              batchId,
+              reviewDeadline: verification.monthly_billing_batch?.review_deadline,
+              sessions: []
+            });
+          }
+          batchGroups.get(batchId).sessions.push({
+            id: session.id,
+            qualityScore: session.quality_score || 0,
+            categories: session.feedback_categories || [],
+            createdAt: session.created_at,
+            verificationStatus: verification.review_status
+          });
+        }
+      }
+
+      const response: APIResponse<{
+        totalPending: number;
+        batches: Array<{
+          batchId: string;
+          reviewDeadline?: string;
+          sessionCount: number;
+          sessions: Array<{
+            id: string;
+            qualityScore: number;
+            categories: string[];
+            createdAt: string;
+            verificationStatus: string;
+          }>;
+        }>;
+        message: string;
+      }> = {
+        success: true,
+        data: {
+          totalPending: pendingFeedback.length,
+          batches: Array.from(batchGroups.values()).map(batch => ({
+            batchId: batch.batchId,
+            reviewDeadline: batch.reviewDeadline,
+            sessionCount: batch.sessions.length,
+            sessions: batch.sessions
+          })),
+          message: pendingFeedback.length > 0 
+            ? `${pendingFeedback.length} feedback sessions are verified and awaiting batch completion for release.`
+            : 'No pending feedback awaiting release.'
+        }
+      };
+
+      res.json(response);
+    } catch (error) {
+      console.error('Get pending feedback error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'PENDING_FEEDBACK_ERROR',
+          message: 'Failed to get pending feedback'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * @openapi
+ * /api/business/{businessId}/feedback/released:
+ *   get:
+ *     summary: Get released feedback (available after verification and batch completion)
+ *     tags: [Business]
+ *     parameters:
+ *       - in: path
+ *         name: businessId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *         description: Maximum number of feedback sessions to return
+ *     responses:
+ *       200:
+ *         description: Released feedback data
+ */
+router.get('/:businessId/feedback/released',
+  [
+    param('businessId').isUUID('4').withMessage('Valid business ID required'),
+    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1-100')
+  ],
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid parameters',
+          details: errors.array()
+        }
+      });
+    }
+
+    try {
+      const { businessId } = req.params;
+      const limit = parseInt(req.query.limit as string) || 50;
+
+      // Verify business exists
+      const business = await db.getBusiness(businessId);
+      if (!business) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'BUSINESS_NOT_FOUND',
+            message: 'Business not found'
+          }
+        });
+      }
+
+      // Get released feedback sessions (only verified and batch completed)
+      const releasedFeedback = await db.getFeedbackSessionsWithVerification(businessId, limit, false);
+
+      const response: APIResponse<{
+        totalReleased: number;
+        feedback: Array<{
+          id: string;
+          qualityScore: number;
+          rewardAmount: number;
+          categories: string[];
+          transcript?: string;
+          sentiment?: number;
+          createdAt: string;
+          verificationType: string;
+          verificationStatus?: string;
+        }>;
+        message: string;
+      }> = {
+        success: true,
+        data: {
+          totalReleased: releasedFeedback.length,
+          feedback: releasedFeedback.map(session => ({
+            id: session.id,
+            qualityScore: session.quality_score || 0,
+            rewardAmount: parseFloat(session.reward_amount?.toString() || '0'),
+            categories: session.feedback_categories || [],
+            transcript: session.transcript,
+            sentiment: session.sentiment_score,
+            createdAt: session.created_at,
+            verificationType: session.verification_type || 'pos_integration',
+            verificationStatus: session.simple_verification?.review_status
+          })),
+          message: releasedFeedback.length > 0 
+            ? `${releasedFeedback.length} feedback sessions are available.`
+            : 'No feedback available yet.'
+        }
+      };
+
+      res.json(response);
+    } catch (error) {
+      console.error('Get released feedback error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'RELEASED_FEEDBACK_ERROR',
+          message: 'Failed to get released feedback'
         }
       });
     }

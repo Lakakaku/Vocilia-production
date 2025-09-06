@@ -1,0 +1,673 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "POS Integration Monitoring Dashboard - Enhanced",
+    "tags": ["pos", "monitoring", "integration", "webhooks", "transactions"],
+    "timezone": "Europe/Stockholm",
+    "version": 1,
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "POS Provider Health Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "pos_connection_status",
+            "legendFormat": "{{ provider }} Connection",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "green", "value": 1 }
+              ]
+            },
+            "mappings": [
+              { "options": { "0": { "text": "❌ DOWN" } }, "type": "value" },
+              { "options": { "1": { "text": "✅ UP" } }, "type": "value" }
+            ]
+          }
+        },
+        "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 }
+      },
+      {
+        "id": 2,
+        "title": "Overall System Health Score",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "avg((pos_connection_status * 25) + (pos_webhook_delivery_rate * 25) + ((1 - pos_error_rate_percent/100) * 25) + ((pos_api_response_time_p95 < 1) * 25))",
+            "legendFormat": "Health Score",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "orange", "value": 60 },
+                { "color": "yellow", "value": 75 },
+                { "color": "green", "value": 90 }
+              ]
+            }
+          }
+        },
+        "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 }
+      },
+      {
+        "id": 3,
+        "title": "Active Integrations",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "count(pos_active_integrations == 1)",
+            "legendFormat": "Active",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "yellow", "value": 1 },
+                { "color": "green", "value": 3 }
+              ]
+            }
+          }
+        },
+        "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 }
+      },
+      {
+        "id": 4,
+        "title": "API Response Times (All Providers)",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum by (provider, le) (rate(pos_api_response_time_seconds_bucket[5m])))",
+            "legendFormat": "{{ provider }} P50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum by (provider, le) (rate(pos_api_response_time_seconds_bucket[5m])))",
+            "legendFormat": "{{ provider }} P95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum by (provider, le) (rate(pos_api_response_time_seconds_bucket[5m])))",
+            "legendFormat": "{{ provider }} P99",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "axisLabel": "Response Time",
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "spanNulls": true,
+              "showPoints": "never"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": { "id": "byRegexp", "options": "/P99/" },
+              "properties": [
+                { "id": "custom.lineStyle", "value": { "fill": "dash" } }
+              ]
+            }
+          ]
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 }
+      },
+      {
+        "id": 5,
+        "title": "Webhook Delivery Monitoring",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(pos_webhook_delivered_total[5m])",
+            "legendFormat": "{{ provider }} Delivered",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(pos_webhook_failed_total[5m])",
+            "legendFormat": "{{ provider }} Failed",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "axisLabel": "Webhooks/sec",
+              "drawStyle": "bars",
+              "lineWidth": 1,
+              "fillOpacity": 50,
+              "stacking": { "mode": "normal" }
+            }
+          }
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 }
+      },
+      {
+        "id": 6,
+        "title": "Transaction Sync Success Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(pos_transaction_sync_success_total[1h])) / (sum(rate(pos_transaction_sync_success_total[1h])) + sum(rate(pos_transaction_sync_failed_total[1h]))) * 100",
+            "legendFormat": "Success Rate",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "orange", "value": 80 },
+                { "color": "yellow", "value": 90 },
+                { "color": "green", "value": 95 }
+              ]
+            }
+          }
+        },
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 12 }
+      },
+      {
+        "id": 7,
+        "title": "Webhook Delivery Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(pos_webhook_delivered_total[1h])) / (sum(rate(pos_webhook_delivered_total[1h])) + sum(rate(pos_webhook_failed_total[1h]))) * 100",
+            "legendFormat": "Delivery Rate",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "orange", "value": 85 },
+                { "color": "yellow", "value": 92 },
+                { "color": "green", "value": 98 }
+              ]
+            }
+          }
+        },
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 12 }
+      },
+      {
+        "id": 8,
+        "title": "API Error Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(pos_api_errors_total[1h])) / sum(rate(pos_api_requests_total[1h])) * 100",
+            "legendFormat": "Error Rate",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 2 },
+                { "color": "orange", "value": 5 },
+                { "color": "red", "value": 10 }
+              ]
+            }
+          }
+        },
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 12 }
+      },
+      {
+        "id": 9,
+        "title": "Average Latency",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "avg(rate(pos_api_response_time_seconds_sum[5m]) / rate(pos_api_response_time_seconds_count[5m]))",
+            "legendFormat": "Avg Latency",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 200 },
+                { "color": "orange", "value": 500 },
+                { "color": "red", "value": 1000 }
+              ]
+            }
+          }
+        },
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 12 }
+      },
+      {
+        "id": 10,
+        "title": "Transaction Sync Tracking",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "sum by (provider) (rate(pos_transaction_sync_success_total[5m]))",
+            "legendFormat": "{{ provider }} Success",
+            "refId": "A"
+          },
+          {
+            "expr": "sum by (provider) (rate(pos_transaction_sync_failed_total[5m]))",
+            "legendFormat": "{{ provider }} Failed",
+            "refId": "B"
+          },
+          {
+            "expr": "sum by (provider) (rate(pos_transaction_sync_pending_total[5m]))",
+            "legendFormat": "{{ provider }} Pending",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "axisLabel": "Transactions/sec",
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "spanNulls": true
+            }
+          }
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 }
+      },
+      {
+        "id": 11,
+        "title": "Webhook Latency Distribution",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "sum by (le) (rate(pos_webhook_latency_seconds_bucket[5m]))",
+            "format": "heatmap",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "scaleDistribution": {
+                "type": "linear"
+              }
+            }
+          }
+        },
+        "options": {
+          "calculate": true,
+          "calculation": {
+            "yBuckets": {
+              "mode": "count",
+              "value": "10"
+            }
+          },
+          "color": {
+            "mode": "scheme",
+            "scheme": "Spectral",
+            "steps": 64
+          },
+          "exemplars": {
+            "color": "rgba(255,0,255,0.7)"
+          },
+          "filterValues": {
+            "le": 1e-9
+          },
+          "yAxis": {
+            "unit": "s",
+            "decimals": 1
+          }
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 }
+      },
+      {
+        "id": 12,
+        "title": "POS Provider Breakdown",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum by (provider) (pos_active_integrations)",
+            "legendFormat": "{{ provider }}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              }
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "values": ["value", "percent"]
+          },
+          "pieType": "donut",
+          "tooltip": {
+            "mode": "single"
+          }
+        },
+        "gridPos": { "h": 8, "w": 6, "x": 0, "y": 24 }
+      },
+      {
+        "id": 13,
+        "title": "Authentication Token Status",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "pos_auth_token_expiry_seconds",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "Time" },
+              "properties": [
+                { "id": "custom.hidden", "value": true }
+              ]
+            },
+            {
+              "matcher": { "id": "byName", "options": "Value" },
+              "properties": [
+                { "id": "displayName", "value": "Expires In" },
+                { "id": "unit", "value": "s" },
+                { "id": "custom.displayMode", "value": "color-background" },
+                { "id": "thresholds", "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "red", "value": 0 },
+                    { "color": "orange", "value": 3600 },
+                    { "color": "green", "value": 86400 }
+                  ]
+                }}
+              ]
+            }
+          ]
+        },
+        "gridPos": { "h": 8, "w": 9, "x": 6, "y": 24 }
+      },
+      {
+        "id": 14,
+        "title": "Rate Limiting Status",
+        "type": "bargauge",
+        "targets": [
+          {
+            "expr": "pos_rate_limit_remaining / pos_rate_limit_max * 100",
+            "legendFormat": "{{ provider }} {{ endpoint }}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "orange", "value": 20 },
+                { "color": "yellow", "value": 50 },
+                { "color": "green", "value": 80 }
+              ]
+            }
+          }
+        },
+        "options": {
+          "orientation": "horizontal",
+          "displayMode": "lcd",
+          "showUnfilled": true
+        },
+        "gridPos": { "h": 8, "w": 9, "x": 15, "y": 24 }
+      },
+      {
+        "id": 15,
+        "title": "Critical Alerts",
+        "type": "alert-list",
+        "options": {
+          "maxItems": 10,
+          "sortOrder": 1,
+          "dashboardAlerts": false,
+          "alertName": "",
+          "dashboardTitle": "",
+          "tags": ["pos", "critical"],
+          "stateFilter": {
+            "firing": true,
+            "pending": true,
+            "inactive": false,
+            "normal": false
+          },
+          "folderId": null
+        },
+        "gridPos": { "h": 6, "w": 24, "x": 0, "y": 32 }
+      },
+      {
+        "id": 16,
+        "title": "Recent Webhook Events",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{job=\"pos-webhooks\"} |~ \"webhook\"",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showTime": true,
+          "showLabels": false,
+          "showCommonLabels": false,
+          "wrapLogMessage": false,
+          "enableLogDetails": true
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 38 }
+      },
+      {
+        "id": 17,
+        "title": "Transaction Verification Accuracy",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "avg(pos_transaction_verification_accuracy)",
+            "legendFormat": "Accuracy",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "orange", "value": 85 },
+                { "color": "yellow", "value": 92 },
+                { "color": "green", "value": 98 }
+              ]
+            }
+          }
+        },
+        "gridPos": { "h": 8, "w": 6, "x": 12, "y": 38 }
+      },
+      {
+        "id": 18,
+        "title": "Swedish Market Metrics",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "count(pos_swedish_business_active == 1)",
+            "legendFormat": "Active Swedish Businesses",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(pos_swedish_transactions_daily)",
+            "legendFormat": "Daily Transactions (SEK)",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "yellow", "value": 10 },
+                { "color": "green", "value": 50 }
+              ]
+            }
+          }
+        },
+        "gridPos": { "h": 8, "w": 6, "x": 18, "y": 38 }
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "provider",
+          "label": "POS Provider",
+          "type": "query",
+          "datasource": "Prometheus",
+          "query": "label_values(pos_connection_status, provider)",
+          "multi": true,
+          "includeAll": true,
+          "current": {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          }
+        },
+        {
+          "name": "business",
+          "label": "Business",
+          "type": "query",
+          "datasource": "Prometheus",
+          "query": "label_values(pos_active_integrations, business_id)",
+          "multi": true,
+          "includeAll": true,
+          "current": {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          }
+        },
+        {
+          "name": "environment",
+          "label": "Environment",
+          "type": "custom",
+          "query": "sandbox,production",
+          "multi": false,
+          "includeAll": false,
+          "current": {
+            "selected": true,
+            "text": "production",
+            "value": "production"
+          }
+        }
+      ]
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h"]
+    },
+    "annotations": {
+      "list": [
+        {
+          "datasource": "Prometheus",
+          "enable": true,
+          "expr": "pos_deployment_info",
+          "tagKeys": "version,provider",
+          "titleFormat": "Deployment",
+          "textFormat": "Version {{version}} deployed for {{provider}}"
+        },
+        {
+          "datasource": "Prometheus",
+          "enable": true,
+          "expr": "ALERTS{alertname=~\"POS.*\"}",
+          "tagKeys": "alertname,severity",
+          "titleFormat": "Alert: {{alertname}}",
+          "textFormat": "{{severity}}: {{description}}"
+        }
+      ]
+    },
+    "links": [
+      {
+        "title": "POS Integration Docs",
+        "url": "https://docs.example.com/pos-integration",
+        "targetBlank": true
+      },
+      {
+        "title": "Webhook Event Logs",
+        "url": "/d/webhook-logs/webhook-event-logs",
+        "targetBlank": false
+      },
+      {
+        "title": "Alert Configuration",
+        "url": "/alerting/list",
+        "targetBlank": false
+      }
+    ]
+  }
+}

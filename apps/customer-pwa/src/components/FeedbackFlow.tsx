@@ -80,7 +80,7 @@ export function FeedbackFlow({ qrToken, sessionData, onComplete }: FeedbackFlowP
 
   const handleTransactionVerified = (transactionData: any) => {
     // Update session data with transaction verification
-    setSession(prev => ({
+    setSession((prev: any) => ({
       ...prev,
       transactionId: transactionData.transactionId,
       transactionAmount: transactionData.amount,

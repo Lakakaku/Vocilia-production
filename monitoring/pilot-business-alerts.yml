@@ -1,0 +1,278 @@
+groups:
+  - name: pilot-business-critical
+    interval: 15s
+    rules:
+      - alert: PilotCafeOffline
+        expr: up{job=~"pilot-cafe-.*"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          pilot_program: swedish-cafes
+          business_impact: high
+        annotations:
+          summary: "🚨 Pilot Café {{ $labels.cafe_name }} is OFFLINE"
+          description: "Café {{ $labels.cafe_name }} in {{ $labels.cafe_location }} has been offline for more than 30 seconds. This affects customer experience and revenue."
+          action: "Check POS connection, network connectivity, and system status immediately"
+          runbook_url: "https://docs.feedback-platform.se/runbooks/cafe-offline"
+
+      - alert: VoiceResponseLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(voice_response_duration_seconds_bucket[2m])) by (le, cafe_name)) > 2.0
+        for: 1m
+        labels:
+          severity: critical
+          pilot_program: swedish-cafes
+          business_impact: high
+        annotations:
+          summary: "⚡ Voice response too slow at {{ $labels.cafe_name }}"
+          description: "95th percentile voice response latency is {{ $value }}s, exceeding 2s SLA at {{ $labels.cafe_name }}"
+          action: "Check AI service, network latency, and system resources"
+          customer_impact: "Poor customer experience, potential feedback abandonment"
+
+      - alert: CustomerJourneyFailureHigh
+        expr: (rate(customer_journey_completed[5m]) / rate(customer_journey_started[5m]) * 100) < 70
+        for: 2m
+        labels:
+          severity: warning
+          pilot_program: swedish-cafes
+          business_impact: medium
+        annotations:
+          summary: "📱 Low customer journey success at {{ $labels.cafe_name }}"
+          description: "Only {{ $value | humanizePercentage }} of customers complete the feedback journey at {{ $labels.cafe_name }}"
+          action: "Review customer flow, check for UI/UX issues, validate POS integration"
+          business_impact: "Reduced customer engagement and revenue"
+
+      - alert: POSConnectionLost
+        expr: pos_connection_status{job=~"pilot-cafe-.*"} == 0
+        for: 15s
+        labels:
+          severity: critical
+          pilot_program: swedish-cafes
+          business_impact: critical
+        annotations:
+          summary: "🔌 POS connection lost at {{ $labels.cafe_name }}"
+          description: "{{ $labels.pos_provider }} POS system disconnected at {{ $labels.cafe_name }}"
+          action: "Check POS OAuth tokens, API connectivity, and integration health"
+          business_impact: "Cannot verify customer transactions - platform non-functional"
+
+  - name: pilot-business-performance
+    interval: 30s
+    rules:
+      - alert: LowFeedbackVolume
+        expr: sum(rate(feedback_sessions_total[1h])) by (cafe_name) < 0.5
+        for: 10m
+        labels:
+          severity: warning
+          pilot_program: swedish-cafes
+          business_impact: low
+        annotations:
+          summary: "📉 Low feedback volume at {{ $labels.cafe_name }}"
+          description: "{{ $labels.cafe_name }} receiving less than 0.5 feedback sessions per hour ({{ $value | humanize }})"
+          action: "Check QR code placement, staff promotion, customer engagement strategies"
+          business_opportunity: "Potential to increase customer participation"
+
+      - alert: QualityScoreDropping
+        expr: avg_over_time((increase(feedback_quality_score_sum[1h]) / increase(feedback_quality_score_count[1h]))[4h:1h]) < 65
+        for: 15m
+        labels:
+          severity: warning
+          pilot_program: swedish-cafes
+          business_impact: medium
+        annotations:
+          summary: "🎯 Quality scores declining at {{ $labels.cafe_name }}"
+          description: "Average quality score at {{ $labels.cafe_name }} has dropped to {{ $value | printf \"%.1f\" }} (target: >65)"
+          action: "Review AI calibration, check for gaming attempts, analyze feedback patterns"
+          business_impact: "Lower rewards affecting customer satisfaction"
+
+      - alert: FraudActivityHigh
+        expr: rate(fraud_flags_total[10m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          pilot_program: swedish-cafes
+          business_impact: high
+        annotations:
+          summary: "🔒 Elevated fraud activity at {{ $labels.cafe_name }}"
+          description: "Fraud detection triggered {{ $value | humanize }} times in 10 minutes at {{ $labels.cafe_name }}"
+          action: "Review fraud patterns, check for suspicious activity, consider temporary limits"
+          business_impact: "Potential financial loss and platform integrity risk"
+
+  - name: pilot-business-sla
+    interval: 1m
+    rules:
+      - alert: SystemUptimeBelowSLA
+        expr: avg_over_time(up[24h]) * 100 < 99.5
+        for: 0s
+        labels:
+          severity: critical
+          pilot_program: swedish-cafes
+          business_impact: critical
+          sla_violation: "true"
+        annotations:
+          summary: "💥 System uptime SLA violation"
+          description: "System uptime is {{ $value | humanizePercentage }} over 24h (SLA: >99.5%)"
+          action: "Immediate escalation to engineering team, review incident response"
+          contract_impact: "SLA violation - potential service credits required"
+
+      - alert: PaymentProcessingDelayed
+        expr: histogram_quantile(0.95, sum(rate(payment_processing_duration_seconds_bucket[5m])) by (le)) > 30
+        for: 2m
+        labels:
+          severity: critical
+          pilot_program: swedish-cafes
+          business_impact: critical
+        annotations:
+          summary: "💳 Payment processing severely delayed"
+          description: "95th percentile payment processing time is {{ $value }}s (SLA: <30s)"
+          action: "Check Stripe Connect, Swedish banking integrations, payment queues"
+          customer_impact: "Delayed rewards affecting customer trust and satisfaction"
+
+  - name: pilot-business-operational
+    interval: 2m
+    rules:
+      - alert: HighErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) by (cafe_name) / sum(rate(http_requests_total[5m])) by (cafe_name) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+          pilot_program: swedish-cafes
+          business_impact: medium
+        annotations:
+          summary: "⚠️ High error rate at {{ $labels.cafe_name }}"
+          description: "Error rate is {{ $value | humanizePercentage }} at {{ $labels.cafe_name }} (threshold: 5%)"
+          action: "Check application logs, database connectivity, external service status"
+
+      - alert: MemoryUsageHigh
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          pilot_program: swedish-cafes
+          business_impact: low
+        annotations:
+          summary: "🧠 High memory usage on pilot infrastructure"
+          description: "Memory usage is {{ $value | printf \"%.1f\" }}% (threshold: 85%)"
+          action: "Monitor for memory leaks, consider scaling up if sustained"
+
+      - alert: DatabaseConnectionsHigh
+        expr: sum(pg_stat_activity_count) > 80
+        for: 3m
+        labels:
+          severity: warning
+          pilot_program: swedish-cafes
+          business_impact: medium
+        annotations:
+          summary: "🗄️ High database connections"
+          description: "Database has {{ $value }} active connections (limit: 100)"
+          action: "Check for connection leaks, optimize query patterns, consider connection pooling"
+
+  - name: pilot-business-swedish-specific
+    interval: 1m
+    rules:
+      - alert: SwedishBusinessHours
+        expr: (hour() >= 6 and hour() <= 22) and (rate(feedback_sessions_total[10m]) == 0)
+        for: 15m
+        labels:
+          severity: warning
+          pilot_program: swedish-cafes
+          business_impact: medium
+          timezone: Europe/Stockholm
+        annotations:
+          summary: "🇸🇪 No activity during Swedish business hours"
+          description: "No feedback sessions during Swedish business hours (06:00-22:00 Stockholm time)"
+          action: "Check if cafés are open, validate QR codes are active, review customer flow"
+          regional_context: "Swedish business hours monitoring"
+
+      - alert: SwishPaymentIssues
+        expr: rate(swish_payment_failures_total[10m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          pilot_program: swedish-cafes
+          business_impact: critical
+          payment_method: swish
+        annotations:
+          summary: "📱 Swish payment failures detected"
+          description: "{{ $value | humanize }} Swish payment failures in last 10 minutes"
+          action: "Check Swish API integration, validate Swedish banking connections"
+          customer_impact: "Swedish customers cannot receive rewards via preferred payment method"
+
+      - alert: SeasonalPatternAnomaly
+        expr: abs(avg_over_time(feedback_sessions_total[7d]) - avg_over_time(feedback_sessions_total[28d])) / avg_over_time(feedback_sessions_total[28d]) > 0.3
+        for: 1h
+        labels:
+          severity: info
+          pilot_program: swedish-cafes
+          business_impact: low
+          pattern_type: seasonal
+        annotations:
+          summary: "📊 Unusual activity pattern detected"
+          description: "Weekly activity deviates {{ $value | humanizePercentage }} from monthly average"
+          action: "Review for seasonal factors (Swedish holidays, weather, local events)"
+          insight: "Potential business optimization opportunity"
+
+routing:
+  group_by: ['alertname', 'pilot_program', 'cafe_name']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'pilot-team'
+  routes:
+    - match:
+        severity: critical
+      receiver: 'pilot-critical'
+      group_wait: 0s
+      repeat_interval: 15m
+    - match:
+        business_impact: critical
+      receiver: 'pilot-business-critical'
+      group_wait: 5s
+      repeat_interval: 30m
+    - match:
+        sla_violation: "true"
+      receiver: 'pilot-sla-violation'
+      group_wait: 0s
+      repeat_interval: 5m
+
+receivers:
+  - name: 'pilot-team'
+    webhook_configs:
+      - url: 'https://hooks.slack.com/services/pilot-team-webhook'
+        send_resolved: true
+        title: '🇸🇪 Pilot Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}\n{{ .Annotations.description }}{{ end }}'
+
+  - name: 'pilot-critical'
+    webhook_configs:
+      - url: 'https://hooks.slack.com/services/pilot-critical-webhook'
+        send_resolved: true
+        title: '🚨 CRITICAL PILOT ALERT: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}\n{{ .Annotations.action }}{{ end }}'
+    email_configs:
+      - to: 'pilot-team@feedback-platform.se'
+        subject: 'CRITICAL: Swedish Pilot Alert - {{ .GroupLabels.alertname }}'
+        html: |
+          <h2>🚨 Critical Pilot Alert</h2>
+          {{ range .Alerts }}
+          <p><strong>{{ .Annotations.summary }}</strong></p>
+          <p>{{ .Annotations.description }}</p>
+          <p><strong>Action Required:</strong> {{ .Annotations.action }}</p>
+          {{ end }}
+
+  - name: 'pilot-business-critical'
+    webhook_configs:
+      - url: 'https://hooks.slack.com/services/pilot-business-webhook'
+        send_resolved: true
+        title: '💼 Business Critical: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}\n{{ .Annotations.business_impact }}{{ end }}'
+
+  - name: 'pilot-sla-violation'
+    webhook_configs:
+      - url: 'https://hooks.slack.com/services/pilot-sla-webhook'
+        send_resolved: true
+        title: '⚖️ SLA VIOLATION: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}\n{{ .Annotations.contract_impact }}{{ end }}'
+    pagerduty_configs:
+      - routing_key: 'pilot-sla-pagerduty-key'
+        severity: 'critical'
+        client: 'Swedish Pilot Program'
+        description: '{{ .GroupLabels.alertname }} - SLA Violation'

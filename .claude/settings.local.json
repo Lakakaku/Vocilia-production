@@ -57,7 +57,19 @@
       "mcp__serena__insert_before_symbol",
       "mcp__serena__think_about_task_adherence",
       "mcp__serena__think_about_whether_you_are_done",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(./scripts/security-audit.sh:*)",
+      "Bash(npm i:*)",
+      "Bash(npm audit:*)",
+      "Bash(npm test:*)",
+      "Bash(npx jest:*)",
+      "Bash(npx playwright install:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run:*)",
+      "Bash(kill:*)",
+      "WebSearch",
+      "Bash(npm --version)",
+      "Bash(vercel:*)"
     ],
     "deny": [],
     "additionalDirectories": [

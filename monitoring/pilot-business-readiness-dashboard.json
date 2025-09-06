@@ -1,0 +1,333 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Pilot Business Readiness Dashboard",
+    "tags": ["pilot", "business-readiness", "swedish-cafes"],
+    "timezone": "Europe/Stockholm",
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "🇸🇪 Pilot Café Status Overview",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=~\"pilot-cafe-.*\"}",
+            "legendFormat": "{{cafe_name}} - {{cafe_location}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            },
+            "mappings": [
+              {"type": "value", "value": "0", "text": "OFFLINE"},
+              {"type": "value", "value": "1", "text": "ONLINE"}
+            ]
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "⚡ Real-Time Voice Sessions",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(voice_sessions_active[1m])) by (cafe_name)",
+            "legendFormat": "{{cafe_name}} Active Sessions"
+          }
+        ],
+        "yAxes": [
+          {"label": "Sessions/min", "min": 0}
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "🎯 Voice Response Quality (SLA: <2s)",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(voice_response_duration_seconds_bucket[5m])) by (le, cafe_name))",
+            "legendFormat": "{{cafe_name}} P95 Latency"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 5,
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 2},
+                {"color": "red", "value": 3}
+              ]
+            },
+            "unit": "s"
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "💰 Daily Revenue by Café",
+        "type": "bargauge",
+        "targets": [
+          {
+            "expr": "sum(increase(rewards_paid_sek_total[24h])) by (cafe_name)",
+            "legendFormat": "{{cafe_name}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "SEK",
+            "color": {"mode": "palette-classic"},
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 500},
+                {"color": "red", "value": 2000}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "📊 Feedback Quality Distribution",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum(increase(feedback_quality_score_bucket[1h])) by (le)",
+            "legendFormat": "Score {{le}}"
+          }
+        ],
+        "options": {
+          "legend": {"displayMode": "table"},
+          "pieType": "donut"
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 6,
+        "title": "🔒 Security & Fraud Detection",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "increase(fraud_flags_total[1h])",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {},
+              "indexByName": {},
+              "renameByName": {
+                "cafe_name": "Café",
+                "fraud_type": "Fraud Type",
+                "Value": "Count (1h)"
+              }
+            }
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16}
+      },
+      {
+        "id": 7,
+        "title": "🔌 POS Integration Health",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "pos_connection_status",
+            "legendFormat": "{{cafe_name}} - {{pos_provider}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "value": "0", "text": "❌ DISCONNECTED"},
+              {"type": "value", "value": "1", "text": "✅ CONNECTED"},
+              {"type": "value", "value": "2", "text": "⚠️ DEGRADED"}
+            ],
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 1},
+                {"color": "green", "value": 2}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 16}
+      },
+      {
+        "id": 8,
+        "title": "⚡ System Performance SLA",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "avg_over_time(up[24h]) * 100",
+            "format": "table",
+            "instant": true
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[24h])) * 1000",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "merge"
+          },
+          {
+            "id": "organize",
+            "options": {
+              "renameByName": {
+                "job": "Service",
+                "Value #A": "Uptime (%)",
+                "Value #B": "P99 Latency (ms)"
+              }
+            }
+          }
+        ],
+        "fieldConfig": {
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Uptime (%)"},
+              "properties": [
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "steps": [
+                      {"color": "red", "value": 0},
+                      {"color": "yellow", "value": 95},
+                      {"color": "green", "value": 99}
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 16}
+      },
+      {
+        "id": 9,
+        "title": "📱 Customer Journey Success Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(customer_journey_completed[5m]) / rate(customer_journey_started[5m]) * 100",
+            "legendFormat": "{{cafe_name}} Completion Rate"
+          }
+        ],
+        "yAxes": [
+          {"label": "Success Rate (%)", "min": 0, "max": 100}
+        ],
+        "thresholds": [
+          {"value": 70, "colorMode": "critical", "op": "lt"},
+          {"value": 85, "colorMode": "warning", "op": "lt"}
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+      },
+      {
+        "id": 10,
+        "title": "🏆 Business KPIs Today",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "sum(increase(feedback_sessions_total[24h])) by (cafe_name)",
+            "format": "table",
+            "instant": true
+          },
+          {
+            "expr": "avg(increase(feedback_quality_score_sum[24h]) / increase(feedback_quality_score_count[24h])) by (cafe_name)",
+            "format": "table",
+            "instant": true
+          },
+          {
+            "expr": "sum(increase(rewards_paid_sek_total[24h])) by (cafe_name)",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "merge"
+          },
+          {
+            "id": "organize",
+            "options": {
+              "renameByName": {
+                "cafe_name": "Café",
+                "Value #A": "Sessions Today",
+                "Value #B": "Avg Quality Score",
+                "Value #C": "Rewards Paid (SEK)"
+              }
+            }
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "cafe",
+          "type": "query",
+          "query": "label_values(cafe_name)",
+          "refresh": 1,
+          "includeAll": true,
+          "allValue": ".*"
+        },
+        {
+          "name": "time_range",
+          "type": "custom",
+          "options": [
+            {"text": "Last Hour", "value": "1h"},
+            {"text": "Last 4 Hours", "value": "4h"},
+            {"text": "Last 24 Hours", "value": "24h"},
+            {"text": "Last 7 Days", "value": "7d"}
+          ],
+          "current": {"text": "Last Hour", "value": "1h"}
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Deployments",
+          "datasource": "prometheus",
+          "expr": "increase(deployment_timestamp[1m])",
+          "iconColor": "blue"
+        },
+        {
+          "name": "Alerts",
+          "datasource": "prometheus", 
+          "expr": "ALERTS{alertstate=\"firing\"}",
+          "iconColor": "red"
+        }
+      ]
+    }
+  }
+}

@@ -15,13 +15,19 @@ import { paymentsRoutes } from './routes/payments';
 import { posHealthRoutes } from './routes/pos-health';
 import { posWebhookRoutes } from './routes/pos-webhooks';
 import { swedishOperationsRoutes } from './routes/swedish-operations';
+import simpleVerificationRoutes from './routes/simple-verification';
+import storeVerificationRoutes from './routes/store-verification';
+import paymentProcessingRoutes from './routes/payment-processing';
+import jobManagementRoutes from './routes/job-management';
 import locationMappingRoutes from './routes/location-mapping';
 import integrationMonitoringRoutes from './routes/integration-monitoring';
 import manualOverrideRoutes from './routes/manual-overrides';
+import billingAdminRoutes from './routes/billing-admin';
 import { errorHandler } from './middleware/errorHandler';
 import { optionalAuth, createUserRateLimit } from './middleware/auth';
 import { setupWebSocket } from './websocket/voiceHandler';
 import { setupAdminWebSocket, cleanupAdminWebSocket } from './websocket/adminHandler';
+import { initializeJobScheduler } from './jobs/JobScheduler';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './docs/openapi';
 import metricsEndpoints from './middleware/metricsEndpoint';
@@ -92,6 +98,10 @@ app.use('/health', healthRoutes);
 app.use('/api/qr', qrRoutes);
 app.use('/api/feedback', voiceLimiter, voiceUserLimit, feedbackRoutes);
 app.use('/api/business', businessRoutes);
+app.use('/api/simple-verification', simpleVerificationRoutes);
+app.use('/api/store-verification', storeVerificationRoutes);
+app.use('/api/payment-processing', paymentProcessingRoutes);
+app.use('/api/job-management', jobManagementRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/pos', posHealthRoutes);
 app.use('/webhooks', posWebhookRoutes);
@@ -102,6 +112,7 @@ app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin', integrationMonitoringRoutes);
 app.use('/api/admin', manualOverrideRoutes);
+app.use('/api/billing-admin', billingAdminRoutes);
 
 // WebSocket setup for voice streaming and admin dashboard
 setupWebSocket(wss);
@@ -128,6 +139,14 @@ server.listen(PORT, () => {
   console.log(`📱 Health check: http://localhost:${PORT}/health`);
   console.log(`🎤 WebSocket server ready for voice connections`);
   console.log(`📊 WebSocket server ready for admin dashboard connections`);
+  
+  // Initialize job scheduler
+  try {
+    initializeJobScheduler();
+    console.log(`⏰ Job scheduler initialized and running`);
+  } catch (error) {
+    console.error(`❌ Failed to initialize job scheduler:`, error);
+  }
 });
 
 // Graceful shutdown handling

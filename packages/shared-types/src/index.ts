@@ -1,3 +1,31 @@
+// Verification method types
+export type VerificationMethod = 'pos_integration' | 'simple_verification';
+
+export interface VerificationPreferences {
+  pos_integration: {
+    preferred_provider: POSProvider | null;
+    auto_connect: boolean;
+    require_transaction_match: boolean;
+  };
+  simple_verification: {
+    enabled: boolean;
+    verification_tolerance: {
+      time_minutes: number;
+      amount_sek: number;
+    };
+    review_period_days: number;
+    auto_approve_threshold: number;
+    daily_limits: {
+      max_per_phone: number;
+      max_per_ip: number;
+    };
+    fraud_settings: {
+      auto_reject_threshold: number;
+      manual_review_threshold: number;
+    };
+  };
+}
+
 // Core business entities
 export interface Business {
   id: string;
@@ -12,6 +40,10 @@ export interface Business {
   status: BusinessStatus;
   trialFeedbacksRemaining: number;
   trialExpiresAt: string;
+  verificationMethod: VerificationMethod;
+  verificationPreferences: VerificationPreferences;
+  verificationMethodChangedAt?: string;
+  verificationMethodChangedBy?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -263,6 +295,212 @@ export interface AdminUser {
 }
 
 export type AdminRole = 'admin' | 'super_admin';
+
+// Simple Verification types
+export interface StoreCode {
+  id: string;
+  businessId: string;
+  locationId?: string;
+  code: string; // 6-digit numeric code
+  name?: string;
+  active: boolean;
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SimpleVerification {
+  id: string;
+  sessionId: string;
+  businessId: string;
+  locationId?: string;
+  storeCode?: string;
+  purchaseTime: string;
+  purchaseAmount: number;
+  customerPhone: string;
+  submittedAt: string;
+  deviceFingerprint?: DeviceFingerprint;
+  ipAddress?: string;
+  userAgent?: string;
+  reviewStatus: SimpleVerificationReviewStatus;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  rejectionReason?: string;
+  billingBatchId?: string;
+  paymentStatus: SimpleVerificationPaymentStatus;
+  paymentAmount?: number;
+  commissionAmount?: number;
+  storeCost?: number;
+  paymentId?: string;
+  paidAt?: string;
+  fraudScore: number;
+  fraudFlags: SimpleVerificationFraudFlag[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SimpleVerificationReviewStatus = 
+  | 'pending' 
+  | 'approved' 
+  | 'rejected' 
+  | 'auto_approved';
+
+export type SimpleVerificationPaymentStatus = 
+  | 'pending' 
+  | 'paid' 
+  | 'failed';
+
+export interface SimpleVerificationFraudFlag {
+  type: SimpleVerificationFraudType;
+  severity: 'low' | 'medium' | 'high';
+  description: string;
+  confidence: number;
+  data?: Record<string, unknown>;
+}
+
+export type SimpleVerificationFraudType = 
+  | 'phone_abuse'
+  | 'time_pattern'
+  | 'amount_pattern'
+  | 'rapid_submission'
+  | 'location_mismatch'
+  | 'duplicate_verification';
+
+export interface MonthlyBillingBatch {
+  id: string;
+  businessId: string;
+  billingMonth: string; // YYYY-MM-DD format
+  totalVerifications: number;
+  approvedVerifications: number;
+  rejectedVerifications: number;
+  totalCustomerPayments: number;
+  totalCommission: number;
+  totalStoreCost: number;
+  status: BillingBatchStatus;
+  reviewDeadline?: string;
+  paymentDueDate?: string;
+  storeInvoiceGenerated: boolean;
+  storePaymentReceived: boolean;
+  customerPaymentsSent: boolean;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
+
+export type BillingBatchStatus = 
+  | 'collecting' 
+  | 'review_period' 
+  | 'payment_processing' 
+  | 'completed';
+
+export interface SimpleVerificationSettings {
+  enabled: boolean;
+  verificationTolerance: {
+    timeMinutes: number;
+    amountSek: number;
+  };
+  reviewPeriodDays: number;
+  autoApproveThreshold: number; // Fraud score threshold for auto-approval
+  dailyLimits: {
+    maxPerPhone: number;
+    maxPerIp: number;
+  };
+  fraudSettings: {
+    autoRejectThreshold: number;
+    manualReviewThreshold: number;
+  };
+}
+
+// Simple verification form data for customer interface
+export interface SimpleVerificationFormData {
+  storeCodeOrQR: string;
+  purchaseTime: {
+    date: string;
+    time: string;
+  };
+  purchaseAmount: number;
+  customerPhone: string;
+}
+
+// Business dashboard data types
+export interface SimpleVerificationSummary {
+  businessId: string;
+  businessName: string;
+  totalVerifications: number;
+  pendingReviews: number;
+  approved: number;
+  rejected: number;
+  totalCostApproved: number;
+  avgFraudScore?: number;
+  highRiskVerifications: number;
+}
+
+export interface VerificationReviewItem {
+  verification: SimpleVerification;
+  session: {
+    id: string;
+    qualityScore?: number;
+    transcript?: string;
+    feedbackCategories?: string[];
+  };
+  fraudRisk: {
+    score: number;
+    flags: SimpleVerificationFraudFlag[];
+    recommendation: 'approve' | 'review' | 'reject';
+  };
+}
+
+// Swish payment types for simple verification
+export interface SwishBatchPayment {
+  batchId: string;
+  payments: SwishPaymentItem[];
+  totalAmount: number;
+  currency: 'SEK';
+  reference: string;
+}
+
+export interface SwishPaymentItem {
+  verificationId: string;
+  phoneNumber: string;
+  amount: number;
+  message: string;
+}
+
+// Store management types
+export interface StoreCodeGenerationRequest {
+  businessId: string;
+  locationId?: string;
+  name?: string;
+  expiresAt?: string;
+}
+
+export interface SimpleVerificationStats {
+  today: {
+    verifications: number;
+    fraudulent: number;
+    pending: number;
+  };
+  thisMonth: {
+    verifications: number;
+    totalPayout: number;
+    avgFraudScore: number;
+  };
+  topPhones: {
+    phone: string;
+    count: number;
+    riskScore: number;
+  }[];
+}
+
+// Update existing types to support simple verification
+export interface ExtendedBusiness extends Business {
+  simpleVerificationSettings?: SimpleVerificationSettings;
+}
+
+export interface ExtendedFeedbackSession extends FeedbackSession {
+  verificationType: 'pos_integration' | 'simple_verification';
+  simpleVerificationId?: string;
+}
 
 // Analytics types
 export * from './analytics';

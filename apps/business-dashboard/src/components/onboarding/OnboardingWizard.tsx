@@ -9,8 +9,11 @@ import {
   MapPin, 
   Settings, 
   Users, 
-  CheckCircle
+  CheckCircle,
+  Shield
 } from 'lucide-react';
+import type { VerificationMethod } from '@ai-feedback/shared-types';
+import { VerificationMethodSelector } from './VerificationMethodSelector';
 
 interface OnboardingStep {
   id: string;
@@ -33,6 +36,7 @@ interface OnboardingData {
     website: string;
     description: string;
   };
+  verificationMethod: VerificationMethod | null;
   locations: Array<{
     name: string;
     address: string;
@@ -73,6 +77,7 @@ const INITIAL_DATA: OnboardingData = {
     website: '',
     description: ''
   },
+  verificationMethod: null,
   locations: [],
   businessContext: {
     type: '',
@@ -87,7 +92,25 @@ const INITIAL_DATA: OnboardingData = {
 
 export function OnboardingWizard() {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [data, setData] = useState<OnboardingData>(INITIAL_DATA);
+  const [data, setData] = useState<OnboardingData>(() => {
+    // Pre-populate with signup data if available
+    try {
+      const signupData = localStorage.getItem('ai-feedback-signup-data');
+      if (signupData) {
+        const parsed = JSON.parse(signupData);
+        return {
+          ...INITIAL_DATA,
+          businessInfo: {
+            ...INITIAL_DATA.businessInfo,
+            ...parsed.businessInfo
+          }
+        };
+      }
+    } catch (error) {
+      console.error('Error loading signup data:', error);
+    }
+    return INITIAL_DATA;
+  });
   const [isCompleting, setIsCompleting] = useState(false);
 
   const steps: OnboardingStep[] = [
@@ -100,12 +123,20 @@ export function OnboardingWizard() {
       isActive: currentStepIndex === 0
     },
     {
+      id: 'verification-method',
+      title: 'Verifieringsmetod',
+      description: 'Välj hur du vill verifiera kundernas köp',
+      icon: Shield,
+      isCompleted: data.verificationMethod !== null,
+      isActive: currentStepIndex === 1
+    },
+    {
       id: 'locations',
       title: 'Platser',
       description: 'Lägg till dina affärsplatser',
       icon: MapPin,
       isCompleted: data.locations.length > 0,
-      isActive: currentStepIndex === 1
+      isActive: currentStepIndex === 2
     },
     {
       id: 'business-context',
@@ -113,7 +144,7 @@ export function OnboardingWizard() {
       description: 'Konfigurera AI-systemet för din bransch',
       icon: Settings,
       isCompleted: isBusinessContextComplete(),
-      isActive: currentStepIndex === 2
+      isActive: currentStepIndex === 3
     },
     {
       id: 'team',
@@ -121,7 +152,7 @@ export function OnboardingWizard() {
       description: 'Lägg till teammedlemmar och roller',
       icon: Users,
       isCompleted: data.teamMembers.length > 0,
-      isActive: currentStepIndex === 3
+      isActive: currentStepIndex === 4
     }
   ];
 
@@ -181,7 +212,8 @@ export function OnboardingWizard() {
             city: data.businessInfo.city,
             postal_code: data.businessInfo.postalCode
           },
-          createStripeAccount: true, // Enable Stripe Connect TEST mode
+          createStripeAccount: data.verificationMethod === 'pos_integration', // Only enable Stripe for POS integration
+          verificationMethod: data.verificationMethod,
           businessContext: data.businessContext
         })
       });
@@ -214,19 +246,24 @@ export function OnboardingWizard() {
       // Success - redirect to verification or dashboard
       console.log('🎉 Onboarding completed successfully!');
       
-      // Store onboarding completion
+      // Store onboarding completion and clean up signup data
       localStorage.setItem('businessId', businessId);
       localStorage.setItem('onboardingCompleted', 'true');
+      localStorage.removeItem('ai-feedback-signup-data'); // Clean up signup data
       
-      if (onboardingUrl) {
+      if (data.verificationMethod === 'simple_verification') {
+        // Show store code for simple verification
+        const storeCode = businessData.data.storeCode;
+        alert(`Onboarding complete!\n\nBusiness ID: ${businessId}\nVerification Method: Simple Verification\n\nYour Store Code: ${storeCode}\n\nKeep this code safe - customers will need it for verification.`);
+        // In a real app: router.push('/dashboard?setup=simple');
+      } else if (onboardingUrl) {
         localStorage.setItem('stripeOnboardingUrl', onboardingUrl);
-        alert(`Onboarding complete! \n\nNext step: Complete Stripe Connect setup\n\nBusiness ID: ${businessId}`);
+        alert(`Onboarding complete! \n\nNext step: Complete Stripe Connect setup\n\nBusiness ID: ${businessId}\n\nYou'll be redirected to Stripe to complete payment setup.`);
+        // In a real app: window.location.href = onboardingUrl;
       } else {
-        alert(`Onboarding complete!\n\nBusiness ID: ${businessId}\n\nYou can now proceed to verification.`);
+        alert(`Onboarding complete!\n\nBusiness ID: ${businessId}\n\nYou can now access your dashboard.`);
+        // In a real app: router.push('/dashboard');
       }
-      
-      // In a real app, you would redirect:
-      // router.push(`/verification?businessId=${businessId}`);
       
     } catch (error) {
       console.error('Failed to complete onboarding:', error);
@@ -293,74 +330,82 @@ export function OnboardingWizard() {
 
           {/* Step content */}
           <div className="lg:col-span-3">
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              {currentStepIndex === 0 && (
-                <BusinessInfoStep 
-                  data={data.businessInfo} 
-                  onChange={(businessInfo) => setData({...data, businessInfo})} 
-                />
-              )}
-              {currentStepIndex === 1 && (
-                <LocationsStep 
-                  data={data.locations} 
-                  onChange={(locations) => setData({...data, locations})} 
-                />
-              )}
-              {currentStepIndex === 2 && (
-                <BusinessContextStep 
-                  data={data.businessContext} 
-                  onChange={(businessContext) => setData({...data, businessContext})} 
-                />
-              )}
-              {currentStepIndex === 3 && (
-                <TeamStep 
-                  data={data.teamMembers} 
-                  locations={data.locations}
-                  onChange={(teamMembers) => setData({...data, teamMembers})} 
-                />
-              )}
-
-              {/* Navigation buttons */}
-              <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
-                <button
-                  onClick={handleBack}
-                  disabled={currentStepIndex === 0}
-                  className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  Tillbaka
-                </button>
-
-                {currentStepIndex === steps.length - 1 ? (
-                  <button
-                    onClick={handleComplete}
-                    disabled={!canComplete() || isCompleting}
-                    className="flex items-center gap-2 px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                  >
-                    {isCompleting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                        Slutför...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="w-4 h-4" />
-                        Slutför konfiguration
-                      </>
-                    )}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleNext}
-                    disabled={!canProceedToNext()}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                  >
-                    Nästa
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
+            {currentStepIndex === 1 ? (
+              <VerificationMethodSelector
+                selectedMethod={data.verificationMethod}
+                onMethodChange={(verificationMethod) => setData({...data, verificationMethod})}
+                onComplete={() => handleNext()}
+              />
+            ) : (
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                {currentStepIndex === 0 && (
+                  <BusinessInfoStep 
+                    data={data.businessInfo} 
+                    onChange={(businessInfo) => setData({...data, businessInfo})} 
+                  />
                 )}
+                {currentStepIndex === 2 && (
+                  <LocationsStep 
+                    data={data.locations} 
+                    onChange={(locations) => setData({...data, locations})} 
+                  />
+                )}
+                {currentStepIndex === 3 && (
+                  <BusinessContextStep 
+                    data={data.businessContext} 
+                    onChange={(businessContext) => setData({...data, businessContext})} 
+                  />
+                )}
+                {currentStepIndex === 4 && (
+                  <TeamStep 
+                    data={data.teamMembers} 
+                    locations={data.locations}
+                    onChange={(teamMembers) => setData({...data, teamMembers})} 
+                  />
+                )}
+
+                {/* Navigation buttons - only show for non-verification steps */}
+                <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
+                  <button
+                    onClick={handleBack}
+                    disabled={currentStepIndex === 0}
+                    className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    Tillbaka
+                  </button>
+
+                  {currentStepIndex === steps.length - 1 ? (
+                    <button
+                      onClick={handleComplete}
+                      disabled={!canComplete() || isCompleting}
+                      className="flex items-center gap-2 px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    >
+                      {isCompleting ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                          Slutför...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-4 h-4" />
+                          Slutför konfiguration
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleNext}
+                      disabled={!canProceedToNext()}
+                      className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    >
+                      Nästa
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

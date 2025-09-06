@@ -1,0 +1,25 @@
+{
+  "name": "@ai-feedback/swish-payout",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Swish Payout API integration for customer cashback payments",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@ai-feedback/shared-types": "workspace:*",
+    "axios": "^1.6.0",
+    "https": "^1.0.0",
+    "fs": "^0.0.1-security",
+    "path": "^0.12.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "jest": "^29.0.0",
+    "@types/jest": "^29.0.0"
+  }
+}

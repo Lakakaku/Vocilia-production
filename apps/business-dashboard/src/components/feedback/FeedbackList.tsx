@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Clock, User, Star, MessageSquare, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock, User, Star, MessageSquare, ExternalLink, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { useFeedbackData, MOCK_BUSINESS_ID } from '@/services/hooks';
 import type { FeedbackFilter } from '@/app/feedback/page';
 
 interface FeedbackItem {
@@ -22,77 +23,6 @@ interface FeedbackItem {
   };
 }
 
-// Extended mock data
-const mockFeedback: FeedbackItem[] = [
-  {
-    id: '1',
-    customer: 'Anonym Kund',
-    score: 85,
-    categories: ['service', 'kvalitet'],
-    excerpt: 'Mycket bra service och trevlig personal. Kaffe var riktigt bra och...',
-    fullText: 'Mycket bra service och trevlig personal. Kaffe var riktigt bra och atmosfären var mysig. Jag kommer definitivt tillbaka. Personalen tog sig tid att förklara olika kaffesorter och hjälpte mig hitta något som passade min smak. Miljön var ren och inbjudande.',
-    reward: '12.50 kr',
-    time: '2 min sedan',
-    sentiment: 'positive',
-    metadata: {
-      location: 'Stockholm, Södermalm',
-      purchaseAmount: 125,
-      items: ['Cappuccino', 'Kanelbulle'],
-      deviceType: 'iPhone'
-    }
-  },
-  {
-    id: '2',
-    customer: 'Anonym Kund',
-    score: 67,
-    categories: ['miljö', 'service'],
-    excerpt: 'Butiken var ren och välorganiserad. Dock var det lite långsamt i kassan...',
-    fullText: 'Butiken var ren och välorganiserad. Dock var det lite långsamt i kassan och jag fick vänta längre än väntat. Personalen var trevlig men verkade lite stressad. Kaffet var okej men inget speciellt.',
-    reward: '4.25 kr',
-    time: '15 min sedan',
-    sentiment: 'neutral',
-    metadata: {
-      location: 'Stockholm, Östermalm', 
-      purchaseAmount: 85,
-      items: ['Latte', 'Croissant'],
-      deviceType: 'Android'
-    }
-  },
-  {
-    id: '3',
-    customer: 'Anonym Kund',
-    score: 92,
-    categories: ['produkter', 'service', 'kvalitet'],
-    excerpt: 'Fantastisk upplevelse! Personalen var mycket kunnig och hjälpsam...',
-    fullText: 'Fantastisk upplevelse! Personalen var mycket kunnig och hjälpsam. Kaffet var extraordinärt och bakverken var färska och välsmakande. Atmosfären var perfekt för att arbeta eller träffa vänner. Detta är definitivt mitt nya favoritcafé.',
-    reward: '18.75 kr',
-    time: '32 min sedan',
-    sentiment: 'positive',
-    metadata: {
-      location: 'Stockholm, Vasastan',
-      purchaseAmount: 175,
-      items: ['Espresso', 'Americano', 'Äppelpaj'],
-      deviceType: 'iPhone'
-    }
-  },
-  {
-    id: '4',
-    customer: 'Anonym Kund',
-    score: 58,
-    categories: ['miljö', 'väntetid'],
-    excerpt: 'Lite rörigt i butiken och fick vänta länge vid kassan. Personalen var...',
-    fullText: 'Lite rörigt i butiken och fick vänta länge vid kassan. Personalen var stressad och inte särskilt hjälpsam. Kaffet var ljummet när jag fick det. Behöver förbättra organisationen.',
-    reward: '0 kr',
-    time: '1 tim sedan',
-    sentiment: 'negative',
-    metadata: {
-      location: 'Stockholm, Gamla Stan',
-      purchaseAmount: 95,
-      items: ['Cappuccino'],
-      deviceType: 'Android'
-    }
-  },
-];
 
 interface FeedbackListProps {
   filters: FeedbackFilter;
@@ -102,8 +32,46 @@ export function FeedbackList({ filters }: FeedbackListProps) {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<'time' | 'score' | 'sentiment'>('time');
 
+  // Fetch feedback data from API
+  const { data: feedbackData, loading, error, refetch } = useFeedbackData(MOCK_BUSINESS_ID, {
+    sentiment: filters.sentiment !== 'all' ? filters.sentiment : undefined,
+    category: filters.category !== 'all' ? filters.category : undefined,
+    search: filters.search || undefined,
+    limit: 50
+  });
+
+  if (loading) {
+    return (
+      <div className="card">
+        <div className="flex items-center justify-center h-32">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+          <span className="ml-2 text-gray-600">Loading feedback...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="card">
+        <div className="text-center py-8 text-red-600">
+          <p className="font-medium">Unable to load feedback</p>
+          <p className="text-sm text-gray-500 mt-1">{error}</p>
+          <button 
+            onClick={() => refetch()}
+            className="mt-2 px-4 py-2 bg-red-100 text-red-700 rounded hover:bg-red-200"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const feedbackItems = (feedbackData as any)?.items || [];
+  
   // Filter and sort feedback based on current filters
-  const filteredFeedback = mockFeedback
+  const filteredFeedback = feedbackItems
     .filter(item => {
       // Search filter
       if (filters.search) {
@@ -329,7 +297,7 @@ export function FeedbackList({ filters }: FeedbackListProps) {
         <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-600">
-              Visar {filteredFeedback.length} av {mockFeedback.length} feedback
+              Visar {filteredFeedback.length} av {(feedbackData as any)?.total || filteredFeedback.length} feedback
             </p>
             <button className="btn-secondary text-sm">
               Ladda fler

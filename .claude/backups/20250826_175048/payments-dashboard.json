@@ -1,0 +1,523 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Swedish Pilot - Payment System TEST Dashboard",
+    "tags": ["payments", "test", "swedish-pilot", "finansinspektionen"],
+    "style": "dark",
+    "timezone": "Europe/Stockholm",
+    "refresh": "30s",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "🇸🇪 Swedish Pilot Status",
+        "type": "stat",
+        "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "up{job=\"payments-test-gateway\"}",
+            "legendFormat": "Payment Gateway",
+            "refId": "A"
+          },
+          {
+            "expr": "up{job=\"finansinspektionen-mock\"}",
+            "legendFormat": "FI Mock API",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "green", "value": 1 }
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "values": false
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "💳 Test Payments Overview (Last 24h)",
+        "type": "stat",
+        "gridPos": { "h": 8, "w": 8, "x": 0, "y": 6 },
+        "targets": [
+          {
+            "expr": "sum(increase(payments_total{test_mode=\"true\"}[24h]))",
+            "legendFormat": "Total Payments",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(increase(payments_total{test_mode=\"true\",status=\"completed\"}[24h]))",
+            "legendFormat": "Successful",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(increase(payments_total{test_mode=\"true\",status=\"failed\"}[24h]))",
+            "legendFormat": "Failed",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "values": false
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "💰 Test Payment Volume (SEK)",
+        "type": "stat",
+        "gridPos": { "h": 8, "w": 8, "x": 8, "y": 6 },
+        "targets": [
+          {
+            "expr": "sum(payment_amount_sek{test_mode=\"true\"})",
+            "legendFormat": "Total Volume",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "continuous-GrYlRd" },
+            "unit": "SEK",
+            "decimals": 0
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "values": false
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "⚡ Payment Processing Speed",
+        "type": "stat",
+        "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, payment_processing_duration_seconds_bucket{status=\"completed\"})",
+            "legendFormat": "95th Percentile",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.50, payment_processing_duration_seconds_bucket{status=\"completed\"})",
+            "legendFormat": "Median",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "unit": "s",
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 2 },
+                { "color": "red", "value": 5 }
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto"
+        }
+      },
+      {
+        "id": 5,
+        "title": "📊 Payment Timeline (Test Mode)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+        "targets": [
+          {
+            "expr": "rate(payments_total{test_mode=\"true\"}[5m])",
+            "legendFormat": "{{status}} - {{method}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "fillOpacity": 20,
+              "lineWidth": 2
+            },
+            "color": { "mode": "palette-classic" },
+            "unit": "reqps"
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "none" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        }
+      },
+      {
+        "id": 6,
+        "title": "🏛️ Swedish Compliance Events",
+        "type": "stat",
+        "gridPos": { "h": 6, "w": 12, "x": 0, "y": 22 },
+        "targets": [
+          {
+            "expr": "sum(increase(compliance_events_total{type=\"payment_completed\"}[24h]))",
+            "legendFormat": "Payment Events",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(increase(compliance_events_total{type=\"payment_error\"}[24h]))",
+            "legendFormat": "Error Events",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(increase(compliance_events_total{severity=\"error\"}[24h]))",
+            "legendFormat": "Critical Events",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 10 },
+                { "color": "red", "value": 50 }
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "center",
+          "orientation": "horizontal"
+        }
+      },
+      {
+        "id": 7,
+        "title": "🗺️ Regional Distribution (Swedish Cities)",
+        "type": "piechart",
+        "gridPos": { "h": 6, "w": 12, "x": 12, "y": 22 },
+        "targets": [
+          {
+            "expr": "sum by (region) (payment_amount_sek{test_mode=\"true\"})",
+            "legendFormat": "{{region}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "unit": "SEK"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "values": false
+          },
+          "pieType": "donut",
+          "tooltipMode": "single",
+          "legendDisplayMode": "list",
+          "legendPlacement": "right"
+        }
+      },
+      {
+        "id": 8,
+        "title": "🎯 Business Performance (Test Businesses)",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 28 },
+        "targets": [
+          {
+            "expr": "sum by (business_id) (payment_amount_sek{test_mode=\"true\"})",
+            "format": "table",
+            "legendFormat": "",
+            "refId": "A"
+          },
+          {
+            "expr": "count by (business_id) (payments_total{test_mode=\"true\"})",
+            "format": "table",
+            "legendFormat": "",
+            "refId": "B"
+          },
+          {
+            "expr": "avg by (business_id) (payment_amount_sek{test_mode=\"true\"})",
+            "format": "table",
+            "legendFormat": "",
+            "refId": "C"
+          }
+        ],
+        "transformations": [
+          { "id": "merge", "options": { "reducers": [] } }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": { "align": "auto", "displayMode": "auto" }
+          },
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "Value #A" },
+              "properties": [
+                { "id": "displayName", "value": "Total Volume (SEK)" },
+                { "id": "unit", "value": "SEK" },
+                { "id": "custom.displayMode", "value": "color-background" }
+              ]
+            },
+            {
+              "matcher": { "id": "byName", "options": "Value #B" },
+              "properties": [
+                { "id": "displayName", "value": "Payment Count" },
+                { "id": "unit", "value": "short" }
+              ]
+            },
+            {
+              "matcher": { "id": "byName", "options": "Value #C" },
+              "properties": [
+                { "id": "displayName", "value": "Avg Amount (SEK)" },
+                { "id": "unit", "value": "SEK" }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 9,
+        "title": "🔍 Payment Method Distribution",
+        "type": "barchart",
+        "gridPos": { "h": 6, "w": 12, "x": 0, "y": 36 },
+        "targets": [
+          {
+            "expr": "sum by (method) (increase(payments_total{test_mode=\"true\"}[24h]))",
+            "legendFormat": "{{method}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "orientation": "horizontal",
+          "barRadius": 0.1,
+          "xTickLabelRotation": 0,
+          "xTickLabelSpacing": 100
+        }
+      },
+      {
+        "id": 10,
+        "title": "⏱️ Processing Time Distribution",
+        "type": "heatmap",
+        "gridPos": { "h": 6, "w": 12, "x": 12, "y": 36 },
+        "targets": [
+          {
+            "expr": "rate(payment_processing_duration_seconds_bucket{status=\"completed\"}[5m])",
+            "legendFormat": "{{le}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "hideFrom": { "legend": false, "tooltip": false, "vis": false }
+            }
+          }
+        },
+        "options": {
+          "calculate": true,
+          "cellGap": 2,
+          "cellValues": {},
+          "color": {
+            "exponent": 0.5,
+            "fill": "dark-orange",
+            "mode": "scheme",
+            "scale": "exponential",
+            "scheme": "Oranges"
+          },
+          "exemplars": {
+            "color": "rgba(255,0,255,0.7)"
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "📈 Swedish Financial Authority Reporting Status",
+        "type": "logs",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 42 },
+        "targets": [
+          {
+            "expr": "{job=\"compliance-logger\"} |= \"FI\"",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showTime": true,
+          "showLabels": true,
+          "showCommonLabels": false,
+          "wrapLogMessage": true,
+          "prettifyLogMessage": false,
+          "enableLogDetails": true,
+          "dedupStrategy": "none",
+          "sortOrder": "Descending"
+        }
+      },
+      {
+        "id": 12,
+        "title": "🛡️ System Health Indicators",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 24, "x": 0, "y": 50 },
+        "targets": [
+          {
+            "expr": "up{job=\"payments-test-db\"}",
+            "legendFormat": "Test Database",
+            "refId": "A"
+          },
+          {
+            "expr": "up{job=\"payments-test-redis\"}",
+            "legendFormat": "Redis Cache",
+            "refId": "B"
+          },
+          {
+            "expr": "up{job=\"stripe-webhook-mock\"}",
+            "legendFormat": "Stripe Mock",
+            "refId": "C"
+          },
+          {
+            "expr": "up{job=\"payments-metrics-exporter\"}",
+            "legendFormat": "Metrics Exporter",
+            "refId": "D"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "green", "value": 1 }
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "values": false
+          }
+        }
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "business_id",
+          "type": "query",
+          "query": "label_values(business_id)",
+          "refresh": 1,
+          "includeAll": true,
+          "multi": true,
+          "current": {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          }
+        },
+        {
+          "name": "region",
+          "type": "query",
+          "query": "label_values(region)",
+          "refresh": 1,
+          "includeAll": true,
+          "multi": true,
+          "current": {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          }
+        },
+        {
+          "name": "payment_method",
+          "type": "query",
+          "query": "label_values(method)",
+          "refresh": 1,
+          "includeAll": true,
+          "multi": true,
+          "current": {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          }
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Payment System Events",
+          "enable": true,
+          "iconColor": "blue",
+          "query": "ALERTS{job=\"payments-test-gateway\"}",
+          "textFormat": "{{alertname}}: {{summary}}",
+          "tags": ["payments", "test", "alerts"],
+          "type": "prometheus"
+        },
+        {
+          "name": "Compliance Events",
+          "enable": true,
+          "iconColor": "orange",
+          "query": "compliance_events_total",
+          "textFormat": "Compliance: {{type}} - {{severity}}",
+          "tags": ["compliance", "finansinspektionen"],
+          "type": "prometheus"
+        },
+        {
+          "name": "Swedish Pilot Milestones",
+          "enable": true,
+          "iconColor": "green",
+          "query": "",
+          "textFormat": "Pilot Milestone: {{text}}",
+          "tags": ["pilot", "milestones"],
+          "type": "manual"
+        }
+      ]
+    }
+  }
+}

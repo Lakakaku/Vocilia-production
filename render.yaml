@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: ai-feedback-api-gateway
+    env: node
+    plan: free
+    buildCommand: cd apps/api-gateway && npm run build
+    startCommand: cd apps/api-gateway && npm run start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      # Database
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      # AI Services
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Supabase
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      # App URLs for CORS
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: NEXT_PUBLIC_BUSINESS_DASHBOARD_URL
+        sync: false
+      - key: NEXT_PUBLIC_ADMIN_DASHBOARD_URL
+        sync: false

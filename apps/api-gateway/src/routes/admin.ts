@@ -6702,3 +6702,904 @@ adminRoutes.get('/score-overrides/analytics', requirePermission('analytics:read'
   }
 });
 
+// ===== BUSINESS MANAGEMENT ENDPOINTS =====
+
+/**
+ * @openapi
+ * /api/admin/businesses:
+ *   get:
+ *     summary: Get all businesses with filtering and pagination
+ *     tags: [Admin Business Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, active, suspended, trial]
+ *     responses:
+ *       200:
+ *         description: Businesses retrieved successfully
+ */
+adminRoutes.get('/businesses', requirePermission('business:read'), async (req, res) => {
+  try {
+    const { page = 1, limit = 20, search = '', status = '', dateFrom = '', dateTo = '' } = req.query;
+
+    // In production, this would query the database
+    // Mock data for now
+    const mockBusinesses = [
+      {
+        id: 'bus-001',
+        name: 'Café Stockholm Central',
+        orgNumber: '556123-4567',
+        email: 'info@cafestockholm.se',
+        phone: '+46 8 123 45 67',
+        status: 'active',
+        trialFeedbacksRemaining: null,
+        trialExpiresAt: null,
+        rewardSettings: {
+          commissionRate: 0.20,
+          maxDailyRewards: 1000,
+          rewardTiers: {
+            exceptional: { min: 90, max: 100, reward: [0.08, 0.12] },
+            very_good: { min: 75, max: 89, reward: [0.04, 0.07] },
+            acceptable: { min: 60, max: 74, reward: [0.01, 0.03] },
+            insufficient: { min: 0, max: 59, reward: [0, 0] }
+          }
+        },
+        createdAt: '2024-01-15T10:30:00Z',
+        updatedAt: '2024-08-20T14:22:00Z',
+        totalFeedbacks: 1247,
+        totalRevenue: 312500,
+        totalCommission: 62500,
+        activeLocations: 3
+      },
+      {
+        id: 'bus-002',
+        name: 'ICA Supermarket Göteborg',
+        orgNumber: '559876-5432',
+        email: 'chef@icagoteborg.se',
+        phone: '+46 31 987 65 43',
+        status: 'pending',
+        trialFeedbacksRemaining: 30,
+        trialExpiresAt: '2024-09-15T23:59:59Z',
+        rewardSettings: {
+          commissionRate: 0.20,
+          maxDailyRewards: 2000,
+          rewardTiers: {
+            exceptional: { min: 90, max: 100, reward: [0.08, 0.12] },
+            very_good: { min: 75, max: 89, reward: [0.04, 0.07] },
+            acceptable: { min: 60, max: 74, reward: [0.01, 0.03] },
+            insufficient: { min: 0, max: 59, reward: [0, 0] }
+          }
+        },
+        createdAt: '2024-08-18T16:45:00Z',
+        updatedAt: '2024-08-20T11:15:00Z',
+        totalFeedbacks: 45,
+        totalRevenue: 8750,
+        totalCommission: 1750,
+        activeLocations: 1
+      },
+      {
+        id: 'bus-003',
+        name: 'Restaurang Viking',
+        orgNumber: '558765-4321',
+        email: 'info@vikingrestaurang.se',
+        phone: '+46 40 765 43 21',
+        status: 'suspended',
+        trialFeedbacksRemaining: null,
+        trialExpiresAt: null,
+        rewardSettings: {
+          commissionRate: 0.15, // Reduced commission
+          maxDailyRewards: 500,
+          rewardTiers: {
+            exceptional: { min: 90, max: 100, reward: [0.06, 0.10] },
+            very_good: { min: 75, max: 89, reward: [0.03, 0.05] },
+            acceptable: { min: 60, max: 74, reward: [0.01, 0.02] },
+            insufficient: { min: 0, max: 59, reward: [0, 0] }
+          }
+        },
+        createdAt: '2024-02-20T09:15:00Z',
+        updatedAt: '2024-08-19T13:45:00Z',
+        totalFeedbacks: 856,
+        totalRevenue: 145600,
+        totalCommission: 21840,
+        activeLocations: 2
+      }
+    ];
+
+    // Filter businesses based on query parameters
+    let filteredBusinesses = mockBusinesses;
+
+    if (search) {
+      const searchLower = search.toString().toLowerCase();
+      filteredBusinesses = filteredBusinesses.filter(business =>
+        business.name.toLowerCase().includes(searchLower) ||
+        business.orgNumber.includes(searchLower) ||
+        business.email.toLowerCase().includes(searchLower)
+      );
+    }
+
+    if (status) {
+      filteredBusinesses = filteredBusinesses.filter(business => business.status === status);
+    }
+
+    // Pagination
+    const pageNum = parseInt(page.toString());
+    const limitNum = parseInt(limit.toString());
+    const startIndex = (pageNum - 1) * limitNum;
+    const endIndex = startIndex + limitNum;
+    const paginatedBusinesses = filteredBusinesses.slice(startIndex, endIndex);
+    const totalPages = Math.ceil(filteredBusinesses.length / limitNum);
+
+    res.json({
+      success: true,
+      data: {
+        businesses: paginatedBusinesses,
+        total: filteredBusinesses.length,
+        page: pageNum,
+        limit: limitNum,
+        totalPages
+      }
+    });
+
+  } catch (error) {
+    console.error('Get businesses error:', error);
+    res.status(500).json({
+      code: 'BUSINESSES_ERROR',
+      message: 'Kunde inte hämta företag'
+    });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/businesses/{id}:
+ *   get:
+ *     summary: Get detailed business information
+ *     tags: [Admin Business Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Business details retrieved successfully
+ */
+adminRoutes.get('/businesses/:id', requirePermission('business:read'), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Mock business detail data
+    const mockBusiness = {
+      id: id,
+      name: 'Café Stockholm Central',
+      orgNumber: '556123-4567',
+      email: 'info@cafestockholm.se',
+      phone: '+46 8 123 45 67',
+      address: {
+        street: 'Vasagatan 12',
+        city: 'Stockholm',
+        postalCode: '11120',
+        country: 'Sweden'
+      },
+      status: 'active',
+      trialFeedbacksRemaining: null,
+      trialExpiresAt: null,
+      rewardSettings: {
+        commissionRate: 0.20,
+        maxDailyRewards: 1000,
+        rewardTiers: {
+          exceptional: { min: 90, max: 100, reward: [0.08, 0.12] },
+          very_good: { min: 75, max: 89, reward: [0.04, 0.07] },
+          acceptable: { min: 60, max: 74, reward: [0.01, 0.03] },
+          insufficient: { min: 0, max: 59, reward: [0, 0] }
+        }
+      },
+      simpleVerificationSettings: {
+        enabled: true,
+        verificationTolerance: {
+          timeMinutes: 5,
+          amountSek: 0.5
+        },
+        reviewPeriodDays: 14,
+        autoApproveThreshold: 0.1,
+        dailyLimits: {
+          maxPerPhone: 3,
+          maxPerIp: 10
+        }
+      },
+      stripeAccountId: 'acct_1234567890',
+      stripeOnboardingComplete: true,
+      createdAt: '2024-01-15T10:30:00Z',
+      updatedAt: '2024-08-20T14:22:00Z',
+      approvedAt: '2024-01-16T09:15:00Z',
+      approvedBy: 'admin-1'
+    };
+
+    res.json({
+      success: true,
+      data: mockBusiness
+    });
+
+  } catch (error) {
+    console.error('Get business detail error:', error);
+    res.status(500).json({
+      code: 'BUSINESS_DETAIL_ERROR',
+      message: 'Kunde inte hämta företagsdetaljer'
+    });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/businesses/{id}/stats:
+ *   get:
+ *     summary: Get business statistics
+ *     tags: [Admin Business Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Business statistics retrieved successfully
+ */
+adminRoutes.get('/businesses/:id/stats', requirePermission('business:read'), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Mock business statistics
+    const mockStats = {
+      totalFeedbacks: 1247,
+      totalRevenue: 312500,
+      totalCommission: 62500,
+      averageQualityScore: 78.4,
+      activeLocations: 3,
+      pendingVerifications: 12,
+      monthlyStats: {
+        feedbacks: 156,
+        revenue: 39000,
+        commission: 7800
+      },
+      recentActivity: [
+        {
+          type: 'feedback',
+          description: 'Ny feedback mottagen från location Vasagatan',
+          timestamp: '2024-08-20T14:30:00Z'
+        },
+        {
+          type: 'payment',
+          description: 'Provision på 1,250 SEK utbetald',
+          timestamp: '2024-08-20T12:15:00Z'
+        },
+        {
+          type: 'verification',
+          description: '15 verifieringar godkända i månadsvis batch',
+          timestamp: '2024-08-19T16:45:00Z'
+        }
+      ]
+    };
+
+    res.json({
+      success: true,
+      data: mockStats
+    });
+
+  } catch (error) {
+    console.error('Get business stats error:', error);
+    res.status(500).json({
+      code: 'BUSINESS_STATS_ERROR',
+      message: 'Kunde inte hämta företagsstatistik'
+    });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/businesses/{id}/locations:
+ *   get:
+ *     summary: Get business locations
+ *     tags: [Admin Business Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Business locations retrieved successfully
+ */
+adminRoutes.get('/businesses/:id/locations', requirePermission('business:read'), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Mock business locations
+    const mockLocations = [
+      {
+        id: 'loc-001',
+        name: 'Huvudentré',
+        address: 'Vasagatan 12, Stockholm',
+        qrCodeUrl: '/qr/cafe-stockholm-main.png',
+        qrCodeExpiresAt: '2024-12-31T23:59:59Z',
+        active: true,
+        createdAt: '2024-01-15T10:30:00Z'
+      },
+      {
+        id: 'loc-002',
+        name: 'Terrass',
+        address: 'Vasagatan 12, Stockholm (Terrass)',
+        qrCodeUrl: '/qr/cafe-stockholm-terrace.png',
+        qrCodeExpiresAt: '2024-12-31T23:59:59Z',
+        active: true,
+        createdAt: '2024-03-20T14:15:00Z'
+      },
+      {
+        id: 'loc-003',
+        name: 'Take Away',
+        address: 'Vasagatan 12, Stockholm (Take Away)',
+        qrCodeUrl: '/qr/cafe-stockholm-takeaway.png',
+        qrCodeExpiresAt: '2024-12-31T23:59:59Z',
+        active: false,
+        createdAt: '2024-05-10T11:45:00Z'
+      }
+    ];
+
+    res.json({
+      success: true,
+      data: mockLocations
+    });
+
+  } catch (error) {
+    console.error('Get business locations error:', error);
+    res.status(500).json({
+      code: 'BUSINESS_LOCATIONS_ERROR',
+      message: 'Kunde inte hämta företagsplatser'
+    });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/businesses/{id}/status:
+ *   put:
+ *     summary: Update business status
+ *     tags: [Admin Business Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [pending, active, suspended, trial]
+ *     responses:
+ *       200:
+ *         description: Business status updated successfully
+ */
+adminRoutes.put('/businesses/:id/status', requirePermission('business:write'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!['pending', 'active', 'suspended', 'trial'].includes(status)) {
+      return res.status(400).json({
+        code: 'INVALID_STATUS',
+        message: 'Ogiltig status värde'
+      });
+    }
+
+    // In production, update database
+    console.log(`Updating business ${id} status to ${status}`);
+
+    res.json({
+      success: true,
+      message: `Företagsstatus uppdaterad till ${status}`
+    });
+
+  } catch (error) {
+    console.error('Update business status error:', error);
+    res.status(500).json({
+      code: 'STATUS_UPDATE_ERROR',
+      message: 'Kunde inte uppdatera företagsstatus'
+    });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/businesses/{id}/reward-settings:
+ *   put:
+ *     summary: Update business reward settings
+ *     tags: [Admin Business Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               rewardSettings:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Reward settings updated successfully
+ */
+adminRoutes.put('/businesses/:id/reward-settings', requirePermission('business:write'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rewardSettings } = req.body;
+
+    if (!rewardSettings) {
+      return res.status(400).json({
+        code: 'MISSING_SETTINGS',
+        message: 'Belöningsinställningar krävs'
+      });
+    }
+
+    // In production, validate and update database
+    console.log(`Updating business ${id} reward settings:`, rewardSettings);
+
+    res.json({
+      success: true,
+      message: 'Belöningsinställningar uppdaterade'
+    });
+
+  } catch (error) {
+    console.error('Update reward settings error:', error);
+    res.status(500).json({
+      code: 'REWARD_SETTINGS_ERROR',
+      message: 'Kunde inte uppdatera belöningsinställningar'
+    });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/businesses/bulk-action:
+ *   put:
+ *     summary: Perform bulk actions on multiple businesses
+ *     tags: [Admin Business Management]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [approve, suspend, activate]
+ *               businessIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Bulk action completed successfully
+ */
+adminRoutes.put('/businesses/bulk-action', requirePermission('business:write'), async (req, res) => {
+  try {
+    const { action, businessIds } = req.body;
+
+    if (!action || !businessIds || !Array.isArray(businessIds)) {
+      return res.status(400).json({
+        code: 'INVALID_BULK_ACTION',
+        message: 'Åtgärd och företags-ID:n krävs'
+      });
+    }
+
+    // In production, perform bulk database update
+    console.log(`Performing bulk ${action} on businesses:`, businessIds);
+
+    const actionMap = {
+      approve: 'active',
+      suspend: 'suspended',
+      activate: 'active'
+    };
+
+    res.json({
+      success: true,
+      message: `Massåtgärd ${action} genomförd på ${businessIds.length} företag`,
+      data: {
+        affectedBusinesses: businessIds.length,
+        newStatus: actionMap[action as keyof typeof actionMap]
+      }
+    });
+
+  } catch (error) {
+    console.error('Bulk action error:', error);
+    res.status(500).json({
+      code: 'BULK_ACTION_ERROR',
+      message: 'Kunde inte genomföra massåtgärd'
+    });
+  }
+});
+
+// ===== VERIFICATION MANAGEMENT ENDPOINTS =====
+
+/**
+ * @openapi
+ * /api/admin/verification-batches:
+ *   get:
+ *     summary: Get all verification batches
+ *     tags: [Admin Verification Management]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Verification batches retrieved successfully
+ */
+adminRoutes.get('/verification-batches', requirePermission('business:read'), async (req, res) => {
+  try {
+    // Mock verification batches data
+    const mockBatches = [
+      {
+        id: 'batch-001',
+        businessId: 'bus-001',
+        businessName: 'Café Stockholm Central',
+        billingMonth: '2024-08-01',
+        status: 'review_period',
+        totalVerifications: 45,
+        approvedVerifications: 32,
+        rejectedVerifications: 3,
+        pendingVerifications: 10,
+        totalCustomerPayments: 11250,
+        totalCommission: 2250,
+        totalStoreCost: 13500,
+        reviewDeadline: '2024-09-15T23:59:59Z',
+        paymentDueDate: '2024-09-30T23:59:59Z',
+        createdAt: '2024-09-01T00:00:00Z'
+      },
+      {
+        id: 'batch-002',
+        businessId: 'bus-002',
+        businessName: 'ICA Supermarket Göteborg',
+        billingMonth: '2024-08-01',
+        status: 'completed',
+        totalVerifications: 78,
+        approvedVerifications: 71,
+        rejectedVerifications: 7,
+        pendingVerifications: 0,
+        totalCustomerPayments: 19500,
+        totalCommission: 3900,
+        totalStoreCost: 23400,
+        reviewDeadline: '2024-09-15T23:59:59Z',
+        paymentDueDate: '2024-09-30T23:59:59Z',
+        createdAt: '2024-09-01T00:00:00Z',
+        completedAt: '2024-09-12T14:30:00Z'
+      },
+      {
+        id: 'batch-003',
+        businessId: 'bus-003',
+        businessName: 'Restaurang Viking',
+        billingMonth: '2024-08-01',
+        status: 'payment_processing',
+        totalVerifications: 23,
+        approvedVerifications: 20,
+        rejectedVerifications: 3,
+        pendingVerifications: 0,
+        totalCustomerPayments: 5750,
+        totalCommission: 862.5,
+        totalStoreCost: 6612.5,
+        reviewDeadline: '2024-09-15T23:59:59Z',
+        paymentDueDate: '2024-09-30T23:59:59Z',
+        createdAt: '2024-09-01T00:00:00Z'
+      }
+    ];
+
+    res.json({
+      success: true,
+      data: mockBatches
+    });
+
+  } catch (error) {
+    console.error('Get verification batches error:', error);
+    res.status(500).json({
+      code: 'VERIFICATION_BATCHES_ERROR',
+      message: 'Kunde inte hämta verifieringsbatcher'
+    });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/simple-verifications:
+ *   get:
+ *     summary: Get simple verifications with filtering
+ *     tags: [Admin Verification Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, approved, rejected, auto_approved]
+ *       - in: query
+ *         name: businessId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: fraudRisk
+ *         schema:
+ *           type: string
+ *           enum: [high, medium, low]
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *     responses:
+ *       200:
+ *         description: Simple verifications retrieved successfully
+ */
+adminRoutes.get('/simple-verifications', requirePermission('business:read'), async (req, res) => {
+  try {
+    const { status, businessId, fraudRisk, limit = 50 } = req.query;
+
+    // Mock simple verifications data
+    const mockVerifications = [
+      {
+        id: 'ver-001',
+        sessionId: 'sess-001',
+        businessId: 'bus-001',
+        businessName: 'Café Stockholm Central',
+        storeCode: '123456',
+        purchaseTime: '2024-08-20T14:30:00Z',
+        purchaseAmount: 250,
+        customerPhone: '+46701234567',
+        reviewStatus: 'pending',
+        paymentAmount: 25,
+        commissionAmount: 5,
+        storeCost: 30,
+        fraudScore: 0.2,
+        fraudFlags: [],
+        qualityScore: 85,
+        submittedAt: '2024-08-20T14:35:00Z'
+      },
+      {
+        id: 'ver-002',
+        sessionId: 'sess-002',
+        businessId: 'bus-001',
+        businessName: 'Café Stockholm Central',
+        storeCode: '123456',
+        purchaseTime: '2024-08-20T16:15:00Z',
+        purchaseAmount: 150,
+        customerPhone: '+46709876543',
+        reviewStatus: 'approved',
+        reviewedAt: '2024-08-21T10:00:00Z',
+        reviewedBy: 'admin-1',
+        paymentAmount: 15,
+        commissionAmount: 3,
+        storeCost: 18,
+        fraudScore: 0.1,
+        fraudFlags: [],
+        qualityScore: 72,
+        submittedAt: '2024-08-20T16:20:00Z'
+      },
+      {
+        id: 'ver-003',
+        sessionId: 'sess-003',
+        businessId: 'bus-002',
+        businessName: 'ICA Supermarket Göteborg',
+        storeCode: '789012',
+        purchaseTime: '2024-08-20T18:45:00Z',
+        purchaseAmount: 450,
+        customerPhone: '+46731122334',
+        reviewStatus: 'rejected',
+        reviewedAt: '2024-08-21T11:30:00Z',
+        reviewedBy: 'admin-2',
+        rejectionReason: 'Misstänkt bedräglig aktivitet',
+        paymentAmount: 0,
+        commissionAmount: 0,
+        storeCost: 0,
+        fraudScore: 0.8,
+        fraudFlags: ['suspicious_timing', 'duplicate_phone'],
+        qualityScore: 45,
+        submittedAt: '2024-08-20T18:50:00Z'
+      }
+    ];
+
+    // Apply filters
+    let filteredVerifications = mockVerifications;
+
+    if (status) {
+      filteredVerifications = filteredVerifications.filter(v => v.reviewStatus === status);
+    }
+
+    if (businessId) {
+      filteredVerifications = filteredVerifications.filter(v => v.businessId === businessId);
+    }
+
+    if (fraudRisk) {
+      const riskThresholds = { high: 0.7, medium: 0.3, low: 0 };
+      if (fraudRisk === 'high') {
+        filteredVerifications = filteredVerifications.filter(v => v.fraudScore >= riskThresholds.high);
+      } else if (fraudRisk === 'medium') {
+        filteredVerifications = filteredVerifications.filter(v => 
+          v.fraudScore >= riskThresholds.medium && v.fraudScore < riskThresholds.high
+        );
+      } else if (fraudRisk === 'low') {
+        filteredVerifications = filteredVerifications.filter(v => v.fraudScore < riskThresholds.medium);
+      }
+    }
+
+    // Apply limit
+    const limitNum = parseInt(limit.toString());
+    filteredVerifications = filteredVerifications.slice(0, limitNum);
+
+    res.json({
+      success: true,
+      data: filteredVerifications
+    });
+
+  } catch (error) {
+    console.error('Get simple verifications error:', error);
+    res.status(500).json({
+      code: 'SIMPLE_VERIFICATIONS_ERROR',
+      message: 'Kunde inte hämta enkla verifieringar'
+    });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/simple-verifications/bulk-action:
+ *   put:
+ *     summary: Perform bulk actions on verifications
+ *     tags: [Admin Verification Management]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [approve, reject]
+ *               verificationIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               rejectionReason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Bulk action completed successfully
+ */
+adminRoutes.put('/simple-verifications/bulk-action', requirePermission('business:write'), async (req, res) => {
+  try {
+    const { action, verificationIds, rejectionReason } = req.body;
+
+    if (!action || !verificationIds || !Array.isArray(verificationIds)) {
+      return res.status(400).json({
+        code: 'INVALID_BULK_ACTION',
+        message: 'Åtgärd och verifiering-ID:n krävs'
+      });
+    }
+
+    if (action === 'reject' && !rejectionReason) {
+      return res.status(400).json({
+        code: 'MISSING_REJECTION_REASON',
+        message: 'Avslagsorsak krävs'
+      });
+    }
+
+    // In production, perform bulk database update
+    console.log(`Performing bulk ${action} on verifications:`, verificationIds);
+    if (rejectionReason) {
+      console.log('Rejection reason:', rejectionReason);
+    }
+
+    res.json({
+      success: true,
+      message: `Massåtgärd ${action} genomförd på ${verificationIds.length} verifieringar`,
+      data: {
+        affectedVerifications: verificationIds.length,
+        newStatus: action === 'approve' ? 'approved' : 'rejected'
+      }
+    });
+
+  } catch (error) {
+    console.error('Bulk verification action error:', error);
+    res.status(500).json({
+      code: 'BULK_VERIFICATION_ACTION_ERROR',
+      message: 'Kunde inte genomföra massåtgärd'
+    });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/verification-batches/{batchId}/process-deadline:
+ *   post:
+ *     summary: Process deadline for verification batch
+ *     tags: [Admin Verification Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: batchId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Deadline processed successfully
+ */
+adminRoutes.post('/verification-batches/:batchId/process-deadline', requirePermission('business:write'), async (req, res) => {
+  try {
+    const { batchId } = req.params;
+
+    // In production, process deadline - auto-approve pending verifications
+    console.log(`Processing deadline for batch: ${batchId}`);
+
+    res.json({
+      success: true,
+      message: 'Deadline processad framgångsrikt',
+      data: {
+        batchId,
+        autoApprovedCount: 10, // Mock count
+        processedAt: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('Process deadline error:', error);
+    res.status(500).json({
+      code: 'PROCESS_DEADLINE_ERROR',
+      message: 'Kunde inte processa deadline'
+    });
+  }
+});
+

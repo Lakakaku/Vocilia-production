@@ -108,6 +108,124 @@ export class DatabaseService {
     return data;
   }
 
+  // Get feedback with proper verification filtering for delayed delivery
+  async getFeedbackSessionsWithVerification(businessId: string, limit = 50, includeUnverified = false) {
+    let query = this.client
+      .from('feedback_sessions')
+      .select(`
+        *,
+        simple_verification:simple_verifications!left (
+          id,
+          review_status,
+          billing_batch_id,
+          monthly_billing_batch:monthly_billing_batches!billing_batch_id (
+            status
+          )
+        )
+      `)
+      .eq('business_id', businessId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    // Filter based on verification status
+    if (!includeUnverified) {
+      return data?.filter(session => {
+        // Always include POS integration sessions (immediate feedback)
+        if (session.verification_type !== 'simple_verification') {
+          return true;
+        }
+
+        // For simple verification, only include if verified AND batch is completed
+        const verification = session.simple_verification;
+        if (!verification) return false;
+
+        const isVerified = ['approved', 'auto_approved'].includes(verification.review_status);
+        const isBatchCompleted = verification.monthly_billing_batch?.status === 'completed';
+        
+        return isVerified && isBatchCompleted;
+      }) || [];
+    }
+
+    return data || [];
+  }
+
+  // Get pending feedback awaiting verification release
+  async getPendingFeedbackSessions(businessId: string) {
+    const { data, error } = await this.client
+      .from('feedback_sessions')
+      .select(`
+        *,
+        simple_verification:simple_verifications!left (
+          id,
+          review_status,
+          billing_batch_id,
+          monthly_billing_batch:monthly_billing_batches!billing_batch_id (
+            status,
+            review_deadline
+          )
+        )
+      `)
+      .eq('business_id', businessId)
+      .eq('verification_type', 'simple_verification')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Filter to only sessions that are verified but batch not yet completed
+    return data?.filter(session => {
+      const verification = session.simple_verification;
+      if (!verification) return false;
+
+      const isVerified = ['approved', 'auto_approved'].includes(verification.review_status);
+      const isBatchCompleted = verification.monthly_billing_batch?.status === 'completed';
+      
+      return isVerified && !isBatchCompleted;
+    }) || [];
+  }
+
+  // Release feedback for completed billing batch (batch delivery)
+  async releaseFeedbackForBatch(batchId: string) {
+    // This is handled automatically by the batch status change
+    // When monthly_billing_batches.status changes to 'completed',
+    // the feedback becomes available through getFeedbackSessionsWithVerification
+    const { data, error } = await this.client
+      .from('monthly_billing_batches')
+      .select(`
+        id,
+        business_id,
+        status,
+        simple_verifications (
+          id,
+          session_id,
+          feedback_session:feedback_sessions (
+            id,
+            quality_score,
+            transcript,
+            feedback_categories
+          )
+        )
+      `)
+      .eq('id', batchId)
+      .single();
+
+    if (error) throw error;
+
+    if (data?.status === 'completed') {
+      console.log(`Feedback batch released for business ${data.business_id}: ${data.simple_verifications.length} feedback sessions now available`);
+      return {
+        batchId,
+        businessId: data.business_id,
+        releasedFeedbackCount: data.simple_verifications.length,
+        releasedAt: new Date().toISOString()
+      };
+    }
+
+    return null;
+  }
+
   // QR token validation
   async validateQRToken(token: string) {
     const { data, error } = await this.client

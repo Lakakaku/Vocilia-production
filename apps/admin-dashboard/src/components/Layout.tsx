@@ -24,17 +24,25 @@ const navigationItems: NavigationItem[] = [
     description: 'Systemöversikt och statistik'
   },
   {
-    id: 'business',
+    id: 'businesses',
     label: 'Företag',
     icon: '🏢',
-    href: '/business',
+    href: '/businesses',
     permission: 'business:read',
-    description: 'Hantera företagsansökningar'
+    description: 'Hantera företagskonton och inställningar'
+  },
+  {
+    id: 'verifications',
+    label: 'Verifikationer',
+    icon: '✅',
+    href: '/verifications',
+    permission: 'verification:read',
+    description: 'Hantera månadsvis verifiering och betalningar'
   },
   {
     id: 'approvals',
     label: 'Godkännanden',
-    icon: '✅',
+    icon: '🔍',
     href: '/approvals',
     permission: 'business:approve',
     description: 'Granska och godkänn ansökningar'

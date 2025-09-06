@@ -1,0 +1,30 @@
+{
+  "name": "@ai-feedback-platform/simple-verification",
+  "version": "1.0.0",
+  "description": "Simple verification system for manual transaction verification without POS integration",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "jest",
+    "lint": "eslint src --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-feedback-platform/shared-types": "*",
+    "@ai-feedback-platform/database": "*",
+    "crypto": "^1.0.1",
+    "qrcode": "^1.5.3"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/qrcode": "^1.5.0",
+    "typescript": "^5.0.0",
+    "jest": "^29.0.0",
+    "@types/jest": "^29.0.0"
+  },
+  "files": [
+    "dist"
+  ]
+}

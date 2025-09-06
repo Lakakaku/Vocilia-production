@@ -311,4 +311,141 @@ router.get('/session/:sessionId/validate',
   }
 );
 
+/**
+ * @openapi
+ * /api/qr/create-simple-session:
+ *   post:
+ *     summary: Create session for simple verification flow
+ *     tags: [QR]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [storeCode, deviceFingerprint]
+ *             properties:
+ *               storeCode:
+ *                 type: string
+ *                 pattern: '^[0-9]{6}$'
+ *               deviceFingerprint:
+ *                 type: object
+ *     responses:
+ *       201:
+ *         description: Session created successfully
+ *       400:
+ *         description: Invalid store code or request data
+ */
+router.post('/create-simple-session',
+  [
+    body('storeCode').matches(/^[0-9]{6}$/).withMessage('Store code must be 6 digits'),
+    body('deviceFingerprint').isObject().withMessage('Device fingerprint required')
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array()
+      } as APIResponse);
+    }
+
+    try {
+      const { storeCode, deviceFingerprint } = req.body;
+
+      // Validate store code
+      const storeCodeRecord = await db.storeCode.findFirst({
+        where: {
+          code: storeCode,
+          active: true,
+          expiresAt: {
+            gt: new Date()
+          }
+        },
+        include: {
+          business: {
+            select: {
+              id: true,
+              name: true,
+              simpleVerificationSettings: true,
+              status: true
+            }
+          },
+          location: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      if (!storeCodeRecord) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid or expired store code'
+        } as APIResponse);
+      }
+
+      // Check if business has simple verification enabled
+      const settings = storeCodeRecord.business.simpleVerificationSettings as any;
+      if (!settings || !settings.enabled) {
+        return res.status(400).json({
+          success: false,
+          error: 'Simple verification not enabled for this business'
+        } as APIResponse);
+      }
+
+      // Check business status
+      if (storeCodeRecord.business.status !== 'active') {
+        return res.status(400).json({
+          success: false,
+          error: 'Business is not available for feedback'
+        } as APIResponse);
+      }
+
+      // Create customer hash for anonymous identification
+      const customerHash = createDeviceFingerprint(deviceFingerprint, '');
+
+      // Create feedback session for simple verification
+      const sessionData = {
+        businessId: storeCodeRecord.business.id,
+        locationId: storeCodeRecord.location?.id,
+        customerHash,
+        deviceFingerprint,
+        qrToken: '', // Not used in simple verification
+        qrScannedAt: new Date().toISOString(),
+        transcriptLanguage: 'sv',
+        fraudReviewStatus: 'auto',
+        status: 'qr_scanned',
+        verificationType: 'simple_verification'
+      };
+
+      const session = await db.createFeedbackSession(sessionData);
+
+      const response: APIResponse<{
+        sessionId: string;
+        businessName: string;
+        locationName?: string;
+      }> = {
+        success: true,
+        data: {
+          sessionId: session.id,
+          businessName: storeCodeRecord.business.name,
+          locationName: storeCodeRecord.location?.name
+        }
+      };
+
+      res.status(201).json(response);
+    } catch (error) {
+      console.error('Simple session creation error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error during session creation'
+      } as APIResponse);
+    }
+  }
+);
+
 export { router as qrRoutes };

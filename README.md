@@ -12,6 +12,24 @@ Core Value Proposition
 
 ## 🚀 Quick Start
 
+### 🎬 Try the Interactive Demo (Recommended)
+Experience the complete platform without any setup:
+
+```bash
+# Launch the unified demo platform
+./launch-unified-demo.sh
+```
+
+**Demo Features:**
+- 👤 **Complete Customer Journey**: QR scanning → Voice feedback → AI analysis → Instant cashback
+- 🏪 **Business Dashboard**: Real analytics with Swedish market data  
+- ⚙️ **Admin Platform**: System monitoring, fraud detection, AI model management
+- 🇸🇪 **Swedish Market Focus**: Authentic cafés, pricing, and customer feedback
+
+**Demo URL**: http://localhost:3010
+
+### 🛠️ Full Development Setup
+
 ### Prerequisites
 - Node.js 18+
 - npm 8+ or yarn

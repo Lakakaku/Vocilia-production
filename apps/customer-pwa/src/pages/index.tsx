@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { QrCode, Mic, Gift, Sparkles } from 'lucide-react';
+import { QrCode, Mic, Gift, Sparkles, CreditCard } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { QRScanner } from '../components/QRScanner';
 import { FeedbackFlow } from '../components/FeedbackFlow';
+import { SimpleVerificationFlow } from '../components/SimpleVerificationFlow';
 import { NetworkStatus } from '../components/NetworkStatus';
 
 export default function HomePage() {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState<'welcome' | 'scan' | 'feedback'>('welcome');
+  const [currentStep, setCurrentStep] = useState<'welcome' | 'scan' | 'simple' | 'feedback'>('welcome');
   const [sessionData, setSessionData] = useState<any>(null);
 
   useEffect(() => {
@@ -38,11 +39,21 @@ export default function HomePage() {
         <NetworkStatus />
         
         {currentStep === 'welcome' && (
-          <WelcomeScreen onStartScan={() => setCurrentStep('scan')} />
+          <WelcomeScreen 
+            onStartScan={() => setCurrentStep('scan')} 
+            onStartSimple={() => setCurrentStep('simple')}
+          />
         )}
 
         {currentStep === 'scan' && (
           <QRScanner onQRScanned={handleQRScanned} onBack={() => setCurrentStep('welcome')} />
+        )}
+
+        {currentStep === 'simple' && (
+          <SimpleVerificationFlow 
+            onComplete={() => setCurrentStep('welcome')}
+            onBack={() => setCurrentStep('welcome')}
+          />
         )}
 
         {currentStep === 'feedback' && (
@@ -57,7 +68,10 @@ export default function HomePage() {
   );
 }
 
-function WelcomeScreen({ onStartScan }: { onStartScan: () => void }) {
+function WelcomeScreen({ onStartScan, onStartSimple }: { 
+  onStartScan: () => void; 
+  onStartSimple: () => void; 
+}) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" data-testid="welcome-screen">
       <motion.div
@@ -95,8 +109,8 @@ function WelcomeScreen({ onStartScan }: { onStartScan: () => void }) {
           transition={{ delay: 0.6 }}
           className="text-lg text-gray-600 mb-8 leading-relaxed"
         >
-          Scanna QR-kod, dela din feedback med AI, och få upp till{' '}
-          <span className="font-semibold text-green-600">12% cashback</span> direkt
+          Scanna QR-kod eller ange butikskod, dela din feedback med AI, och få upp till{' '}
+          <span className="font-semibold text-green-600">12% cashback</span>
         </motion.p>
 
         {/* Features */}
@@ -110,7 +124,7 @@ function WelcomeScreen({ onStartScan }: { onStartScan: () => void }) {
             <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
               <QrCode className="w-4 h-4 text-blue-600" />
             </div>
-            <span className="text-gray-700">Scanna QR-kod från butiken</span>
+            <span className="text-gray-700">Scanna QR-kod eller ange butikskod</span>
           </div>
 
           <div className="flex items-center space-x-3 text-left">
@@ -128,19 +142,35 @@ function WelcomeScreen({ onStartScan }: { onStartScan: () => void }) {
           </div>
         </motion.div>
 
-        {/* CTA Button */}
-        <motion.button
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 1.0, type: "spring", stiffness: 100 }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={onStartScan}
-          className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
-          data-testid="start-scan-button"
+        {/* CTA Buttons */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.0 }}
+          className="space-y-3 w-full"
         >
-          Scanna QR-kod för att börja
-        </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onStartScan}
+            className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center space-x-3"
+            data-testid="start-scan-button"
+          >
+            <QrCode className="w-5 h-5" />
+            <span>Scanna QR-kod (Snabbt)</span>
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onStartSimple}
+            className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center space-x-3"
+            data-testid="start-simple-button"
+          >
+            <CreditCard className="w-5 h-5" />
+            <span>Ange butikskod (Enkel verifiering)</span>
+          </motion.button>
+        </motion.div>
 
         {/* Privacy note */}
         <motion.p
