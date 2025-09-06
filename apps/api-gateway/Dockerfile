@@ -8,14 +8,14 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Copy package files for dependency installation
-COPY package.json package-lock.json* ./
+COPY package.json ./
 COPY apps/api-gateway/package.json ./apps/api-gateway/
 COPY packages/database/package.json ./packages/database/
 COPY packages/shared-types/package.json ./packages/shared-types/
 COPY packages/ai-evaluator/package.json ./packages/ai-evaluator/
 
-# Install dependencies
-RUN npm ci --only=production
+# Install dependencies using npm install (not ci since no lock file)
+RUN npm install --omit=dev
 
 # Rebuild the source code only when needed
 FROM base AS builder
