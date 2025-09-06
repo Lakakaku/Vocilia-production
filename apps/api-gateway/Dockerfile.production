@@ -29,9 +29,8 @@ RUN cat package.json | \
 # Install all dependencies first (including dev dependencies for build)
 RUN npm install
 
-# Build minimal service for Railway deployment (bypasses complex dependencies)  
-RUN npx tsc src/minimal-index.ts --outDir dist --target es2020 --module commonjs --skipLibCheck || \
-    echo "Building minimal service for Railway deployment"
+# Copy ultra-minimal JavaScript service (no compilation needed)
+RUN mkdir -p dist && cp src/ultra-minimal-index.js dist/
 
 # Clean install for production (remove dev dependencies)
 RUN npm ci --only=production --ignore-scripts || npm install --omit=dev
@@ -60,7 +59,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
         process.exit(res.statusCode === 200 ? 0 : 1); \
     }).on('error', () => process.exit(1));"
 
-# Start the minimal API Gateway service
-CMD ["node", "dist/minimal-index.js"]
+# Start the ultra-minimal API Gateway service
+CMD ["node", "dist/ultra-minimal-index.js"]
 
 # Force redeploy - build succeeded but service not responding# Force redeploy - Sun Sep  7 01:11:46 CEST 2025
