@@ -1,56 +1,36 @@
-# Multi-stage build for API Gateway
-FROM node:18-alpine AS base
+# Simple Dockerfile for monorepo workspace
+FROM node:18-alpine
 
-# Install dependencies only when needed
-FROM base AS deps
-# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine
+# Install system dependencies
 RUN apk add --no-cache libc6-compat
+
+# Set working directory
 WORKDIR /app
 
-# Copy package files for dependency installation
-COPY package.json ./
-COPY apps/api-gateway/package.json ./apps/api-gateway/
-COPY packages/database/package.json ./packages/database/
-COPY packages/shared-types/package.json ./packages/shared-types/
-COPY packages/ai-evaluator/package.json ./packages/ai-evaluator/
-
-# Install dependencies using npm install (not ci since no lock file)
-RUN npm install --omit=dev
-
-# Rebuild the source code only when needed
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-
-# Copy source code
+# Copy entire monorepo
 COPY . .
-COPY turbo.json ./
-COPY tsconfig.base.json ./
 
-# Build the API Gateway and its dependencies
+# Install all dependencies (this handles workspace: protocol)
+RUN npm install
+
+# Build the API Gateway (this will also build dependencies)
 RUN npm run build --workspace=@ai-feedback/api-gateway
 
-# Production image, copy all the files and run API Gateway
-FROM base AS runner
-WORKDIR /app
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=3001
 
-ENV NODE_ENV production
-ENV PORT 3001
-
-# Create a non-root user
+# Create non-root user
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 apigateway
 
-# Copy the built application
-COPY --from=builder /app/apps/api-gateway/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages ./packages
+# Change ownership of the app directory
+RUN chown -R apigateway:nodejs /app
 
-# Copy package.json for running the app
-COPY --from=builder /app/apps/api-gateway/package.json ./package.json
-
+# Switch to non-root user
 USER apigateway
 
+# Expose port
 EXPOSE 3001
 
 # Health check
@@ -60,4 +40,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
         process.exit(res.statusCode === 200 ? 0 : 1); \
     }).on('error', () => process.exit(1));"
 
-CMD ["node", "dist/index.js"]
+# Start the API Gateway
+CMD ["node", "apps/api-gateway/dist/index.js"]
