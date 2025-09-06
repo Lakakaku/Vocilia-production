@@ -26,11 +26,14 @@ RUN cat package.json | \
     sed 's/"@feedback-platform\/ai-evaluator": "\*"/"@feedback-platform\/ai-evaluator": "file:src\/packages\/ai-evaluator"/' > package-prod.json && \
     mv package-prod.json package.json
 
-# Install dependencies (no workspace protocol issues)
-RUN npm install --omit=dev
+# Install all dependencies first (including dev dependencies for build)
+RUN npm install
 
 # Build the application
 RUN npm run build
+
+# Clean install for production (remove dev dependencies)
+RUN npm ci --only=production --ignore-scripts || npm install --omit=dev
 
 # Set environment variables
 ENV NODE_ENV=production
