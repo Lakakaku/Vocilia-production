@@ -1,6 +1,6 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "apps/api-gateway/Dockerfile"
+dockerfilePath = "apps/api-gateway/Dockerfile.production"
 buildContext = "."
 
 [deploy]

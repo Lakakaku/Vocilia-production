@@ -1,0 +1,60 @@
+# Standalone production Dockerfile - No workspace dependencies
+FROM node:18-alpine
+
+# Install system dependencies
+RUN apk add --no-cache libc6-compat
+
+# Set working directory
+WORKDIR /app
+
+# Copy API Gateway files only
+COPY apps/api-gateway/package.json ./
+COPY apps/api-gateway/tsconfig.json ./
+COPY apps/api-gateway/src ./src/
+
+# Copy workspace packages as source (will be bundled during build)
+COPY packages/database/src ./src/packages/database/
+COPY packages/shared-types/src ./src/packages/shared-types/
+COPY packages/swish-payout/src ./src/packages/swish-payout/
+COPY packages/ai-evaluator/src ./src/packages/ai-evaluator/
+
+# Create production package.json without workspace dependencies
+RUN cat package.json | \
+    sed 's/"@ai-feedback\/database": "\*"/"@ai-feedback\/database": "file:src\/packages\/database"/' | \
+    sed 's/"@ai-feedback\/shared-types": "\*"/"@ai-feedback\/shared-types": "file:src\/packages\/shared-types"/' | \
+    sed 's/"@ai-feedback\/swish-payout": "\*"/"@ai-feedback\/swish-payout": "file:src\/packages\/swish-payout"/' | \
+    sed 's/"@feedback-platform\/ai-evaluator": "\*"/"@feedback-platform\/ai-evaluator": "file:src\/packages\/ai-evaluator"/' > package-prod.json && \
+    mv package-prod.json package.json
+
+# Install dependencies (no workspace protocol issues)
+RUN npm install --omit=dev
+
+# Build the application
+RUN npm run build
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=3001
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 apigateway
+
+# Change ownership of the app directory
+RUN chown -R apigateway:nodejs /app
+
+# Switch to non-root user
+USER apigateway
+
+# Expose port
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD node -e "const http = require('http'); \
+    http.get('http://localhost:3001/health', (res) => { \
+        process.exit(res.statusCode === 200 ? 0 : 1); \
+    }).on('error', () => process.exit(1));"
+
+# Start the API Gateway
+CMD ["node", "dist/index.js"]
