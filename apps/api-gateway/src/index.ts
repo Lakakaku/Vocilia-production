@@ -45,14 +45,28 @@ app.use(cors({
     if (process.env.NODE_ENV !== 'production') {
       return callback(null, true);
     }
+    
+    // Allow configured domains
     const allowlist = [
       process.env.NEXT_PUBLIC_APP_URL,
       process.env.NEXT_PUBLIC_BUSINESS_DASHBOARD_URL,
-      process.env.NEXT_PUBLIC_ADMIN_DASHBOARD_URL
+      process.env.NEXT_PUBLIC_ADMIN_DASHBOARD_URL,
+      // Also allow Vercel preview deployments
+      'https://business.vocilia.com',
+      'https://vocilia.com'
     ].filter(Boolean);
-    if (!origin || allowlist.includes(origin)) {
+    
+    // Allow Vercel deployments (they have predictable patterns)
+    const isVercelDomain = origin && (
+      origin.includes('.vercel.app') || 
+      allowlist.includes(origin)
+    );
+    
+    if (!origin || isVercelDomain) {
       return callback(null, true);
     }
+    
+    console.log('CORS blocked origin:', origin);
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true
