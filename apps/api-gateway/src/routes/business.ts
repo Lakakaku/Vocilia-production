@@ -216,58 +216,56 @@ router.post('/',
         }
       });
 
-      // Create store code for simple verification businesses
+      // Create store code for all businesses (unified system)
       let storeCode = null;
-      if (verificationMethod === 'simple_verification') {
-        try {
-          // Generate a unique 6-digit store code
-          let code: string;
-          let isUnique = false;
-          let attempts = 0;
+      try {
+        // Generate a unique 6-digit store code
+        let code: string;
+        let isUnique = false;
+        let attempts = 0;
+        
+        do {
+          // Generate random 6-digit code
+          code = Math.floor(100000 + Math.random() * 900000).toString();
           
-          do {
-            // Generate random 6-digit code
-            code = Math.floor(100000 + Math.random() * 900000).toString();
-            
-            // Check if code is unique
-            const { data: existingCode } = await db.client
-              .from('store_codes')
-              .select('id')
-              .eq('code', code)
-              .single();
-              
-            isUnique = !existingCode;
-            attempts++;
-          } while (!isUnique && attempts < 10);
-          
-          if (!isUnique) {
-            throw new Error('Could not generate unique store code');
-          }
-          
-          // Create store code record
-          const { data: storeCodeData, error } = await db.client
+          // Check if code is unique
+          const { data: existingCode } = await db.client
             .from('store_codes')
-            .insert({
-              business_id: business.id,
-              code,
-              name: 'Main Store Code',
-              active: true,
-              expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1 year
-            })
-            .select()
+            .select('id')
+            .eq('code', code)
             .single();
             
-          if (error) throw error;
-          storeCode = code;
-          
-          console.log(`🏪 Generated store code ${code} for simple verification business ${business.id}`);
-        } catch (storeCodeError) {
-          console.error('Store code creation failed:', storeCodeError);
-          // Continue without store code - can be created later
+          isUnique = !existingCode;
+          attempts++;
+        } while (!isUnique && attempts < 10);
+        
+        if (!isUnique) {
+          throw new Error('Could not generate unique store code');
         }
+        
+        // Create store code record for all businesses
+        const { data: storeCodeData, error } = await db.client
+          .from('store_codes')
+          .insert({
+            business_id: business.id,
+            code,
+            name: 'Main Store Code',
+            active: true,
+            expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1 year
+          })
+          .select()
+          .single();
+          
+        if (error) throw error;
+        storeCode = code;
+        
+        console.log(`🏪 Generated store code ${code} for business ${business.id}`);
+      } catch (storeCodeError) {
+        console.error('Store code creation failed:', storeCodeError);
+        // Continue without store code - can be created later
       }
 
-      // Create Stripe Connect TEST account if requested and using POS integration
+      // Create Stripe Connect account if requested and data is complete
       let stripeAccountId = null;
       let onboardingUrl = null;
       
@@ -275,50 +273,56 @@ router.post('/',
         try {
           const { stripeService, SwedishBusinessAccount } = await import('../services/stripe-connect');
           
-          const testBusinessData: SwedishBusinessAccount = {
-            businessId: business.id,
-            orgNumber: business.org_number || '556123-4567', // TEST org number
-            businessName: business.name,
-            email: business.email,
-            phone: business.phone || '+46701234567',
-            address: {
-              line1: business.address?.street || 'Drottninggatan 123',
-              city: business.address?.city || 'Stockholm',
-              postal_code: business.address?.postal_code || '11151',
-              country: 'SE',
-            },
-            representative: {
-              first_name: 'Test',
-              last_name: 'Representative',
+          // Only create Stripe account if business has complete required data
+          if (!business.org_number || !business.phone || !business.address?.street || !business.address?.city || !business.address?.postal_code) {
+            console.log('⚠️ Skipping Stripe account creation - incomplete business data');
+            // Don't create Stripe account if data is incomplete
+          } else {
+            const businessData: SwedishBusinessAccount = {
+              businessId: business.id,
+              orgNumber: business.org_number,
+              businessName: business.name,
               email: business.email,
-              phone: business.phone || '+46701234567',
-              dob: {
-                day: 15,
-                month: 6,
-                year: 1980,
+              phone: business.phone,
+              address: {
+                line1: business.address.street,
+                city: business.address.city,
+                postal_code: business.address.postal_code,
+                country: 'SE',
               },
-            },
-          };
+              representative: {
+                first_name: 'Business',
+                last_name: 'Representative',
+                email: business.email,
+                phone: business.phone,
+                dob: {
+                  day: 1,
+                  month: 1,
+                  year: 1990,
+                },
+              },
+            };
 
-          // Create Stripe Express account
-          const account = await stripeService.createExpressAccount(testBusinessData);
-          stripeAccountId = account.id;
+            // Create Stripe Express account
+            const account = await stripeService.createExpressAccount(businessData);
+            stripeAccountId = account.id;
 
-          // Update business with Stripe account ID
-          await db.updateBusiness(business.id, {
-            stripe_account_id: account.id,
-            updated_at: new Date().toISOString()
-          });
+            // Update business with Stripe account ID
+            await db.updateBusiness(business.id, {
+              stripe_account_id: account.id,
+              updated_at: new Date().toISOString()
+            });
 
-          // Create onboarding link for immediate use
-          const accountLink = await stripeService.createAccountLink(
-            account.id,
-            `${process.env.NEXT_PUBLIC_BUSINESS_URL}/onboarding/refresh`,
-            `${process.env.NEXT_PUBLIC_BUSINESS_URL}/onboarding/complete`
-          );
-          onboardingUrl = accountLink.url;
+            // Create onboarding link for immediate use
+            const accountLink = await stripeService.createAccountLink(
+              account.id,
+              `${process.env.NEXT_PUBLIC_BUSINESS_URL}/onboarding/refresh`,
+              `${process.env.NEXT_PUBLIC_BUSINESS_URL}/onboarding/complete`
+            );
+            onboardingUrl = accountLink.url;
 
-          console.log(`✅ Created Stripe TEST account ${account.id} for business ${business.id}`);
+            console.log(`✅ Created Stripe account ${account.id} for business ${business.id}`);
+          }
         } catch (stripeError) {
           console.error('Stripe account creation failed:', stripeError);
           // Continue without Stripe - can be set up later
@@ -589,19 +593,95 @@ router.post('/:businessId/pos',
 
 /**
  * @openapi
- * /api/business/{businessId}/qr:
- *   post:
- *     summary: Generate QR for business
+ * /api/business/{businessId}/store-codes:
+ *   get:
+ *     summary: Get business store codes
  *     tags: [Business]
+ *     parameters:
+ *       - in: path
+ *         name: businessId
+ *         required: true
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
- *         description: QR URL
+ *         description: Store codes for business
  */
-// Generate QR code for business
-router.post('/:businessId/qr',
+// Get business store codes
+router.get('/:businessId/store-codes',
+  [
+    param('businessId').isUUID('4').withMessage('Valid business ID required')
+  ],
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid business ID'
+        }
+      });
+    }
+
+    try {
+      const { businessId } = req.params;
+
+      // Get store codes for the business
+      const { data: storeCodes, error } = await db.client
+        .from('store_codes')
+        .select('*')
+        .eq('business_id', businessId)
+        .eq('active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const response: APIResponse<{ storeCodes: any[] }> = {
+        success: true,
+        data: { storeCodes: storeCodes || [] }
+      };
+
+      res.json(response);
+    } catch (error) {
+      console.error('Get store codes error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'STORE_CODES_ERROR',
+          message: 'Failed to get store codes'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * @openapi
+ * /api/business/{businessId}/store-codes/{storeCode}/qr:
+ *   post:
+ *     summary: Generate QR code for store code
+ *     tags: [Business]
+ *     parameters:
+ *       - in: path
+ *         name: businessId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: storeCode
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: QR code generated
+ */
+// Generate QR code for store code
+router.post('/:businessId/store-codes/:storeCode/qr',
   [
     param('businessId').isUUID('4').withMessage('Valid business ID required'),
-    body('locationId').optional().isUUID('4').withMessage('Valid location ID required')
+    param('storeCode').isLength({ min: 6, max: 6 }).withMessage('Store code must be 6 characters')
   ],
   async (req: Request, res: Response) => {
     const errors = validationResult(req);
@@ -617,25 +697,51 @@ router.post('/:businessId/qr',
     }
 
     try {
-      const { businessId } = req.params;
-      const { locationId } = req.body;
+      const { businessId, storeCode } = req.params;
 
-      // Forward to QR route
-      req.body = { businessId, locationId };
-      // We could call the QR generation logic directly here
-      // For now, return a placeholder response
+      // Verify store code belongs to business
+      const { data: codeData, error } = await db.client
+        .from('store_codes')
+        .select('*')
+        .eq('business_id', businessId)
+        .eq('code', storeCode)
+        .eq('active', true)
+        .single();
+
+      if (error || !codeData) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'STORE_CODE_NOT_FOUND',
+            message: 'Store code not found or inactive'
+          }
+        });
+      }
+
+      // Generate QR code URL that points to vocilia.com with pre-filled store code
+      const feedbackUrl = `https://vocilia.com?code=${storeCode}`;
       
-      const response: APIResponse<{ qrUrl: string; message: string }> = {
+      // In a real implementation, you would generate an actual QR code image
+      // For now, we'll return the data needed to generate it on the frontend
+      const response: APIResponse<{ 
+        qrUrl: string; 
+        feedbackUrl: string;
+        storeCode: string;
+        downloadUrl: string;
+      }> = {
         success: true,
         data: {
-          qrUrl: `${process.env.NEXT_PUBLIC_APP_URL}/feedback?b=${businessId}${locationId ? `&l=${locationId}` : ''}`,
-          message: 'Use the /api/qr/generate endpoint for full QR generation functionality'
+          qrUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(feedbackUrl)}`,
+          feedbackUrl,
+          storeCode,
+          downloadUrl: `https://api.qrserver.com/v1/create-qr-code/?size=600x600&format=png&download=1&data=${encodeURIComponent(feedbackUrl)}`
         }
       };
 
+      console.log(`📱 Generated QR code for store code ${storeCode} (Business: ${businessId})`);
       res.json(response);
     } catch (error) {
-      console.error('Generate QR error:', error);
+      console.error('Generate QR code error:', error);
       res.status(500).json({
         success: false,
         error: {
@@ -683,43 +789,59 @@ router.get('/:businessId/verification',
     try {
       const { businessId } = req.params;
 
-      // Mock verification data - in real implementation, this would come from database
-      const mockVerification = {
+      // Get business verification data from database
+      const business = await db.getBusiness(businessId);
+      if (!business) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'BUSINESS_NOT_FOUND',
+            message: 'Business not found'
+          }
+        });
+      }
+
+      // Get actual verification data
+      const verification = {
         id: `verification-${businessId}`,
         businessId,
-        status: 'pending',
+        status: business.verification_status || 'pending',
         documents: [],
         businessInfo: {
-          legalName: 'Test Business AB',
-          organizationNumber: '556123-4567',
-          registeredAddress: 'Testgatan 123, 111 11 Stockholm',
-          contactPerson: 'Test Person',
-          contactEmail: 'test@example.com',
-          contactPhone: '+46 8 123 456',
-          businessDescription: 'Test business for development',
-          website: 'https://test.example.com',
-          expectedMonthlyFeedbacks: 100
+          legalName: business.name,
+          organizationNumber: business.org_number || '',
+          registeredAddress: business.address ? `${business.address.street}, ${business.address.postal_code} ${business.address.city}` : '',
+          contactPerson: business.contact_person || '',
+          contactEmail: business.email,
+          contactPhone: business.phone || '',
+          businessDescription: business.description || '',
+          website: business.website || '',
+          expectedMonthlyFeedbacks: 0
         },
-        requiredDocuments: [
+        requiredDocuments: business.verification_method === 'pos_integration' ? [
           'business_registration',
           'tax_document', 
           'id_verification',
           'bank_statement'
+        ] : [
+          'business_registration',
+          'tax_document', 
+          'id_verification'
         ],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: business.created_at,
+        updatedAt: business.updated_at
       };
 
       const response: APIResponse<{
-        verification: typeof mockVerification;
+        verification: typeof verification;
         canSubmit: boolean;
         isComplete: boolean;
       }> = {
         success: true,
         data: {
-          verification: mockVerification,
-          canSubmit: mockVerification.documents.length === mockVerification.requiredDocuments.length,
-          isComplete: mockVerification.status === 'approved'
+          verification,
+          canSubmit: verification.documents.length === verification.requiredDocuments.length,
+          isComplete: verification.status === 'approved'
         }
       };
 
@@ -906,20 +1028,7 @@ router.post('/:businessId/verification/submit',
         updated_at: new Date().toISOString()
       });
 
-      // Mock automatic approval for TEST environment
-      setTimeout(async () => {
-        try {
-          await db.updateBusiness(businessId, {
-            verification_status: 'approved',
-            verification_approved_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            status: 'active'
-          });
-          console.log(`🎉 Mock verification approved for business ${businessId}`);
-        } catch (error) {
-          console.error('Mock approval error:', error);
-        }
-      }, 3000); // Auto-approve after 3 seconds for testing
+      // In production, verification will be handled manually by admins
 
       const response: APIResponse<{
         status: string;
@@ -930,11 +1039,11 @@ router.post('/:businessId/verification/submit',
         data: {
           status: 'submitted',
           message: 'Din ansökan har skickats in för granskning',
-          estimatedReviewTime: '3 sekunder (TEST-läge: automatisk godkännande)'
+          estimatedReviewTime: '1-3 arbetsdagar'
         }
       };
 
-      console.log(`📝 Mock verification submitted for business ${businessId}`);
+      console.log(`📝 Verification submitted for business ${businessId}`);
       res.json(response);
     } catch (error) {
       console.error('Verification submission error:', error);
@@ -987,7 +1096,7 @@ router.post('/:businessId/verification/approve',
 
     try {
       const { businessId } = req.params;
-      const { approvedBy = 'TEST_ADMIN', notes = 'Automatic TEST approval' } = req.body;
+      const { approvedBy = 'ADMIN', notes = 'Manual approval' } = req.body;
 
       // Update business to approved status
       const business = await db.updateBusiness(businessId, {
