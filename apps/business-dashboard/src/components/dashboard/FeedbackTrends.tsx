@@ -1,17 +1,67 @@
 'use client';
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-
-const trendData = [
-  { date: '2024-01', feedback: 145, score: 68 },
-  { date: '2024-02', feedback: 167, score: 71 },
-  { date: '2024-03', feedback: 189, score: 69 },
-  { date: '2024-04', feedback: 201, score: 73 },
-  { date: '2024-05', feedback: 223, score: 75 },
-  { date: '2024-06', feedback: 247, score: 74 },
-];
+import { Loader2, TrendingUp } from 'lucide-react';
+import { useBusinessContext } from '@/contexts/BusinessContext';
+import { useDashboardData } from '@/services/hooks';
 
 export function FeedbackTrends() {
+  const { businessId } = useBusinessContext();
+  const { data: dashboardData, loading, error } = useDashboardData(businessId || '');
+
+  if (loading) {
+    return (
+      <div className="card">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">Feedback Trender</h3>
+          <p className="text-sm text-gray-600">Feedback volym och genomsnittlig kvalitet över tid</p>
+        </div>
+        <div className="p-6 flex items-center justify-center h-80">
+          <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="card">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">Feedback Trender</h3>
+          <p className="text-sm text-gray-600">Feedback volym och genomsnittlig kvalitet över tid</p>
+        </div>
+        <div className="p-6 flex items-center justify-center h-80">
+          <div className="text-center">
+            <p className="text-red-600">Kunde inte ladda trenddata</p>
+            <p className="text-sm text-gray-500 mt-1">{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Generate empty trend data for new businesses
+  const trendData = [];
+  if (!dashboardData || dashboardData.totalSessions === 0) {
+    // Empty state
+    return (
+      <div className="card">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">Feedback Trender</h3>
+          <p className="text-sm text-gray-600">Feedback volym och genomsnittlig kvalitet över tid</p>
+        </div>
+        <div className="p-6 flex items-center justify-center h-80">
+          <div className="text-center">
+            <TrendingUp className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600 font-medium">Inga trender än</p>
+            <p className="text-sm text-gray-500 mt-1">
+              Trender kommer att visas när du har fått feedback från kunder
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="card">
       <div className="px-6 py-4 border-b border-gray-200">

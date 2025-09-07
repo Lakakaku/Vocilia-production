@@ -101,13 +101,14 @@ export function getVoiceAnalytics() {
 
 // Initialize AI services with fast model fallback chain
 const aiService = new UniversalAIService({
-  provider: 'ollama',
-  model: 'qwen2:0.5b',        // Ultra-fast 0.5B model for <500ms latency
-  endpoint: process.env.OLLAMA_ENDPOINT || 'http://localhost:11434',
+  provider: 'openai',
+  model: 'gpt-4o-mini',        // Fast, cost-effective GPT-4o-mini for production
+  apiKey: process.env.OPENAI_API_KEY,
   temperature: 0.7,
-  fallbackProvider: 'ollama',
-  fallbackModel: 'llama3.2:1b' // Fallback to 1B model if 0.5B fails
-});
+  fallbackProvider: 'ollama',  // Fallback to local Ollama if OpenAI fails
+  fallbackModel: 'qwen2:0.5b', // Ultra-fast local model
+  endpoint: process.env.OLLAMA_ENDPOINT || 'http://localhost:11434'
+});;
 
 const voiceProcessor = new VoiceProcessor({
   sampleRate: 16000,

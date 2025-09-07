@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/components/auth/AuthProvider';
 import { PermissionProvider } from '@/contexts/PermissionContext';
+import { BusinessProvider } from '@/contexts/BusinessContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 
 export const metadata: Metadata = {
@@ -19,9 +20,11 @@ export default function RootLayout({
       <body className="bg-gray-50">
         <AuthProvider>
           <PermissionProvider>
-            <DashboardLayout>
-              {children}
-            </DashboardLayout>
+            <BusinessProvider>
+              <DashboardLayout>
+                {children}
+              </DashboardLayout>
+            </BusinessProvider>
           </PermissionProvider>
         </AuthProvider>
       </body>
