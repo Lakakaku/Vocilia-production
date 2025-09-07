@@ -130,3 +130,4 @@ public/workbox-*
 test-results/
 playwright-report/
 coverage/
+.vercel

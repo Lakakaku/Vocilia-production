@@ -1,16 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { QrCode, Mic, Gift, Sparkles, CreditCard } from 'lucide-react';
+import { Mic, Gift, Sparkles, CreditCard } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { QRScanner } from '../components/QRScanner';
 import { FeedbackFlow } from '../components/FeedbackFlow';
 import { SimpleVerificationFlow } from '../components/SimpleVerificationFlow';
 import { NetworkStatus } from '../components/NetworkStatus';
 
 export default function HomePage() {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState<'welcome' | 'scan' | 'simple' | 'feedback'>('welcome');
+  const [currentStep, setCurrentStep] = useState<'welcome' | 'simple' | 'feedback'>('welcome');
   const [sessionData, setSessionData] = useState<any>(null);
 
   useEffect(() => {
@@ -40,13 +39,8 @@ export default function HomePage() {
         
         {currentStep === 'welcome' && (
           <WelcomeScreen 
-            onStartScan={() => setCurrentStep('scan')} 
-            onStartSimple={() => setCurrentStep('simple')}
+            onStart={() => setCurrentStep('simple')}
           />
-        )}
-
-        {currentStep === 'scan' && (
-          <QRScanner onQRScanned={handleQRScanned} onBack={() => setCurrentStep('welcome')} />
         )}
 
         {currentStep === 'simple' && (
@@ -68,9 +62,8 @@ export default function HomePage() {
   );
 }
 
-function WelcomeScreen({ onStartScan, onStartSimple }: { 
-  onStartScan: () => void; 
-  onStartSimple: () => void; 
+function WelcomeScreen({ onStart }: { 
+  onStart: () => void; 
 }) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" data-testid="welcome-screen">
@@ -109,7 +102,7 @@ function WelcomeScreen({ onStartScan, onStartSimple }: {
           transition={{ delay: 0.6 }}
           className="text-lg text-gray-600 mb-8 leading-relaxed"
         >
-          Scanna QR-kod eller ange butikskod, dela din feedback med AI, och få upp till{' '}
+          Ange butikskod, dela din feedback med AI, och få upp till{' '}
           <span className="font-semibold text-green-600">12% cashback</span>
         </motion.p>
 
@@ -122,9 +115,9 @@ function WelcomeScreen({ onStartScan, onStartSimple }: {
         >
           <div className="flex items-center space-x-3 text-left">
             <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-              <QrCode className="w-4 h-4 text-blue-600" />
+              <CreditCard className="w-4 h-4 text-blue-600" />
             </div>
-            <span className="text-gray-700">Scanna QR-kod eller ange butikskod</span>
+            <span className="text-gray-700">Ange 6-siffrig butikskod</span>
           </div>
 
           <div className="flex items-center space-x-3 text-left">
@@ -142,33 +135,22 @@ function WelcomeScreen({ onStartScan, onStartSimple }: {
           </div>
         </motion.div>
 
-        {/* CTA Buttons */}
+        {/* CTA Button */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.0 }}
-          className="space-y-3 w-full"
+          className="w-full"
         >
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={onStartScan}
+            onClick={onStart}
             className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center space-x-3"
-            data-testid="start-scan-button"
+            data-testid="start-button"
           >
-            <QrCode className="w-5 h-5" />
-            <span>Scanna QR-kod (Snabbt)</span>
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={onStartSimple}
-            className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center space-x-3"
-            data-testid="start-simple-button"
-          >
-            <CreditCard className="w-5 h-5" />
-            <span>Ange butikskod (Enkel verifiering)</span>
+            <Sparkles className="w-5 h-5" />
+            <span>Börja - Ange butikskod</span>
           </motion.button>
         </motion.div>
 

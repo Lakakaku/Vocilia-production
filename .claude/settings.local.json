@@ -84,7 +84,10 @@
       "Bash(./check-railway-deployment.sh)",
       "Bash(./monitor-railway.sh:*)",
       "Bash(dig:*)",
-      "Bash(npx vercel:*)"
+      "Bash(npx vercel:*)",
+      "Bash(dscacheutil:*)",
+      "Bash(echo:*)",
+      "Bash(yarn install)"
     ],
     "deny": [],
     "additionalDirectories": [

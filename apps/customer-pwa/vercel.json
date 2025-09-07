@@ -8,5 +8,18 @@
     "env": {
       "NODE_VERSION": "18.x"
     }
-  }
+  },
+  "redirects": [
+    {
+      "source": "/lander",
+      "destination": "/",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/index"
+    }
+  ]
 }

@@ -105,38 +105,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const signup = async (data: SignupData): Promise<void> => {
+    console.log('🚀 Starting signup process with data:', { email: data.email, name: data.name });
     setIsLoading(true);
     
     try {
-      // Create business via real API with password
+      // Create business via Railway backend API
       const businessData = {
         name: data.name,
         email: data.email,
-        password: data.password, // Include password for authentication
+        password: data.password,
         orgNumber: data.orgNumber,
-        phone: data.phone,
-        address: data.address ? {
-          street: data.address.street,
-          city: data.address.city,
-          postal_code: data.address.postal_code
-        } : undefined,
-        createStripeAccount: false, // Don't create Stripe account during signup
-        verificationMethod: 'simple_verification' // Default to simple verification
+        phone: data.phone
       };
 
+      console.log('📡 Calling Railway API at:', `${process.env.NEXT_PUBLIC_API_URL || 'localhost:3001'}/api/business`);
       const response = await apiService.createBusiness(businessData);
+      console.log('📥 API Response:', response);
 
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to create business account');
       }
 
       const business = response.data.business;
-      console.log(`✅ Business created successfully: ${business.name} (ID: ${business.id})`);
-      
-      // Don't auto-login - user will be redirected to login page
+      console.log(`✅ REAL Business created successfully: ${business.name} (ID: ${business.id})`);
+      console.log('🔄 User will be redirected to login page');
       
     } catch (error) {
-      console.error('Signup error:', error);
+      console.error('❌ Signup error:', error);
       throw error;
     } finally {
       setIsLoading(false);

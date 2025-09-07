@@ -400,8 +400,40 @@ class OpenAIProvider extends AIServiceProvider {
     businessContext: BusinessContext, 
     purchaseItems: string[]
   ): Promise<QualityScore> {
-    // TODO: Implement OpenAI evaluation
-    throw new Error('OpenAI evaluation not yet implemented');
+    const prompt = this.scoringEngine.generateEvaluationPrompt(transcript, businessContext, purchaseItems);
+    
+    try {
+      const response = await this.client.post('/chat/completions', {
+        model: this.config.model || 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: this.config.temperature || 0.7,
+        max_tokens: 500,
+        response_format: { type: "json_object" }
+      });
+
+      const content = response.data.choices[0].message.content;
+      const evaluation = this.parseEvaluationResponse(content);
+      
+      const qualityScore: QualityScore = {
+        authenticity: evaluation.authenticity,
+        concreteness: evaluation.concreteness,
+        depth: evaluation.depth,
+        total: evaluation.total_score,
+        reasoning: evaluation.reasoning,
+        categories: evaluation.categories,
+        sentiment: evaluation.sentiment
+      };
+
+      // Validate and adjust score for consistency
+      return this.scoringEngine.validateAndAdjustScore(qualityScore);
+    } catch (error) {
+      throw new Error(`OpenAI evaluation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   async generateResponse(
@@ -409,8 +441,31 @@ class OpenAIProvider extends AIServiceProvider {
     conversationHistory: string[],
     businessContext: BusinessContext
   ): Promise<ConversationResponse> {
-    // TODO: Implement OpenAI conversation
-    throw new Error('OpenAI conversation not yet implemented');
+    const prompt = this.scoringEngine.generateConversationPrompt(userInput, conversationHistory, businessContext);
+    
+    try {
+      const response = await this.client.post('/chat/completions', {
+        model: this.config.model || 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.8,
+        max_tokens: 150
+      });
+      
+      const responseText = response.data.choices[0].message.content.trim();
+      
+      return {
+        response: responseText,
+        shouldContinue: this.shouldContinueConversation(responseText, conversationHistory.length),
+        confidence: 0.9
+      };
+    } catch (error) {
+      throw new Error(`OpenAI conversation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   async healthCheck(): Promise<boolean> {
@@ -420,6 +475,51 @@ class OpenAIProvider extends AIServiceProvider {
     } catch {
       return false;
     }
+  }
+
+  private parseEvaluationResponse(responseText: string): AIEvaluationResponse {
+    try {
+      const parsed = JSON.parse(responseText);
+      
+      const required = ['authenticity', 'concreteness', 'depth', 'total_score', 'reasoning'];
+      for (const field of required) {
+        if (parsed[field] === undefined) {
+          throw new Error(`Missing required field: ${field}`);
+        }
+      }
+
+      parsed.categories = parsed.categories || [];
+      parsed.sentiment = parsed.sentiment || 0;
+
+      return parsed;
+    } catch (error) {
+      console.error('Failed to parse OpenAI evaluation response:', responseText);
+      
+      return {
+        authenticity: 50,
+        concreteness: 50,
+        depth: 50,
+        total_score: 50,
+        reasoning: 'Kunde inte analysera feedback - teknisk error',
+        categories: ['teknisk_error'],
+        sentiment: 0
+      };
+    }
+  }
+
+  private shouldContinueConversation(response: string, historyLength: number): boolean {
+    if (historyLength >= 6) return false;
+    
+    const completionIndicators = [
+      'tack för din feedback',
+      'det var allt',
+      'ha en bra dag',
+      'vi uppskattar',
+      'det räcker'
+    ];
+    
+    const responseLower = response.toLowerCase();
+    return !completionIndicators.some(indicator => responseLower.includes(indicator));
   }
 
   async getStatus() {
