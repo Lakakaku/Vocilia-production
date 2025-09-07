@@ -34,6 +34,7 @@ export interface Business {
   email: string;
   phone?: string;
   address?: BusinessAddress;
+  passwordHash?: string; // For authentication (never exposed to client)
   stripeAccountId?: string;
   stripeOnboardingComplete: boolean;
   rewardSettings: RewardSettings;
@@ -44,6 +45,7 @@ export interface Business {
   verificationPreferences: VerificationPreferences;
   verificationMethodChangedAt?: string;
   verificationMethodChangedBy?: string;
+  lastLoginAt?: string;
   createdAt: string;
   updatedAt: string;
 }

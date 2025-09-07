@@ -20,12 +20,14 @@ export interface Database {
           email: string
           phone: string | null
           address: Json | null
+          password_hash: string | null
           stripe_account_id: string | null
           stripe_onboarding_complete: boolean
           reward_settings: Json
           status: string
           trial_feedbacks_remaining: number
           trial_expires_at: string
+          last_login_at: string | null
           created_at: string
           updated_at: string
         }
@@ -36,12 +38,14 @@ export interface Database {
           email: string
           phone?: string | null
           address?: Json | null
+          password_hash?: string | null
           stripe_account_id?: string | null
           stripe_onboarding_complete?: boolean
           reward_settings?: Json
           status?: string
           trial_feedbacks_remaining?: number
           trial_expires_at?: string
+          last_login_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -52,12 +56,14 @@ export interface Database {
           email?: string
           phone?: string | null
           address?: Json | null
+          password_hash?: string | null
           stripe_account_id?: string | null
           stripe_onboarding_complete?: boolean
           reward_settings?: Json
           status?: string
           trial_feedbacks_remaining?: number
           trial_expires_at?: string
+          last_login_at?: string | null
           created_at?: string
           updated_at?: string
         }

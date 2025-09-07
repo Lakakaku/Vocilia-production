@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { body, param, query, validationResult } from 'express-validator';
+import bcrypt from 'bcryptjs';
 import { db } from '@ai-feedback/database';
 import type { APIResponse, Business, POSConnection } from '@ai-feedback/shared-types';
 
@@ -147,6 +148,7 @@ router.post('/',
   [
     body('name').trim().isLength({ min: 2, max: 100 }).withMessage('Business name must be 2-100 characters'),
     body('email').isEmail().withMessage('Valid email address required'),
+    body('password').optional().isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
     body('orgNumber').optional().matches(/^\d{6}-\d{4}$/).withMessage('Valid Swedish organization number required (XXXXXX-XXXX)'),
     body('phone').optional().isMobilePhone('sv-SE').withMessage('Valid Swedish phone number required'),
     body('address').optional().isObject().withMessage('Address must be an object'),
@@ -167,7 +169,7 @@ router.post('/',
     }
 
     try {
-      const { createStripeAccount = true, verificationMethod = 'pos_integration', ...businessData } = req.body;
+      const { createStripeAccount = true, verificationMethod = 'pos_integration', password, ...businessData } = req.body;
 
       // Check if business with this email already exists
       const { data: existingBusiness } = await db.client
@@ -186,9 +188,16 @@ router.post('/',
         });
       }
 
-      // Create business with verification method
+      // Hash password if provided
+      let passwordHash = null;
+      if (password) {
+        passwordHash = await bcrypt.hash(password, 12); // Use 12 rounds for security
+      }
+
+      // Create business with verification method and password hash
       const business = await db.createBusiness({
         ...businessData,
+        passwordHash, // Add hashed password to business data
         verificationMethod,
         verificationPreferences: {
           pos_integration: {

@@ -11,6 +11,7 @@ import { businessRoutes } from './routes/business';
 import { qrRoutes } from './routes/qr';
 import { healthRoutes } from './routes/health';
 import { adminRoutes } from './routes/admin';
+import authRoutes from './routes/auth';
 import { paymentsRoutes } from './routes/payments';
 import { posHealthRoutes } from './routes/pos-health';
 import { posWebhookRoutes } from './routes/pos-webhooks';
@@ -95,6 +96,7 @@ app.use(metricsEndpoints);
 
 // Routes
 app.use('/health', healthRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/qr', qrRoutes);
 app.use('/api/feedback', voiceLimiter, voiceUserLimit, feedbackRoutes);
 app.use('/api/business', businessRoutes);

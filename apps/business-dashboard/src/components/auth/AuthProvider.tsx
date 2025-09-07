@@ -56,8 +56,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const checkAuth = async () => {
       try {
         const userData = localStorage.getItem('ai-feedback-user');
-        if (userData) {
-          setUser(JSON.parse(userData));
+        const accessToken = localStorage.getItem('ai-feedback-access-token');
+        
+        if (userData && accessToken) {
+          // Try to verify the token is still valid
+          try {
+            const response = await apiService.getCurrentUser();
+            if (response.success) {
+              setUser(response.data.user);
+            } else {
+              // Token invalid, clear localStorage
+              localStorage.removeItem('ai-feedback-user');
+              localStorage.removeItem('ai-feedback-access-token');
+              localStorage.removeItem('ai-feedback-refresh-token');
+            }
+          } catch (error) {
+            // API call failed, but keep local user data if available
+            // This allows offline functionality
+            setUser(JSON.parse(userData));
+          }
         }
       } catch (error) {
         console.error('Error checking auth status:', error);
@@ -73,37 +90,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(true);
     
     try {
-      // Mock authentication - replace with real auth service
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await apiService.login(email, password);
       
-      // Check if user exists in localStorage (for demo purposes)
-      const savedUsers = JSON.parse(localStorage.getItem('ai-feedback-users') || '[]');
-      const existingUser = savedUsers.find((u: any) => u.email === email && u.password === password);
-      
-      if (existingUser) {
-        const mockUser: User = {
-          id: existingUser.id,
-          email: existingUser.email,
-          name: existingUser.name,
-          businessName: existingUser.businessName,
-          location: existingUser.location
-        };
-        
-        setUser(mockUser);
-        localStorage.setItem('ai-feedback-user', JSON.stringify(mockUser));
-      } else if (email === 'admin@testcafe.se' && password === 'password') {
-        const mockUser: User = {
-          id: '1',
-          email: 'admin@testcafe.se',
-          name: 'Test Användare',
-          businessName: 'Test Café',
-          location: 'Stockholm'
-        };
-        
-        setUser(mockUser);
-        localStorage.setItem('ai-feedback-user', JSON.stringify(mockUser));
+      if (response.success) {
+        setUser(response.data.user);
       } else {
-        throw new Error('Felaktiga inloggningsuppgifter');
+        throw new Error(response.error?.message || 'Inloggning misslyckades');
       }
     } catch (error) {
       throw error;
@@ -116,10 +108,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(true);
     
     try {
-      // Create business via real API
+      // Create business via real API with password
       const businessData = {
         name: data.name,
         email: data.email,
+        password: data.password, // Include password for authentication
         orgNumber: data.orgNumber,
         phone: data.phone,
         address: data.address ? {
@@ -131,41 +124,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         verificationMethod: 'simple_verification' // Default to simple verification
       };
 
-      const response = await apiService.request('/api/business', {
-        method: 'POST',
-        body: JSON.stringify(businessData)
-      });
+      const response = await apiService.createBusiness(businessData);
 
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to create business account');
       }
 
       const business = response.data.business;
-      
-      // Save user credentials to localStorage for login (not auto-login)
-      const savedUsers = JSON.parse(localStorage.getItem('ai-feedback-users') || '[]');
-      
-      // Check if user already exists
-      if (savedUsers.some((u: any) => u.email === data.email)) {
-        throw new Error('En användare med denna e-post finns redan');
-      }
-      
-      const newUser = {
-        id: business.id,
-        email: business.email,
-        name: business.name,
-        businessName: business.name,
-        location: business.address?.city || 'Stockholm',
-        password: data.password, // Store for mock login system
-        orgNumber: business.org_number,
-        phone: business.phone,
-        address: business.address,
-        createdAt: business.created_at
-      };
-      
-      savedUsers.push(newUser);
-      localStorage.setItem('ai-feedback-users', JSON.stringify(savedUsers));
-      
       console.log(`✅ Business created successfully: ${business.name} (ID: ${business.id})`);
       
       // Don't auto-login - user will be redirected to login page
@@ -178,10 +143,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('ai-feedback-user');
-    window.location.href = '/login';
+  const logout = async () => {
+    setIsLoading(true);
+    
+    try {
+      await apiService.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setUser(null);
+      setIsLoading(false);
+      window.location.href = '/login';
+    }
   };
 
   const value: AuthContextType = {

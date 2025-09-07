@@ -30,12 +30,21 @@ export class DatabaseService {
   async createBusiness(business: Omit<Business, 'id' | 'createdAt' | 'updatedAt'>) {
     const { data, error } = await this.client
       .from('businesses')
-      .insert([business])
+      .insert([{
+        ...business,
+        password_hash: business.passwordHash, // Map from camelCase to snake_case for DB
+      }])
       .select()
       .single();
     
     if (error) throw error;
-    return data;
+    
+    // Convert back to Business type with camelCase fields
+    return {
+      ...data,
+      passwordHash: data.password_hash,
+      lastLoginAt: data.last_login_at,
+    };
   }
 
   async getBusiness(id: string) {
@@ -46,19 +55,42 @@ export class DatabaseService {
       .single();
     
     if (error) throw error;
-    return data;
+    
+    // Convert snake_case to camelCase for Business type
+    return {
+      ...data,
+      passwordHash: data.password_hash,
+      lastLoginAt: data.last_login_at,
+    };
   }
 
   async updateBusiness(id: string, updates: Partial<Business>) {
+    const dbUpdates = {
+      ...updates,
+      // Map camelCase to snake_case for DB
+      ...(updates.passwordHash !== undefined && { password_hash: updates.passwordHash }),
+      ...(updates.lastLoginAt !== undefined && { last_login_at: updates.lastLoginAt }),
+    };
+    
+    // Remove camelCase fields that were mapped
+    delete dbUpdates.passwordHash;
+    delete dbUpdates.lastLoginAt;
+    
     const { data, error } = await this.client
       .from('businesses')
-      .update(updates)
+      .update(dbUpdates)
       .eq('id', id)
       .select()
       .single();
     
     if (error) throw error;
-    return data;
+    
+    // Convert back to Business type with camelCase fields
+    return {
+      ...data,
+      passwordHash: data.password_hash,
+      lastLoginAt: data.last_login_at,
+    };
   }
 
   // Feedback session operations
