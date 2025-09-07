@@ -20,17 +20,17 @@ COPY packages/ai-evaluator/src ./src/packages/ai-evaluator/
 
 # Create production package.json without workspace dependencies
 RUN cat package.json | \
-    sed 's/"@ai-feedback\/database": "\*"/"@ai-feedback\/database": "file:src\/packages\/database"/' | \
-    sed 's/"@ai-feedback\/shared-types": "\*"/"@ai-feedback\/shared-types": "file:src\/packages\/shared-types"/' | \
-    sed 's/"@ai-feedback\/swish-payout": "\*"/"@ai-feedback\/swish-payout": "file:src\/packages\/swish-payout"/' | \
-    sed 's/"@feedback-platform\/ai-evaluator": "\*"/"@feedback-platform\/ai-evaluator": "file:src\/packages\/ai-evaluator"/' > package-prod.json && \
+    sed 's/"@ai-feedback\/database": "workspace:\*"/"@ai-feedback\/database": "file:src\/packages\/database"/' | \
+    sed 's/"@ai-feedback\/shared-types": "workspace:\*"/"@ai-feedback\/shared-types": "file:src\/packages\/shared-types"/' | \
+    sed 's/"@ai-feedback\/swish-payout": "workspace:\*"/"@ai-feedback\/swish-payout": "file:src\/packages\/swish-payout"/' | \
+    sed 's/"@feedback-platform\/ai-evaluator": "workspace:\*"/"@feedback-platform\/ai-evaluator": "file:src\/packages\/ai-evaluator"/' > package-prod.json && \
     mv package-prod.json package.json
 
 # Install all dependencies first (including dev dependencies for build)
 RUN npm install
 
-# Copy ultra-minimal JavaScript service (no compilation needed)
-RUN mkdir -p dist && cp src/ultra-minimal-index.js dist/
+# Build TypeScript to JavaScript
+RUN npm run build
 
 # Clean install for production (remove dev dependencies)
 RUN npm ci --only=production --ignore-scripts || npm install --omit=dev
@@ -59,7 +59,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
         process.exit(res.statusCode === 200 ? 0 : 1); \
     }).on('error', () => process.exit(1));"
 
-# Start the ultra-minimal API Gateway service
-CMD ["node", "dist/ultra-minimal-index.js"]
+# Start the full API Gateway service
+CMD ["node", "dist/index.js"]
 
 # Force redeploy - build succeeded but service not responding# Force redeploy - Sun Sep  7 01:11:46 CEST 2025
