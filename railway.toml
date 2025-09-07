@@ -4,7 +4,7 @@ dockerfilePath = "apps/api-gateway/Dockerfile.production"
 buildContext = "."
 
 [deploy]
-startCommand = "node dist/index.js"
+startCommand = "node src/standalone-auth.js"
 healthcheckPath = "/health"
 healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
