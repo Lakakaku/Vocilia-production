@@ -109,8 +109,8 @@ export default function SignupPage() {
         password: formData.password
       });
       
-      // Redirect to onboarding after successful signup
-      router.push('/onboarding');
+      // Redirect to login after successful signup
+      router.push('/login');
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Ett fel uppstod vid registrering');
     } finally {

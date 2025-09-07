@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { apiService } from '@/services/api';
 
 interface User {
   id: string;
@@ -115,62 +116,62 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(true);
     
     try {
-      // Mock signup - simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Create business via real API
+      const businessData = {
+        name: data.name,
+        email: data.email,
+        orgNumber: data.orgNumber,
+        phone: data.phone,
+        address: data.address ? {
+          street: data.address.street,
+          city: data.address.city,
+          postal_code: data.address.postal_code
+        } : undefined,
+        createStripeAccount: false, // Don't create Stripe account during signup
+        verificationMethod: 'simple_verification' // Default to simple verification
+      };
+
+      const response = await apiService.request('/api/business', {
+        method: 'POST',
+        body: JSON.stringify(businessData)
+      });
+
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to create business account');
+      }
+
+      const business = response.data.business;
+      
+      // Save user credentials to localStorage for login (not auto-login)
+      const savedUsers = JSON.parse(localStorage.getItem('ai-feedback-users') || '[]');
       
       // Check if user already exists
-      const savedUsers = JSON.parse(localStorage.getItem('ai-feedback-users') || '[]');
       if (savedUsers.some((u: any) => u.email === data.email)) {
         throw new Error('En användare med denna e-post finns redan');
       }
       
-      // Create new user
-      const userId = Date.now().toString();
       const newUser = {
-        id: userId,
-        email: data.email,
-        name: data.name,
-        businessName: data.name,
-        location: data.address?.city || 'Stockholm',
-        password: data.password, // In real app, this would be hashed
-        orgNumber: data.orgNumber,
-        phone: data.phone,
-        address: data.address,
-        createdAt: new Date().toISOString()
+        id: business.id,
+        email: business.email,
+        name: business.name,
+        businessName: business.name,
+        location: business.address?.city || 'Stockholm',
+        password: data.password, // Store for mock login system
+        orgNumber: business.org_number,
+        phone: business.phone,
+        address: business.address,
+        createdAt: business.created_at
       };
       
-      // Save to localStorage
       savedUsers.push(newUser);
       localStorage.setItem('ai-feedback-users', JSON.stringify(savedUsers));
       
-      // Also save business data for onboarding
-      localStorage.setItem('ai-feedback-signup-data', JSON.stringify({
-        businessInfo: {
-          name: data.name,
-          organizationNumber: data.orgNumber || '',
-          address: data.address?.street || '',
-          city: data.address?.city || '',
-          postalCode: data.address?.postal_code || '',
-          phone: data.phone || '',
-          email: data.email,
-          website: '',
-          description: ''
-        }
-      }));
+      console.log(`✅ Business created successfully: ${business.name} (ID: ${business.id})`);
       
-      // Auto-login the new user
-      const userForLogin: User = {
-        id: newUser.id,
-        email: newUser.email,
-        name: newUser.name,
-        businessName: newUser.businessName,
-        location: newUser.location
-      };
-      
-      setUser(userForLogin);
-      localStorage.setItem('ai-feedback-user', JSON.stringify(userForLogin));
+      // Don't auto-login - user will be redirected to login page
       
     } catch (error) {
+      console.error('Signup error:', error);
       throw error;
     } finally {
       setIsLoading(false);
