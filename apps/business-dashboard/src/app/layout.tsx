@@ -8,6 +8,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 export const metadata: Metadata = {
   title: 'AI Feedback Platform - Business Dashboard',
   description: 'Manage your customer feedback and insights',
+  // Force deployment refresh - 2025-09-07
 };
 
 export default function RootLayout({
