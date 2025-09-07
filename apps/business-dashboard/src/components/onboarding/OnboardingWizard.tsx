@@ -194,76 +194,15 @@ export function OnboardingWizard() {
     setIsCompleting(true);
     
     try {
-      // Step 1: Create business with Stripe Connect integration
-      console.log('🚀 Creating business with Stripe Connect...');
+      console.log('🚀 Creating real business account...');
       
-      const businessResponse = await fetch('/api/business', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: data.businessInfo.name,
-          email: data.businessInfo.email,
-          orgNumber: data.businessInfo.organizationNumber,
-          phone: data.businessInfo.phone,
-          address: {
-            street: data.businessInfo.address,
-            city: data.businessInfo.city,
-            postal_code: data.businessInfo.postalCode
-          },
-          createStripeAccount: data.verificationMethod === 'pos_integration', // Only enable Stripe for POS integration
-          verificationMethod: data.verificationMethod,
-          businessContext: data.businessContext
-        })
-      });
+      // This should redirect to login page since user needs to authenticate first
+      // before accessing onboarding. For now, we'll show an error message.
       
-      if (!businessResponse.ok) {
-        throw new Error('Failed to create business');
-      }
+      alert(`⚠️ Onboarding Error\n\nYou need to create an account first before completing onboarding.\n\nPlease go to the signup page to create your business account with a password.\n\nAfter creating your account, you'll be redirected to login where you can access your dashboard.`);
       
-      const businessData = await businessResponse.json();
-      const businessId = businessData.data.business.id;
-      const onboardingUrl = businessData.data.onboardingUrl;
-      
-      console.log('✅ Business created:', businessId);
-      console.log('💳 Stripe account:', businessData.data.stripeAccountId);
-      
-      // Step 2: Save locations
-      for (const location of data.locations) {
-        console.log('📍 Creating location:', location.name);
-        // Here you would call location creation API
-        await new Promise(resolve => setTimeout(resolve, 500)); // Mock delay
-      }
-      
-      // Step 3: Set up team members (if any)
-      for (const member of data.teamMembers) {
-        console.log('👤 Adding team member:', member.name);
-        // Here you would call user invitation API
-        await new Promise(resolve => setTimeout(resolve, 300)); // Mock delay
-      }
-      
-      // Success - redirect to verification or dashboard
-      console.log('🎉 Onboarding completed successfully!');
-      
-      // Store onboarding completion and clean up signup data
-      localStorage.setItem('businessId', businessId);
-      localStorage.setItem('onboardingCompleted', 'true');
-      localStorage.removeItem('ai-feedback-signup-data'); // Clean up signup data
-      
-      if (data.verificationMethod === 'simple_verification') {
-        // Show store code for simple verification
-        const storeCode = businessData.data.storeCode;
-        alert(`Onboarding complete!\n\nBusiness ID: ${businessId}\nVerification Method: Simple Verification\n\nYour Store Code: ${storeCode}\n\nKeep this code safe - customers will need it for verification.`);
-        // In a real app: router.push('/dashboard?setup=simple');
-      } else if (onboardingUrl) {
-        localStorage.setItem('stripeOnboardingUrl', onboardingUrl);
-        alert(`Onboarding complete! \n\nNext step: Complete Stripe Connect setup\n\nBusiness ID: ${businessId}\n\nYou'll be redirected to Stripe to complete payment setup.`);
-        // In a real app: window.location.href = onboardingUrl;
-      } else {
-        alert(`Onboarding complete!\n\nBusiness ID: ${businessId}\n\nYou can now access your dashboard.`);
-        // In a real app: router.push('/dashboard');
-      }
+      // Redirect to signup page
+      window.location.href = '/signup';
       
     } catch (error) {
       console.error('Failed to complete onboarding:', error);

@@ -11,7 +11,7 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
-  const isPublicPage = pathname === '/login' || pathname === '/signup' || pathname === '/onboarding';
+  const isPublicPage = pathname === '/login' || pathname === '/signup';
 
   if (isPublicPage) {
     return <>{children}</>;
