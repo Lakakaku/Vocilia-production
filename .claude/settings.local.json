@@ -69,7 +69,22 @@
       "Bash(kill:*)",
       "WebSearch",
       "Bash(npm --version)",
-      "Bash(vercel:*)"
+      "Bash(vercel:*)",
+      "Bash(gh auth:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(git remote remove:*)",
+      "Bash(railway login:*)",
+      "Bash(railway whoami:*)",
+      "Bash(railway create:*)",
+      "Bash(railway:*)",
+      "Bash(./setup-railway.sh)",
+      "Bash(./check-railway-deployment.sh)",
+      "Bash(./monitor-railway.sh:*)",
+      "Bash(dig:*)",
+      "Bash(npx vercel:*)"
     ],
     "deny": [],
     "additionalDirectories": [
