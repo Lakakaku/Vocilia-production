@@ -3,7 +3,7 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
-  "installCommand": "npm install --legacy-peer-deps",
+  "installCommand": "rm -f package-lock.json && npm install --legacy-peer-deps",
   "build": {
     "env": {
       "NODE_VERSION": "18.x"
