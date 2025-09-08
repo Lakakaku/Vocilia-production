@@ -54,8 +54,8 @@ export default function RootLayout({
     <html lang="sv">
       <head>
         {/* Preconnect to API */}
-        <link rel="preconnect" href={process.env.NEXT_PUBLIC_API_URL} />
-        <link rel="dns-prefetch" href={process.env.NEXT_PUBLIC_API_URL} />
+        <link rel="preconnect" href="https://ai-feedback-api-gateway-production-352e.up.railway.app" />
+        <link rel="dns-prefetch" href="https://ai-feedback-api-gateway-production-352e.up.railway.app" />
         {/* iOS startup image */}
         <link rel="apple-touch-startup-image" href="/icons/icon-512x512.png" />
       </head>
