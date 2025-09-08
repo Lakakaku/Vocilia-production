@@ -6,13 +6,8 @@ export function middleware(request: NextRequest) {
 
   // Handle business subdomain routing
   if (host === 'business.vocilia.com') {
-    // If already on a business route, allow it
-    if (pathname.startsWith('/business/')) {
-      return NextResponse.next();
-    }
-    
-    // Otherwise redirect to business login
-    const url = new URL('/business/login', request.url);
+    // Redirect to main domain with business route
+    const url = new URL('/business/login', 'https://vocilia.com');
     return NextResponse.redirect(url);
   }
 
