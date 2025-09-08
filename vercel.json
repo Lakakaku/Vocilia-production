@@ -1,6 +1,0 @@
-{
-  "installCommand": "cd apps/business-dashboard && npm install",
-  "buildCommand": "cd apps/business-dashboard && npm run build",
-  "outputDirectory": "apps/business-dashboard/.next",
-  "framework": "nextjs"
-}
