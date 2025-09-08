@@ -1,17 +1,17 @@
 {
   "version": 2,
   "framework": "nextjs",
-  "buildCommand": "npm run build",
-  "outputDirectory": ".next",
-  "installCommand": "npm install --legacy-peer-deps",
+  "buildCommand": "cd apps/business-dashboard && npm run build",
+  "outputDirectory": "apps/business-dashboard/.next",
+  "installCommand": "cd apps/business-dashboard && npm install",
   "build": {
     "env": {
       "NODE_VERSION": "18.x"
     }
   },
   "functions": {
-    "app/**": {
-      "includeFiles": "**"
+    "apps/business-dashboard/app/**": {
+      "includeFiles": "apps/business-dashboard/**"
     }
   }
 }
