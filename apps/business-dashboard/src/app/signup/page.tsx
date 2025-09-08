@@ -111,6 +111,7 @@ export default function SignupPage() {
                   id="businessName"
                   name="businessName"
                   type="text"
+                  autoComplete="organization"
                   required
                   className="pl-10 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Ditt företags namn"
@@ -134,6 +135,7 @@ export default function SignupPage() {
                   id="email"
                   name="email"
                   type="email"
+                  autoComplete="email"
                   required
                   className="pl-10 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                   placeholder="din@epost.se"
@@ -158,6 +160,7 @@ export default function SignupPage() {
                   id="password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   required
                   className="pl-10 pr-10 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Minst 6 tecken"
@@ -191,6 +194,7 @@ export default function SignupPage() {
                   id="confirmPassword"
                   name="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   required
                   className="pl-10 pr-10 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Upprepa lösenordet"
