@@ -1,25 +1,27 @@
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
-import Head from 'next/head';
+'use client';
+
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Mic, Gift, Sparkles, CreditCard } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { FeedbackFlow } from '../components/FeedbackFlow';
 import { SimpleVerificationFlow } from '../components/SimpleVerificationFlow';
 import { NetworkStatus } from '../components/NetworkStatus';
 
-export default function HomePage() {
+function HomePageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [currentStep, setCurrentStep] = useState<'welcome' | 'simple' | 'feedback'>('welcome');
   const [sessionData, setSessionData] = useState<any>(null);
 
   useEffect(() => {
     // Check if we have a QR token in the URL
-    const { q: qrToken } = router.query;
-    if (qrToken && typeof qrToken === 'string') {
+    const qrToken = searchParams.get('q');
+    if (qrToken) {
       setCurrentStep('feedback');
       // We'll handle the QR validation in the FeedbackFlow component
     }
-  }, [router.query]);
+  }, [searchParams]);
 
   const handleQRScanned = (sessionData: any) => {
     setSessionData(sessionData);
@@ -27,38 +29,31 @@ export default function HomePage() {
   };
 
   return (
-    <>
-      <Head>
-        <title>AI Feedback - Earn Cashback for Your Voice</title>
-        <meta name="description" content="Scan QR, share feedback, earn up to 12% cashback" />
-      </Head>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50" data-testid="app-container">
+      {/* Network status indicator for testing */}
+      <NetworkStatus />
+      
+      {currentStep === 'welcome' && (
+        <WelcomeScreen 
+          onStart={() => setCurrentStep('simple')}
+        />
+      )}
 
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50" data-testid="app-container">
-        {/* Network status indicator for testing */}
-        <NetworkStatus />
-        
-        {currentStep === 'welcome' && (
-          <WelcomeScreen 
-            onStart={() => setCurrentStep('simple')}
-          />
-        )}
+      {currentStep === 'simple' && (
+        <SimpleVerificationFlow 
+          onComplete={() => setCurrentStep('welcome')}
+          onBack={() => setCurrentStep('welcome')}
+        />
+      )}
 
-        {currentStep === 'simple' && (
-          <SimpleVerificationFlow 
-            onComplete={() => setCurrentStep('welcome')}
-            onBack={() => setCurrentStep('welcome')}
-          />
-        )}
-
-        {currentStep === 'feedback' && (
-          <FeedbackFlow 
-            qrToken={router.query.q as string} 
-            sessionData={sessionData}
-            onComplete={() => setCurrentStep('welcome')}
-          />
-        )}
-      </div>
-    </>
+      {currentStep === 'feedback' && (
+        <FeedbackFlow 
+          qrToken={searchParams.get('q') || ''}
+          sessionData={sessionData}
+          onComplete={() => setCurrentStep('welcome')}
+        />
+      )}
+    </div>
   );
 }
 
@@ -173,5 +168,13 @@ function WelcomeScreen({ onStart }: {
         className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"
       />
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}>
+      <HomePageContent />
+    </Suspense>
   );
 }

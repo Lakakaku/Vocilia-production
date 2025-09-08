@@ -1,7 +1,7 @@
 {
-  "name": "@ai-feedback/customer-pwa",
+  "name": "@ai-feedback/vocilia-app",
   "version": "1.0.0",
-  "description": "Customer-facing PWA for voice feedback collection",
+  "description": "Unified PWA for customer feedback collection and business dashboard",
   "private": true,
   "scripts": {
     "build": "next build",
@@ -25,7 +25,9 @@
     "postcss": "^8.4.35",
     "clsx": "^2.1.0",
     "framer-motion": "^11.0.6",
-    "lucide-react": "^0.323.0"
+    "lucide-react": "^0.323.0",
+    "recharts": "^2.8.0",
+    "@headlessui/react": "^1.7.17"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",

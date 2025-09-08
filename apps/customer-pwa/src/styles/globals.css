@@ -107,6 +107,11 @@
   .card-gradient {
     @apply bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-lg border border-gray-100 p-6;
   }
+  
+  /* Business-specific card style */
+  .stat-card {
+    @apply card p-6;
+  }
 
   /* Voice recorder specific styles */
   .recording-pulse {
