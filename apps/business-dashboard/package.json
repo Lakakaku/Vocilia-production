@@ -23,7 +23,10 @@
     "postcss": "8.4.32",
     "lucide-react": "0.263.1",
     "recharts": "2.8.0",
-    "@headlessui/react": "1.7.17"
+    "@headlessui/react": "1.7.17",
+    "@supabase/supabase-js": "^2.39.1",
+    "@supabase/auth-helpers-nextjs": "^0.8.7",
+    "axios": "^1.6.2"
   },
   "devDependencies": {
     "eslint": "8.56.0",
