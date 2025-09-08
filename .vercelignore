@@ -1,0 +1,11 @@
+turbo.json
+packages/
+services/
+apps/customer-pwa/
+apps/api-gateway/
+apps/admin-dashboard/
+.turbo/
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
