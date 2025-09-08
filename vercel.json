@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "framework": "nextjs",
+  "rootDirectory": "apps/business-dashboard",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install --force",
+  "build": {
+    "env": {
+      "NODE_VERSION": "18.x"
+    }
+  },
+  "ignoreCommand": "git diff HEAD^ HEAD --quiet ."
+}
