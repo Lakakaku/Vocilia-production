@@ -14,13 +14,6 @@ interface User {
 interface SignupData {
   name: string;
   email: string;
-  orgNumber?: string;
-  phone?: string;
-  address?: {
-    street: string;
-    city: string;
-    postal_code: string;
-  };
   password: string;
 }
 
@@ -93,7 +86,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const response = await apiService.login(email, password);
       
       if (response.success) {
-        setUser(response.data.user);
+        const userData = response.data.user;
+        setUser(userData);
+        
+        // Set business ID in localStorage for BusinessContext
+        if (typeof window !== 'undefined' && userData.id) {
+          localStorage.setItem('businessId', userData.id);
+          console.log(`✅ Business ID set in context: ${userData.id}`);
+        }
       } else {
         throw new Error(response.error?.message || 'Inloggning misslyckades');
       }
@@ -113,9 +113,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const businessData = {
         name: data.name,
         email: data.email,
-        password: data.password,
-        orgNumber: data.orgNumber,
-        phone: data.phone
+        password: data.password
       };
 
       console.log('📡 Calling Railway API at:', `${process.env.NEXT_PUBLIC_API_URL || 'localhost:3001'}/api/business`);
@@ -128,7 +126,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       const business = response.data.business;
       console.log(`✅ REAL Business created successfully: ${business.name} (ID: ${business.id})`);
-      console.log('🔄 User will be redirected to login page');
+      
+      // Automatically login after successful signup
+      console.log('🔐 Auto-logging in after signup...');
+      await login(data.email, data.password);
+      console.log('✅ Auto-login successful, user is now authenticated');
       
     } catch (error) {
       console.error('❌ Signup error:', error);

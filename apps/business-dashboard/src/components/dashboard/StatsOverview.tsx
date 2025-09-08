@@ -17,51 +17,76 @@ interface DashboardStats {
 
 export function StatsOverview() {
   const { businessId } = useBusinessContext();
+  const { data: dashboardData, loading, error } = useDashboardData(businessId || '');
   
-  // Demo data while full dashboard API is being developed
+  // Use real data from API, with fallbacks for new businesses
   const stats: DashboardStats = {
-    totalFeedback: 247,
-    feedbackGrowth: 12.5,
-    avgQualityScore: 73.5,
-    qualityScoreChange: 4.2,
-    uniqueCustomers: 189,
-    customerGrowth: 8.3,
-    totalRewards: 15750,
-    rewardsChange: 15.7
+    totalFeedback: dashboardData?.analytics.totalSessions || 0,
+    feedbackGrowth: 0, // TODO: Calculate growth when we have historical data
+    avgQualityScore: dashboardData?.analytics.averageQuality || 0,
+    qualityScoreChange: 0, // TODO: Calculate change when we have historical data
+    uniqueCustomers: dashboardData?.analytics.totalSessions || 0, // Use sessions as proxy for now
+    customerGrowth: 0, // TODO: Calculate growth when we have historical data
+    totalRewards: dashboardData?.analytics.totalRewards || 0,
+    rewardsChange: 0 // TODO: Calculate change when we have historical data
   };
+  
+  // Show loading state
+  if (loading && !businessId) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="stat-card animate-pulse">
+            <div className="h-4 bg-gray-200 rounded mb-3"></div>
+            <div className="h-8 bg-gray-200 rounded mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded"></div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  
+  // Show error state
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <p className="text-red-600 text-sm">Kunde inte ladda statistik: {error}</p>
+      </div>
+    );
+  }
 
   const statItems = [
     {
       name: 'Total Feedback',
       value: stats.totalFeedback?.toString() || '0',
-      change: `${stats.feedbackGrowth > 0 ? '+' : ''}${stats.feedbackGrowth?.toFixed(1) || 0}%`,
-      changeType: (stats.feedbackGrowth || 0) >= 0 ? 'increase' as const : 'decrease' as const,
+      change: stats.totalFeedback > 0 ? 'Aktiv' : 'Ingen data än',
+      changeType: 'increase' as const,
       icon: MessageSquare,
-      period: 'denna månad'
+      period: stats.totalFeedback > 0 ? 'feedback sessioner' : ''
     },
     {
       name: 'Avg Quality Score',
-      value: stats.avgQualityScore?.toFixed(1) || '0.0',
-      change: `${stats.qualityScoreChange > 0 ? '+' : ''}${stats.qualityScoreChange?.toFixed(1) || 0}`,
-      changeType: (stats.qualityScoreChange || 0) >= 0 ? 'increase' as const : 'decrease' as const,
+      value: stats.avgQualityScore > 0 ? stats.avgQualityScore.toFixed(1) : '0.0',
+      change: stats.avgQualityScore > 0 ? 'Aktiv' : 'Ingen data än',
+      changeType: 'increase' as const,
       icon: Star,
-      period: 'poäng'
+      period: 'av 100 poäng'
     },
     {
-      name: 'Unique Customers',
+      name: 'Customer Sessions',
       value: stats.uniqueCustomers?.toString() || '0',
-      change: `${stats.customerGrowth > 0 ? '+' : ''}${stats.customerGrowth?.toFixed(1) || 0}%`,
-      changeType: (stats.customerGrowth || 0) >= 0 ? 'increase' as const : 'decrease' as const,
+      change: stats.uniqueCustomers > 0 ? 'Aktiv' : 'Ingen data än',
+      changeType: 'increase' as const,
       icon: Users,
-      period: 'denna månad'
+      period: stats.uniqueCustomers > 0 ? 'sessioner' : ''
     },
     {
       name: 'Total Rewards',
       value: `${stats.totalRewards?.toLocaleString('sv-SE') || '0'} kr`,
-      change: `${stats.rewardsChange > 0 ? '+' : ''}${stats.rewardsChange?.toFixed(1) || 0}%`,
-      changeType: (stats.rewardsChange || 0) >= 0 ? 'increase' as const : 'decrease' as const,
+      change: stats.totalRewards > 0 ? 'Aktiv' : 'Ingen data än',
+      changeType: 'increase' as const,
       icon: CreditCard,
-      period: 'denna månad'
+      period: stats.totalRewards > 0 ? 'utbetalat' : ''
     },
   ];
   return (

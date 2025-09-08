@@ -2,20 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Lock, Mail, Building2, Phone, MapPin } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, Building2 } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import Link from 'next/link';
 
 interface SignupFormData {
   businessName: string;
-  organizationNumber: string;
   email: string;
-  phone: string;
-  address: {
-    street: string;
-    city: string;
-    postalCode: string;
-  };
   password: string;
   confirmPassword: string;
   acceptTerms: boolean;
@@ -23,14 +16,7 @@ interface SignupFormData {
 
 const initialFormData: SignupFormData = {
   businessName: '',
-  organizationNumber: '',
   email: '',
-  phone: '',
-  address: {
-    street: '',
-    city: '',
-    postalCode: ''
-  },
   password: '',
   confirmPassword: '',
   acceptTerms: false
@@ -48,21 +34,10 @@ export default function SignupPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     
-    if (name.startsWith('address.')) {
-      const addressField = name.split('.')[1];
-      setFormData(prev => ({
-        ...prev,
-        address: {
-          ...prev.address,
-          [addressField]: value
-        }
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: type === 'checkbox' ? checked : value
-      }));
-    }
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
   };
 
   const validateForm = (): string[] => {
@@ -74,11 +49,6 @@ export default function SignupPage() {
     if (formData.password !== formData.confirmPassword) errors.push('Lösenorden matchar inte');
     if (formData.password.length < 6) errors.push('Lösenord måste vara minst 6 tecken');
     if (!formData.acceptTerms) errors.push('Du måste acceptera villkoren');
-    
-    // Swedish organization number format (optional)
-    if (formData.organizationNumber && !formData.organizationNumber.match(/^\d{6}-\d{4}$/)) {
-      errors.push('Organisationsnummer ska ha formatet XXXXXX-XXXX');
-    }
 
     return errors;
   };
@@ -99,18 +69,11 @@ export default function SignupPage() {
       await signup({
         name: formData.businessName,
         email: formData.email,
-        orgNumber: formData.organizationNumber,
-        phone: formData.phone,
-        address: {
-          street: formData.address.street,
-          city: formData.address.city,
-          postal_code: formData.address.postalCode
-        },
         password: formData.password
       });
       
-      // Redirect to login after successful signup
-      router.push('/login');
+      // Redirect to dashboard after successful signup (user is now auto-logged in)
+      router.push('/');
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Ett fel uppstod vid registrering');
     } finally {
@@ -157,21 +120,6 @@ export default function SignupPage() {
               </div>
             </div>
 
-            {/* Organization Number */}
-            <div>
-              <label htmlFor="organizationNumber" className="block text-sm font-medium text-gray-700">
-                Organisationsnummer (valfritt)
-              </label>
-              <input
-                id="organizationNumber"
-                name="organizationNumber"
-                type="text"
-                className="mt-1 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                placeholder="123456-7890"
-                value={formData.organizationNumber}
-                onChange={handleInputChange}
-              />
-            </div>
 
             {/* Email */}
             <div>
@@ -195,61 +143,7 @@ export default function SignupPage() {
               </div>
             </div>
 
-            {/* Phone */}
-            <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-                Telefon (valfritt)
-              </label>
-              <div className="mt-1 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Phone className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  className="pl-10 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="+46 70 123 45 67"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
 
-            {/* Address */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium text-gray-700">Adress (valfritt)</h3>
-              
-              <div>
-                <input
-                  name="address.street"
-                  type="text"
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="Gatuadress"
-                  value={formData.address.street}
-                  onChange={handleInputChange}
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  name="address.city"
-                  type="text"
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="Stad"
-                  value={formData.address.city}
-                  onChange={handleInputChange}
-                />
-                <input
-                  name="address.postalCode"
-                  type="text"
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="12345"
-                  value={formData.address.postalCode}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
 
             {/* Password */}
             <div>
