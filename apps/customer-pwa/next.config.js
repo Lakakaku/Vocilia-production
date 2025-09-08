@@ -84,14 +84,7 @@ const nextConfig = {
     ];
   },
   // Configure for mobile PWA
-  async rewrites() {
-    return [
-      {
-        source: '/manifest.json',
-        destination: '/api/manifest',
-      },
-    ];
-  },
+  // Removed manifest rewrite - using static manifest.json file
 };
 
 module.exports = withPWA(nextConfig);
