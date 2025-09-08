@@ -25,6 +25,17 @@
           "value": "business.vocilia.com"
         }
       ]
+    },
+    {
+      "source": "/((?!business).*)",
+      "destination": "/business/login",
+      "permanent": false,
+      "has": [
+        {
+          "type": "host",
+          "value": "business.vocilia.com"
+        }
+      ]
     }
   ],
   "functions": {
