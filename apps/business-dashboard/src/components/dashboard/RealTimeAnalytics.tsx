@@ -51,63 +51,44 @@ export function RealTimeAnalytics() {
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API call
-      // const response = await fetch(`/api/business/analytics?range=${timeRange}`);
-      // const data = await response.json();
       
-      // Mock data for now - will be replaced with real API integration
-      const mockData: BusinessMetrics = {
-        totalFeedback: 247,
-        averageQualityScore: 73.5,
-        uniqueCustomers: 189,
-        totalRewards: 2847,
+      // Initialize with empty metrics for new accounts
+      const emptyMetrics: BusinessMetrics = {
+        totalFeedback: 0,
+        averageQualityScore: 0,
+        uniqueCustomers: 0,
+        totalRewards: 0,
         trends: {
-          feedbackChange: 12.3,
-          scoreChange: 5.2,
-          customerChange: 8.1,
-          rewardChange: -3.2
+          feedbackChange: 0,
+          scoreChange: 0,
+          customerChange: 0,
+          rewardChange: 0
         },
         qualityBreakdown: {
-          authenticity: 75.2,
-          concreteness: 71.8,
-          depth: 73.5
+          authenticity: 0,
+          concreteness: 0,
+          depth: 0
         },
         sentimentDistribution: {
-          positive: 68.2,
-          neutral: 23.1,
-          negative: 8.7
+          positive: 0,
+          neutral: 0,
+          negative: 0
         },
-        topCategories: [
-          { category: 'Service', count: 89, averageScore: 76.3 },
-          { category: 'Produkter', count: 67, averageScore: 71.2 },
-          { category: 'Atmosfär', count: 45, averageScore: 78.9 },
-          { category: 'Priser', count: 32, averageScore: 65.4 }
-        ],
-        recentInsights: [
-          {
-            type: 'opportunity',
-            title: 'Förbättra produktkvalitet',
-            description: 'Kunder nämner ofta produktkvalitet som förbättringsområde',
-            impact: 'high'
-          },
-          {
-            type: 'achievement', 
-            title: 'Utmärkt service',
-            description: 'Servicebetyget har ökat med 8% denna månad',
-            impact: 'medium'
-          },
-          {
-            type: 'concern',
-            title: 'Långa köer',
-            description: 'Flera kunder klagar på väntetider',
-            impact: 'medium'
-          }
-        ]
+        topCategories: [],
+        recentInsights: []
       };
 
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setMetrics(mockData);
+      // TODO: When API is ready, uncomment this:
+      // const response = await fetch(`/api/business/analytics?range=${timeRange}`);
+      // if (response.ok) {
+      //   const data = await response.json();
+      //   setMetrics(data);
+      // } else {
+      //   setMetrics(emptyMetrics);
+      // }
+      
+      // For now, set empty metrics for new accounts
+      setMetrics(emptyMetrics);
       
     } catch (err) {
       setError('Kunde inte hämta analytics data');
@@ -154,6 +135,24 @@ export function RealTimeAnalytics() {
   }
 
   if (!metrics) return null;
+
+  // Show empty state for new accounts
+  if (metrics.totalFeedback === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-12 card">
+          <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+            <Star className="w-8 h-8 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Välkommen till Vocilia!</h3>
+          <p className="text-gray-600 max-w-md mx-auto">
+            När dina kunder börjar lämna feedback kommer du se detaljerad analys här.
+            Börja med att skapa en QR-kod för din butik.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const formatTrend = (change: number) => ({
     value: change > 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`,

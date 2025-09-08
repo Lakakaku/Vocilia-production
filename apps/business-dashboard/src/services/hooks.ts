@@ -89,5 +89,3 @@ export function useVerificationStatus(businessId: string) {
   );
 }
 
-// Legacy mock business ID - now use BusinessContext for real business ID
-export const MOCK_BUSINESS_ID = 'test-business-id';

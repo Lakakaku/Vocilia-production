@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { Clock, User, Star, MessageSquare, ExternalLink, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
-import { useFeedbackData, MOCK_BUSINESS_ID } from '@/services/hooks';
+import { useFeedbackData } from '@/services/hooks';
+import { useAuth } from '@/components/auth/AuthProvider';
 import type { FeedbackFilter } from '@/app/feedback/page';
 
 interface FeedbackItem {
@@ -31,14 +32,27 @@ interface FeedbackListProps {
 export function FeedbackList({ filters }: FeedbackListProps) {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<'time' | 'score' | 'sentiment'>('time');
+  const { user } = useAuth();
 
-  // Fetch feedback data from API
-  const { data: feedbackData, loading, error, refetch } = useFeedbackData(MOCK_BUSINESS_ID, {
-    sentiment: filters.sentiment !== 'all' ? filters.sentiment : undefined,
-    category: filters.category !== 'all' ? filters.category : undefined,
-    search: filters.search || undefined,
-    limit: 50
-  });
+  // Fetch feedback data from API (only if user is logged in)
+  const { data: feedbackData, loading, error, refetch } = useFeedbackData(
+    user?.id || '', 
+    {
+      sentiment: filters.sentiment !== 'all' ? filters.sentiment : undefined,
+      category: filters.category !== 'all' ? filters.category : undefined,
+      search: filters.search || undefined,
+      limit: 50
+    }
+  );
+  
+  // Show empty state if no user is logged in
+  if (!user) {
+    return (
+      <div className="card p-8 text-center">
+        <p className="text-gray-600">Logga in för att se feedback</p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

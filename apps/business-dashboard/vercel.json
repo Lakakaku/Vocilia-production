@@ -8,5 +8,10 @@
     "env": {
       "NODE_VERSION": "18.x"
     }
+  },
+  "functions": {
+    "app/**": {
+      "includeFiles": "**"
+    }
   }
 }
