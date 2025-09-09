@@ -3,7 +3,6 @@
   "version": 2,
   "framework": "nextjs",
   "rootDirectory": "apps/customer-pwa",
-  "installCommand": "rm -f package-lock.json && npm install --legacy-peer-deps",
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "build": {
