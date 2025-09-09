@@ -1,7 +1,7 @@
 'use client';
 
 import { TrendingUp, TrendingDown, MessageSquare, Users, Star, CreditCard, Loader2 } from 'lucide-react';
-import { useDashboardData } from '@/services/hooks';
+import { useDashboardData } from '../../services/hooks';
 import { useBusinessContext } from '@/contexts/BusinessContext';
 
 interface DashboardStats {
