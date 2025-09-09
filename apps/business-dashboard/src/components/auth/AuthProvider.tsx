@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { apiService } from '../../services/api';
+import { apiService } from '../services/api';
 
 interface User {
   id: string;

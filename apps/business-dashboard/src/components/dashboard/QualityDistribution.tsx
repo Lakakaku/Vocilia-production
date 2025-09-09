@@ -3,7 +3,7 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Loader2, BarChart3 } from 'lucide-react';
 import { useBusinessContext } from '@/contexts/BusinessContext';
-import { useDashboardData } from '../../services/hooks';
+import { useDashboardData } from '../services/hooks';
 
 export function QualityDistribution() {
   const { businessId } = useBusinessContext();
