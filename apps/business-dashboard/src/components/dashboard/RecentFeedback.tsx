@@ -2,7 +2,7 @@
 
 import { MessageSquare, Star, Clock, User, Loader2 } from 'lucide-react';
 import { useBusinessContext } from '@/contexts/BusinessContext';
-import { useFeedbackData } from '../../services/hooks';
+import { useFeedbackData } from '@/services/hooks';
 
 interface FeedbackItem {
   id: string;
