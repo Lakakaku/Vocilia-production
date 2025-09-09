@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Clock, User, Star, MessageSquare, ExternalLink, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
-import { useFeedbackData } from '../services/hooks';
+import { useFeedbackData } from '../../services/hooks';
 import { useAuth } from '@/components/auth/AuthProvider';
 import type { FeedbackFilter } from '@/app/feedback/page';
 
