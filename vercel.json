@@ -2,8 +2,13 @@
   "name": "vocilia-app",
   "version": 2,
   "framework": "nextjs",
-  "rootDirectory": "apps/business-dashboard",
-  "installCommand": "npm install",
+  "rootDirectory": "apps/customer-pwa",
+  "installCommand": "rm -f package-lock.json && npm install --legacy-peer-deps",
   "buildCommand": "npm run build",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "build": {
+    "env": {
+      "NODE_VERSION": "18.x"
+    }
+  }
 }

@@ -123,7 +123,9 @@
       "mcp__vercel__get_deployment_build_logs",
       "mcp__vercel__get_project",
       "mcp__vercel__web_fetch_vercel_url",
-      "mcp__vercel__list_teams"
+      "mcp__vercel__list_teams",
+      "mcp__playwright__browser_wait_for",
+      "WebFetch(domain:business-dashboard-kag1prw54-lakakas-projects-b9fec40c.vercel.app)"
     ],
     "deny": [],
     "additionalDirectories": [
