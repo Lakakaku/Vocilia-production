@@ -6,6 +6,7 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   }
+  // Deployment trigger: 2025-01-09T21:08:00Z
 };
 
 module.exports = nextConfig;
