@@ -27,7 +27,11 @@
     "framer-motion": "^11.0.6",
     "lucide-react": "^0.323.0",
     "recharts": "^2.8.0",
-    "@headlessui/react": "^1.7.17"
+    "@headlessui/react": "^1.7.17",
+    "zod": "^3.22.4",
+    "@supabase/supabase-js": "^2.39.1",
+    "@supabase/auth-helpers-nextjs": "^0.8.7",
+    "axios": "^1.6.2"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",
