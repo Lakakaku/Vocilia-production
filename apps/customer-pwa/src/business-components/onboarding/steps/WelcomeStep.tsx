@@ -1,63 +1,44 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   Rocket, 
   CheckCircle2, 
   ArrowRight, 
   Lightbulb,
-  Clock,
   Users,
-  TrendingUp,
   Shield
 } from 'lucide-react';
-import { ProcessTimeline } from '../ProcessTimeline';
-import { ValueCalculator } from '../ValueCalculator';
 
 interface WelcomeStepProps {
   onNext: () => void;
 }
 
 export function WelcomeStep({ onNext }: WelcomeStepProps) {
-  const [showCalculator, setShowCalculator] = useState(false);
   
-  const benefits = [
+  const keyBenefits = [
     {
       icon: Lightbulb,
       title: 'Värdefull kundinsikt',
-      description: 'AI-analyserad feedback ger dig konkreta förbättringsområden och kundperspektiv som verkligen hjälper din verksamhet'
+      description: 'AI-analyserad feedback ger konkreta förbättringsområden'
     },
     {
       icon: Users,
       title: 'Motiverade kunder',
-      description: 'Kunder blir mer engagerade när de får belöningar för genomtänkt feedback - de kommer tillbaka oftare'
+      description: 'Kunder återvänder oftare när de får belöningar för bra feedback'
     },
     {
       icon: Shield,
       title: 'Kvalitetsförsäkring',
-      description: 'Endast verifierade köp och genomtänkt feedback genererar belöningar. Systemet filtrerar bort spam automatiskt'
-    },
-    {
-      icon: Clock,
-      title: 'Minimal tidsåtgång',
-      description: 'Efter initial setup behöver du bara 10-15 minuter per vecka för att hantera feedback och utbetalningar'
+      description: 'Endast verifierade köp och genomtänkt feedback genererar belöningar'
     }
   ];
 
-  const keyFeatures = [
-    'AI-driven kvalitetsbedömning av feedback',
-    'Automatisk kategorisering av förbättringsområden', 
-    'Integrerar med ditt befintliga kassasystem',
-    'Flexibel verifieringsprocess anpassad efter dina behov',
-    'Detaljerade rapporter och trendanalys',
-    'Kundengagemang genom belöningssystem'
-  ];
-
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Header Section */}
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-100 rounded-full mb-4">
+    <div className="max-w-3xl mx-auto text-center">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-100 rounded-full mb-6">
           <Rocket className="w-8 h-8 text-primary-600" />
         </div>
         
@@ -65,129 +46,80 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
           Välkommen till AI Feedback Platform
         </h1>
         
-        <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
-          Förvandla kundinteraktion till värdefull affärsinsikt. Låt kunder tjäna belöningar 
-          för att ge dig genomtänkt feedback som konkret förbättrar din verksamhet.
+        <p className="text-lg text-gray-600 leading-relaxed">
+          Förvandla kundinteraktion till värdefull affärsinsikt. Vi hjälper dig samla 
+          kvalitetsfeedback genom att belöna kunder för genomtänkta svar.
         </p>
       </div>
 
-      {/* Key Benefits Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        {benefits.map((benefit, index) => {
+      {/* Key Benefits - Compact */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        {keyBenefits.map((benefit, index) => {
           const Icon = benefit.icon;
           return (
-            <div key={index} className="bg-white p-6 rounded-lg border border-gray-200 hover:border-primary-200 transition-colors">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
+            <div key={index} className="bg-white p-6 rounded-lg border border-gray-200">
+              <div className="flex flex-col items-center text-center">
+                <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center mb-3">
                   <Icon className="w-5 h-5 text-primary-600" />
                 </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-2">
-                    {benefit.title}
-                  </h3>
-                  <p className="text-gray-600 text-sm leading-relaxed">
-                    {benefit.description}
-                  </p>
-                </div>
+                <h3 className="font-semibold text-gray-900 mb-2">
+                  {benefit.title}
+                </h3>
+                <p className="text-gray-600 text-sm">
+                  {benefit.description}
+                </p>
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* How It Works */}
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4 text-center">
-          Så fungerar systemet
-        </h2>
-        <ProcessTimeline />
+      {/* Simple Pricing Info */}
+      <div className="bg-gray-50 rounded-lg p-6 mb-8">
+        <div className="flex items-center justify-center gap-2 mb-3">
+          <CheckCircle2 className="w-5 h-5 text-green-600" />
+          <span className="font-semibold text-gray-900">Transparent prissättning</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div className="text-center">
+            <div className="font-bold text-gray-900">Gratis trial</div>
+            <div className="text-gray-600">De första 30 feedbacks</div>
+          </div>
+          <div className="text-center">
+            <div className="font-bold text-gray-900">20% plattformsavgift</div>
+            <div className="text-gray-600">Vi tar 20% av utbetalningarna</div>
+          </div>
+          <div className="text-center">
+            <div className="font-bold text-gray-900">Ingen fast kostnad</div>
+            <div className="text-gray-600">Betala bara för resultat</div>
+          </div>
+        </div>
+        <p className="text-xs text-gray-500 mt-3">
+          Exempel: Kund får 50 SEK → Du betalar 60 SEK totalt (50 + 10 avgift)
+        </p>
       </div>
 
-      {/* Key Features */}
-      <div className="bg-blue-50 rounded-lg p-6 border border-blue-200 mb-8">
-        <h3 className="font-semibold text-blue-900 mb-4 flex items-center gap-2">
-          <TrendingUp className="w-5 h-5" />
-          Vad du får tillgång till
+      {/* Next Step */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <h3 className="text-xl font-semibold text-gray-900 mb-3">
+          Kom igång på 10 minuter
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {keyFeatures.map((feature, index) => (
-            <div key={index} className="flex items-center gap-2 text-sm text-blue-800">
-              <CheckCircle2 className="w-4 h-4 text-blue-600 flex-shrink-0" />
-              {feature}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Value Calculator Toggle */}
-      <div className="mb-8">
-        <div className="text-center">
-          <button
-            onClick={() => setShowCalculator(!showCalculator)}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg border border-green-200 transition-colors"
-          >
-            <TrendingUp className="w-5 h-5" />
-            {showCalculator ? 'Dölj' : 'Visa'} potentiell affärsnytta
-            <ArrowRight className={`w-4 h-4 transform transition-transform ${showCalculator ? 'rotate-90' : ''}`} />
-          </button>
-        </div>
+        <p className="text-gray-600 mb-6">
+          Vi guidar dig genom 4 enkla steg för att konfigurera ditt system och börja 
+          ta emot värdefull feedback från dina kunder.
+        </p>
         
-        {showCalculator && (
-          <div className="mt-6 animate-in slide-in-from-top-2 duration-300">
-            <ValueCalculator />
-          </div>
-        )}
-      </div>
-
-      {/* Investment Information */}
-      <div className="bg-gray-50 rounded-lg p-6 border border-gray-200 mb-8">
-        <div className="text-center">
-          <h3 className="font-semibold text-gray-900 mb-3">
-            💰 Transparent prissättning
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-800">
-            <div className="bg-white rounded-lg p-4">
-              <div className="font-bold text-lg text-gray-900">Gratis trial</div>
-              <div className="text-xs text-gray-600">De första 30 feedbacks kostar ingenting</div>
-            </div>
-            <div className="bg-white rounded-lg p-4">
-              <div className="font-bold text-lg text-gray-900">20% plattformsavgift</div>
-              <div className="text-xs text-gray-600">Vi tar 20% av utbetalningarna till kunder</div>
-            </div>
-            <div className="bg-white rounded-lg p-4">
-              <div className="font-bold text-lg text-gray-900">Ingen fast kostnad</div>
-              <div className="text-xs text-gray-600">Du betalar bara när kunder får belöningar</div>
-            </div>
-          </div>
-          <p className="text-xs text-gray-600 mt-3">
-            Exempel: Om en kund får 50 SEK i belöning betalar du totalt 60 SEK (50 SEK till kund + 10 SEK plattformsavgift)
-          </p>
-        </div>
-      </div>
-
-      {/* Getting Started */}
-      <div className="text-center">
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h3 className="text-xl font-semibold text-gray-900 mb-3">
-            Redo att börja samla värdefull kundfeedback?
-          </h3>
-          <p className="text-gray-600 mb-6">
-            Konfigurationen tar 10-15 minuter. Du kan börja ta emot feedback redan denna vecka 
-            och se första resultaten inom några dagar.
-          </p>
-          
-          <button
-            onClick={onNext}
-            className="inline-flex items-center gap-2 px-8 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg hover:shadow-xl"
-          >
-            Börja konfiguration
-            <ArrowRight className="w-5 h-5" />
-          </button>
-          
-          <p className="text-xs text-gray-500 mt-3">
-            Gratis trial för de första 30 feedbacks • Avbryt när som helst
-          </p>
-        </div>
+        <button
+          onClick={onNext}
+          className="inline-flex items-center gap-2 px-8 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg hover:shadow-xl"
+        >
+          Börja konfiguration
+          <ArrowRight className="w-5 h-5" />
+        </button>
+        
+        <p className="text-xs text-gray-500 mt-3">
+          Steg 1 av 4 • Gratis trial • Avbryt när som helst
+        </p>
       </div>
     </div>
   );
