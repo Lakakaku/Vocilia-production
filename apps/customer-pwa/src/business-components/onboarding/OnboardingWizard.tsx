@@ -1,10 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { 
-  Check, 
   Rocket,
   Building2, 
   Settings, 
@@ -74,82 +72,10 @@ const INITIAL_DATA: OnboardingData = {
 
 export function OnboardingWizard() {
   const router = useRouter();
-  const supabase = createClientComponentClient();
   
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [data, setData] = useState<OnboardingData>(INITIAL_DATA);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
-
-  // Load existing progress on mount
-  useEffect(() => {
-    loadExistingProgress();
-  }, []);
-
-  const loadExistingProgress = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/business/onboarding/status');
-      if (response.ok) {
-        const { progress } = await response.json();
-        if (progress) {
-          setCurrentStepIndex(progress.current_step - 1); // Convert to 0-based index
-          
-          // Load draft data if available
-          if (progress.step_2_draft_data) {
-            setData(prev => ({
-              ...prev,
-              businessProfile: { ...prev.businessProfile, ...progress.step_2_draft_data }
-            }));
-          }
-          if (progress.step_3_draft_data) {
-            setData(prev => ({
-              ...prev,
-              integrationAssessment: { ...prev.integrationAssessment, ...progress.step_3_draft_data }
-            }));
-          }
-          if (progress.step_4_draft_data) {
-            setData(prev => ({
-              ...prev,
-              goalsExpectations: { ...prev.goalsExpectations, ...progress.step_4_draft_data }
-            }));
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error loading progress:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const saveProgress = async (step: number, stepData: any, completed: boolean = false) => {
-    setIsSaving(true);
-    try {
-      const response = await fetch('/api/business/onboarding/save-progress', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          step,
-          stepData,
-          completed,
-          currentStep: step
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to save progress');
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error saving progress:', error);
-      throw error;
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   const steps: OnboardingStep[] = [
     {
@@ -215,30 +141,18 @@ export function OnboardingWizard() {
     );
   }
 
-  const handleStepNavigation = async (stepIndex: number) => {
+  const handleStepNavigation = (stepIndex: number) => {
     if (stepIndex >= 0 && stepIndex < steps.length) {
-      setCurrentStepIndex(stepIndex);
+      // Only allow navigation to completed steps or the next logical step
+      if (stepIndex <= currentStepIndex || steps[stepIndex - 1]?.isCompleted) {
+        setCurrentStepIndex(stepIndex);
+      }
     }
   };
 
-  const handleNext = async (stepData?: any) => {
-    try {
-      // Save current step data if provided
-      if (stepData && currentStepIndex > 0) {
-        await saveProgress(currentStepIndex + 1, stepData, true);
-      } else if (currentStepIndex === 0) {
-        // Welcome step completed, mark as done
-        await saveProgress(1, {}, true);
-      }
-
-      // Move to next step
-      if (currentStepIndex < steps.length - 1) {
-        setCurrentStepIndex(currentStepIndex + 1);
-        await saveProgress(currentStepIndex + 2, {}, false); // Update current step
-      }
-    } catch (error) {
-      console.error('Error proceeding to next step:', error);
-      alert('Ett fel uppstod. Försök igen.');
+  const handleNext = () => {
+    if (currentStepIndex < steps.length - 1) {
+      setCurrentStepIndex(currentStepIndex + 1);
     }
   };
 
@@ -254,29 +168,11 @@ export function OnboardingWizard() {
     setIsCompleting(true);
     
     try {
-      // Save final step data
-      await saveProgress(4, data.goalsExpectations, true);
-
-      // Complete onboarding
-      const response = await fetch('/api/business/onboarding/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ onboardingData: data })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to complete onboarding');
-      }
-
-      const result = await response.json();
+      // Simulate completion process
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      if (result.success) {
-        // Use the redirect URL from the API response
-        const redirectTo = result.redirectTo || '/business/dashboard?onboarding=completed';
-        router.push(redirectTo);
-      } else {
-        throw new Error(result.error || 'Failed to complete onboarding');
-      }
+      // Redirect to business dashboard
+      router.push('/business/dashboard?onboarding=completed');
       
     } catch (error) {
       console.error('Failed to complete onboarding:', error);
@@ -288,33 +184,15 @@ export function OnboardingWizard() {
 
   const updateBusinessProfile = (profileData: typeof data.businessProfile) => {
     setData(prev => ({ ...prev, businessProfile: profileData }));
-    // Auto-save draft
-    saveProgress(2, profileData, false).catch(console.error);
   };
 
   const updateIntegrationAssessment = (assessmentData: typeof data.integrationAssessment) => {
     setData(prev => ({ ...prev, integrationAssessment: assessmentData }));
-    // Auto-save draft
-    saveProgress(3, assessmentData, false).catch(console.error);
   };
 
   const updateGoalsExpectations = (goalsData: typeof data.goalsExpectations) => {
     setData(prev => ({ ...prev, goalsExpectations: goalsData }));
-    // Auto-save draft
-    saveProgress(4, goalsData, false).catch(console.error);
   };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Laddar din konfiguration...</h2>
-          <p className="text-gray-600">Förbereder onboarding-guide</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -326,12 +204,6 @@ export function OnboardingWizard() {
               <h1 className="text-2xl font-bold text-gray-900">AI Feedback Platform</h1>
               <p className="text-gray-600">Konfiguration av ditt företagskonto</p>
             </div>
-            {isSaving && (
-              <div className="flex items-center text-sm text-gray-500">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400 mr-2"></div>
-                Sparar...
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -355,14 +227,14 @@ export function OnboardingWizard() {
         {/* Step Content */}
         <div className="mb-8">
           {currentStepIndex === 0 && (
-            <WelcomeStep onNext={() => handleNext()} />
+            <WelcomeStep onNext={handleNext} />
           )}
           
           {currentStepIndex === 1 && (
             <BusinessProfileStep
               data={data.businessProfile}
               onChange={updateBusinessProfile}
-              onNext={() => handleNext(data.businessProfile)}
+              onNext={handleNext}
               onBack={handleBack}
             />
           )}
@@ -371,7 +243,7 @@ export function OnboardingWizard() {
             <IntegrationAssessmentStep
               data={data.integrationAssessment}
               onChange={updateIntegrationAssessment}
-              onNext={() => handleNext(data.integrationAssessment)}
+              onNext={handleNext}
               onBack={handleBack}
             />
           )}
