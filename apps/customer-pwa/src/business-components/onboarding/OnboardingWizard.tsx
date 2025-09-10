@@ -215,6 +215,12 @@ export function OnboardingWizard() {
     );
   }
 
+  const handleStepNavigation = async (stepIndex: number) => {
+    if (stepIndex >= 0 && stepIndex < steps.length) {
+      setCurrentStepIndex(stepIndex);
+    }
+  };
+
   const handleNext = async (stepData?: any) => {
     try {
       // Save current step data if provided
@@ -265,8 +271,9 @@ export function OnboardingWizard() {
       const result = await response.json();
       
       if (result.success) {
-        // Redirect to dashboard
-        router.push('/?onboarding=completed');
+        // Use the redirect URL from the API response
+        const redirectTo = result.redirectTo || '/business/dashboard?onboarding=completed';
+        router.push(redirectTo);
       } else {
         throw new Error(result.error || 'Failed to complete onboarding');
       }
@@ -341,6 +348,7 @@ export function OnboardingWizard() {
             }))}
             currentStep={currentStepIndex + 1}
             totalSteps={steps.length}
+            onStepClick={handleStepNavigation}
           />
         </div>
 

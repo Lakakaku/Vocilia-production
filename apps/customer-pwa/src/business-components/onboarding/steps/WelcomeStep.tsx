@@ -7,7 +7,9 @@ import {
   ArrowRight, 
   Lightbulb,
   Clock,
-  DollarSign 
+  Users,
+  TrendingUp,
+  Shield
 } from 'lucide-react';
 import { ProcessTimeline } from '../ProcessTimeline';
 import { ValueCalculator } from '../ValueCalculator';
@@ -21,25 +23,34 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
   
   const benefits = [
     {
-      icon: DollarSign,
-      title: 'Passiv inkomstkälla',
-      description: 'Tjäna 20% provision på alla godkända kundbelöningar utan extra arbete'
-    },
-    {
       icon: Lightbulb,
-      title: 'Värdefull feedback',
-      description: 'AI-analyserad kundinsikt hjälper dig förbättra din verksamhet systematiskt'
+      title: 'Värdefull kundinsikt',
+      description: 'AI-analyserad feedback ger dig konkreta förbättringsområden och kundperspektiv som verkligen hjälper din verksamhet'
     },
     {
-      icon: CheckCircle2,
+      icon: Users,
+      title: 'Motiverade kunder',
+      description: 'Kunder blir mer engagerade när de får belöningar för genomtänkt feedback - de kommer tillbaka oftare'
+    },
+    {
+      icon: Shield,
       title: 'Kvalitetsförsäkring',
-      description: 'Endast verifierade köp och genomtänkt feedback genererar belöningar'
+      description: 'Endast verifierade köp och genomtänkt feedback genererar belöningar. Systemet filtrerar bort spam automatiskt'
     },
     {
       icon: Clock,
       title: 'Minimal tidsåtgång',
-      description: 'Efter setup krävs endast 10-15 minuter verifiering per vecka'
+      description: 'Efter initial setup behöver du bara 10-15 minuter per vecka för att hantera feedback och utbetalningar'
     }
+  ];
+
+  const keyFeatures = [
+    'AI-driven kvalitetsbedömning av feedback',
+    'Automatisk kategorisering av förbättringsområden', 
+    'Integrerar med ditt befintliga kassasystem',
+    'Flexibel verifieringsprocess anpassad efter dina behov',
+    'Detaljerade rapporter och trendanalys',
+    'Kundengagemang genom belöningssystem'
   ];
 
   return (
@@ -55,8 +66,8 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
         </h1>
         
         <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
-          Förvandla din kundinteraktion till en värdefull inkomstkälla. Låt kunder 
-          tjäna belöningar för att ge dig genomtänkt feedback som förbättrar din verksamhet.
+          Förvandla kundinteraktion till värdefull affärsinsikt. Låt kunder tjäna belöningar 
+          för att ge dig genomtänkt feedback som konkret förbättrar din verksamhet.
         </p>
       </div>
 
@@ -84,9 +95,28 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
         })}
       </div>
 
-      {/* Process Timeline */}
+      {/* How It Works */}
       <div className="mb-8">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4 text-center">
+          Så fungerar systemet
+        </h2>
         <ProcessTimeline />
+      </div>
+
+      {/* Key Features */}
+      <div className="bg-blue-50 rounded-lg p-6 border border-blue-200 mb-8">
+        <h3 className="font-semibold text-blue-900 mb-4 flex items-center gap-2">
+          <TrendingUp className="w-5 h-5" />
+          Vad du får tillgång till
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {keyFeatures.map((feature, index) => (
+            <div key={index} className="flex items-center gap-2 text-sm text-blue-800">
+              <CheckCircle2 className="w-4 h-4 text-blue-600 flex-shrink-0" />
+              {feature}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Value Calculator Toggle */}
@@ -94,10 +124,10 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
         <div className="text-center">
           <button
             onClick={() => setShowCalculator(!showCalculator)}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg border border-blue-200 transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg border border-green-200 transition-colors"
           >
-            <DollarSign className="w-5 h-5" />
-            {showCalculator ? 'Dölj' : 'Visa'} intäktskalkylator
+            <TrendingUp className="w-5 h-5" />
+            {showCalculator ? 'Dölj' : 'Visa'} potentiell affärsnytta
             <ArrowRight className={`w-4 h-4 transform transition-transform ${showCalculator ? 'rotate-90' : ''}`} />
           </button>
         </div>
@@ -109,26 +139,29 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
         )}
       </div>
 
-      {/* Success Stories / Social Proof */}
-      <div className="bg-green-50 rounded-lg p-6 border border-green-200 mb-8">
+      {/* Investment Information */}
+      <div className="bg-gray-50 rounded-lg p-6 border border-gray-200 mb-8">
         <div className="text-center">
-          <h3 className="font-semibold text-green-900 mb-3">
-            📈 Framgångshistorier från våra tidiga användare
+          <h3 className="font-semibold text-gray-900 mb-3">
+            💰 Transparent prissättning
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-green-800">
-            <div className="bg-white bg-opacity-50 rounded-lg p-4">
-              <div className="font-bold text-lg text-green-700">~3,200 SEK/mån</div>
-              <div className="text-xs">Genomsnittlig månadsintäkt för kaféer med 40-60 kunder/dag</div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-800">
+            <div className="bg-white rounded-lg p-4">
+              <div className="font-bold text-lg text-gray-900">Gratis trial</div>
+              <div className="text-xs text-gray-600">De första 30 feedbacks kostar ingenting</div>
             </div>
-            <div className="bg-white bg-opacity-50 rounded-lg p-4">
-              <div className="font-bold text-lg text-green-700">87% kvalitet</div>
-              <div className="text-xs">Genomsnittlig feedbackkvalitet från verifierade köp</div>
+            <div className="bg-white rounded-lg p-4">
+              <div className="font-bold text-lg text-gray-900">20% plattformsavgift</div>
+              <div className="text-xs text-gray-600">Vi tar 20% av utbetalningarna till kunder</div>
             </div>
-            <div className="bg-white bg-opacity-50 rounded-lg p-4">
-              <div className="font-bold text-lg text-green-700">12 min/vecka</div>
-              <div className="text-xs">Genomsnittlig tid för verifiering av veckans feedback</div>
+            <div className="bg-white rounded-lg p-4">
+              <div className="font-bold text-lg text-gray-900">Ingen fast kostnad</div>
+              <div className="text-xs text-gray-600">Du betalar bara när kunder får belöningar</div>
             </div>
           </div>
+          <p className="text-xs text-gray-600 mt-3">
+            Exempel: Om en kund får 50 SEK i belöning betalar du totalt 60 SEK (50 SEK till kund + 10 SEK plattformsavgift)
+          </p>
         </div>
       </div>
 
@@ -136,11 +169,11 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
       <div className="text-center">
         <div className="bg-white border border-gray-200 rounded-lg p-6">
           <h3 className="text-xl font-semibold text-gray-900 mb-3">
-            Redo att börja tjäna på kundfeedback?
+            Redo att börja samla värdefull kundfeedback?
           </h3>
           <p className="text-gray-600 mb-6">
-            Det tar bara 10-15 minuter att konfigurera ditt konto. Du kan börja ta emot 
-            feedback redan denna vecka och få din första utbetalning nästa månad.
+            Konfigurationen tar 10-15 minuter. Du kan börja ta emot feedback redan denna vecka 
+            och se första resultaten inom några dagar.
           </p>
           
           <button
@@ -152,7 +185,7 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
           </button>
           
           <p className="text-xs text-gray-500 mt-3">
-            Ingen kostnad under de första 30 feedbacks • Avbryt när som helst
+            Gratis trial för de första 30 feedbacks • Avbryt när som helst
           </p>
         </div>
       </div>

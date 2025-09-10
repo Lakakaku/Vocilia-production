@@ -14,10 +14,21 @@ interface ProgressIndicatorProps {
   steps: ProgressStep[];
   currentStep: number;
   totalSteps: number;
+  onStepClick?: (stepIndex: number) => void;
 }
 
-export function ProgressIndicator({ steps, currentStep, totalSteps }: ProgressIndicatorProps) {
+export function ProgressIndicator({ steps, currentStep, totalSteps, onStepClick }: ProgressIndicatorProps) {
   const progressPercentage = Math.round((currentStep / totalSteps) * 100);
+
+  const handleStepClick = (stepIndex: number) => {
+    if (onStepClick) {
+      // Only allow clicking on completed steps or the current step
+      const step = steps[stepIndex];
+      if (step.isCompleted || step.isActive) {
+        onStepClick(stepIndex);
+      }
+    }
+  };
 
   return (
     <div className="w-full">
@@ -44,19 +55,23 @@ export function ProgressIndicator({ steps, currentStep, totalSteps }: ProgressIn
         {steps.map((step, index) => (
           <div key={step.id} className="flex flex-col items-center">
             {/* Step circle */}
-            <div className={`relative w-8 h-8 rounded-full flex items-center justify-center mb-2 transition-all duration-200 ${
-              step.isCompleted
-                ? 'bg-green-500 text-white shadow-md'
-                : step.isActive
-                  ? 'bg-primary-500 text-white shadow-md ring-2 ring-primary-200'
-                  : 'bg-gray-200 text-gray-500'
-            }`}>
+            <button
+              onClick={() => handleStepClick(index)}
+              disabled={!step.isCompleted && !step.isActive}
+              className={`relative w-8 h-8 rounded-full flex items-center justify-center mb-2 transition-all duration-200 ${
+                step.isCompleted
+                  ? 'bg-green-500 text-white shadow-md hover:bg-green-600 cursor-pointer'
+                  : step.isActive
+                    ? 'bg-primary-500 text-white shadow-md ring-2 ring-primary-200 hover:bg-primary-600 cursor-pointer'
+                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              } ${(step.isCompleted || step.isActive) ? 'hover:scale-105' : ''}`}
+            >
               {step.isCompleted ? (
                 <Check className="w-4 h-4" />
               ) : (
                 <Circle className="w-3 h-3 fill-current" />
               )}
-            </div>
+            </button>
 
             {/* Step title */}
             <div className={`text-xs text-center font-medium ${
@@ -84,13 +99,17 @@ export function ProgressIndicator({ steps, currentStep, totalSteps }: ProgressIn
         <div className="flex justify-center items-center space-x-2">
           {steps.map((step, index) => (
             <React.Fragment key={step.id}>
-              <div className={`w-3 h-3 rounded-full ${
-                step.isCompleted
-                  ? 'bg-green-500'
-                  : step.isActive
-                    ? 'bg-primary-500'
-                    : 'bg-gray-200'
-              }`}></div>
+              <button
+                onClick={() => handleStepClick(index)}
+                disabled={!step.isCompleted && !step.isActive}
+                className={`w-3 h-3 rounded-full transition-all ${
+                  step.isCompleted
+                    ? 'bg-green-500 hover:bg-green-600 cursor-pointer'
+                    : step.isActive
+                      ? 'bg-primary-500 hover:bg-primary-600 cursor-pointer'
+                      : 'bg-gray-200 cursor-not-allowed'
+                }`}
+              ></button>
               {index < steps.length - 1 && (
                 <div className={`w-8 h-0.5 ${
                   step.isCompleted ? 'bg-green-300' : 'bg-gray-200'
