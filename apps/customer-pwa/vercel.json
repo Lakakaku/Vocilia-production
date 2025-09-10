@@ -1,46 +1,6 @@
 {
-  "version": 2,
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
-  "installCommand": "rm -f package-lock.json && npm install --legacy-peer-deps",
-  "build": {
-    "env": {
-      "NODE_VERSION": "18.x"
-    }
-  },
-  "redirects": [
-    {
-      "source": "/lander",
-      "destination": "/",
-      "permanent": false
-    },
-    {
-      "source": "/",
-      "destination": "/business/login",
-      "permanent": false,
-      "has": [
-        {
-          "type": "host",
-          "value": "business.vocilia.com"
-        }
-      ]
-    },
-    {
-      "source": "/((?!business).*)",
-      "destination": "/business/login",
-      "permanent": false,
-      "has": [
-        {
-          "type": "host",
-          "value": "business.vocilia.com"
-        }
-      ]
-    }
-  ],
-  "functions": {
-    "app/**": {
-      "includeFiles": "**"
-    }
-  }
+  "installCommand": "npm install"
 }

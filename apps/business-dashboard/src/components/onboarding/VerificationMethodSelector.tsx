@@ -11,7 +11,8 @@ import {
   Shield,
   CreditCard
 } from 'lucide-react';
-import type { VerificationMethod } from '@ai-feedback/shared-types';
+// Inline type to avoid workspace dependency issues
+type VerificationMethod = 'pos_integration' | 'simple_verification';
 
 interface VerificationOption {
   method: VerificationMethod;

@@ -1,20 +1,28 @@
 ---
-name: ui-healer
 description: Analyze UI screens against style guide and fix design issues
+allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_snapshot, Read, Glob, Edit, MultiEdit
+argument-hint: [screen-path or URL]
 ---
 
 # UI Healing System
 
-## Step 1
+Analyze and fix UI screens against style guide standards with iterative improvement.
 
-Step 1 is to take a screenshot of each screen in the question using the Playwright MCP
+## Process Overview
 
-## Step 2
+**Step 1: Screenshot Analysis**
+- Take screenshots of specified screens using Playwright MCP
+- Capture current state of UI components and layouts
 
-Step 2, reference the directory /style-guide/ and find the files style-guide.md and ux-rules.md
+**Step 2: Style Guide Evaluation** 
+- Reference `/style-guide/style-guide.md` and `/style-guide/ux-rules.md`
+- Grade each screen objectively against established standards
+- Provide scores on a scale of 1-10 with detailed feedback
 
-Based on those files, you are to grade the outputs of Step 1 objectively against that standard, and give your response on a scale of 1 to 10
+**Step 3: Iterative Improvement**
+- For any screens scoring less than 8/10, implement necessary changes
+- Re-screenshot and re-evaluate until standards are met
+- Continue iteration until all screens achieve 8+ scores
 
-## Step 3
-
-For any screens or components taht have a score less than 8 out of 10, you must make changes, and then reapeat from Step 1. 
+## Usage
+Provide screen paths, component names, or URLs to analyze. The system will automatically iterate through the healing process until design standards are met. 

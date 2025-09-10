@@ -1,4 +1,7 @@
 {
+  "env": {
+    "SUPABASE_ACCESS_TOKEN": "sbp_a8460bce239bf48c248ca4622167024ff9de1b5d"
+  },
   "permissions": {
     "allow": [
       "Bash(grep:*)",
@@ -111,6 +114,7 @@
       "Bash(/Users/lucasjenner/task-feedback/fix-dns-now.sh)",
       "mcp__playwright__browser_navigate",
       "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_snapshot",
       "mcp__playwright__browser_console_messages",
       "mcp__playwright__browser_network_requests",
       "mcp__playwright__browser_fill_form",
@@ -126,13 +130,18 @@
       "mcp__vercel__list_teams",
       "mcp__playwright__browser_wait_for",
       "WebFetch(domain:business-dashboard-kag1prw54-lakakas-projects-b9fec40c.vercel.app)",
-      "mcp__vercel__get_access_to_vercel_url"
+      "mcp__vercel__get_access_to_vercel_url",
+      "Bash(./verify-dns.sh)",
+      "mcp__vercel__deploy_to_vercel",
+      "WebFetch(domain:supabase.com)",
+      "mcp__supabase__list_migrations"
     ],
     "deny": [],
     "additionalDirectories": [
       "/Users/lucasjenner"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "hooks": {
     "PreToolUse": [
       {

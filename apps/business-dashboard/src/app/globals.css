@@ -41,6 +41,48 @@
       transform: translate(0px, 0px) scale(1);
     }
   }
+
+  @keyframes soundWave {
+    0% {
+      transform: scaleY(1);
+    }
+    50% {
+      transform: scaleY(1.8);
+    }
+    100% {
+      transform: scaleY(1);
+    }
+  }
+
+  @keyframes waveFlow {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 0.3;
+    }
+    50% {
+      opacity: 0.6;
+    }
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0) rotate(0deg);
+    }
+    33% {
+      transform: translateY(-10px) rotate(1deg);
+    }
+    66% {
+      transform: translateY(5px) rotate(-1deg);
+    }
+  }
   
   .animate-blob {
     animation: blob 7s infinite;
@@ -52,5 +94,21 @@
   
   .animation-delay-4000 {
     animation-delay: 4s;
+  }
+
+  .animate-soundWave {
+    animation: soundWave 1.5s ease-in-out infinite;
+  }
+
+  .animate-waveFlow {
+    animation: waveFlow 15s linear infinite;
+  }
+
+  .animate-pulse {
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
   }
 }
