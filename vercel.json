@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "buildCommand": "cd apps/customer-pwa && npm install && npm run build",
+  "devCommand": "cd apps/customer-pwa && npm run dev",
+  "installCommand": "npm install",
+  "outputDirectory": "apps/customer-pwa/.next",
+  "framework": "nextjs",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD apps/customer-pwa/"
+}

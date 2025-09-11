@@ -134,7 +134,8 @@
       "Bash(./verify-dns.sh)",
       "mcp__vercel__deploy_to_vercel",
       "WebFetch(domain:supabase.com)",
-      "mcp__supabase__list_migrations"
+      "mcp__supabase__list_migrations",
+      "Bash(git cherry-pick:*)"
     ],
     "deny": [],
     "additionalDirectories": [

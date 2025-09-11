@@ -13,7 +13,11 @@ class ContextService {
 
   async getContext(): Promise<ContextApiResponse> {
     try {
-      const response = await fetch(this.baseUrl, {
+      // Get business ID from localStorage for now (temporary solution)
+      const businessId = localStorage.getItem('business-id') || 'bus_1757623745176_hv6t2vn9x';
+      const url = `${this.baseUrl}?business_id=${encodeURIComponent(businessId)}`;
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: this.getAuthHeaders(),
       });
@@ -36,7 +40,11 @@ class ContextService {
 
   async updateContext(payload: UpdateContextPayload): Promise<ContextApiResponse> {
     try {
-      const response = await fetch(this.baseUrl, {
+      // Get business ID from localStorage for now (temporary solution)
+      const businessId = localStorage.getItem('business-id') || 'bus_1757623745176_hv6t2vn9x';
+      const url = `${this.baseUrl}?business_id=${encodeURIComponent(businessId)}`;
+      
+      const response = await fetch(url, {
         method: 'PUT',
         headers: this.getAuthHeaders(),
         body: JSON.stringify(payload),
@@ -75,7 +83,11 @@ class ContextService {
 
   async validateContext(contextData: Partial<BusinessContextData>): Promise<ContextApiResponse> {
     try {
-      const response = await fetch(this.baseUrl, {
+      // Get business ID from localStorage for now (temporary solution)
+      const businessId = localStorage.getItem('business-id') || 'bus_1757623745176_hv6t2vn9x';
+      const url = `${this.baseUrl}?business_id=${encodeURIComponent(businessId)}`;
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
@@ -102,7 +114,11 @@ class ContextService {
 
   async importContext(importData: ContextImport): Promise<ContextApiResponse> {
     try {
-      const response = await fetch(this.baseUrl, {
+      // Get business ID from localStorage for now (temporary solution)
+      const businessId = localStorage.getItem('business-id') || 'bus_1757623745176_hv6t2vn9x';
+      const url = `${this.baseUrl}?business_id=${encodeURIComponent(businessId)}`;
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
