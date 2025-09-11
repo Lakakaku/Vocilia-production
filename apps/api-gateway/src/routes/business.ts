@@ -1372,7 +1372,7 @@ router.get('/:businessId/feedback/released',
 
 // Get business context data  
 router.get('/:businessId/context',
-  [param('businessId').isString().withMessage('Valid business ID required')],
+  [param('businessId').isUUID('4').withMessage('Valid business ID required')],
   async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -1503,7 +1503,7 @@ router.get('/:businessId/context',
 
 // Save business context data
 router.put('/:businessId/context',
-  [param('businessId').isString().withMessage('Valid business ID required')],
+  [param('businessId').isUUID('4').withMessage('Valid business ID required')],
   async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
