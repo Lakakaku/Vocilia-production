@@ -11,7 +11,6 @@ import {
   CreditCard,
   Smartphone,
   Monitor,
-  HelpCircle,
   Info
 } from 'lucide-react';
 
@@ -69,26 +68,6 @@ export function IntegrationAssessmentStep({ data, onChange, onNext, onBack }: In
     }
   ];
 
-  const techComfortLevels = [
-    {
-      value: 'basic',
-      label: 'Grundläggande',
-      description: 'Jag föredrar enkla lösningar utan teknisk komplexitet',
-      characteristics: ['Enkel installation', 'Minimal konfiguration', 'Grundläggande funktioner']
-    },
-    {
-      value: 'intermediate',
-      label: 'Medel',
-      description: 'Jag kan hantera vissa tekniska inställningar med vägledning',
-      characteristics: ['Följer instruktioner väl', 'Bekväm med grundläggande integrations', 'Lär sig gärna nya verktyg']
-    },
-    {
-      value: 'advanced',
-      label: 'Avancerad',
-      description: 'Jag är tekniskt kunnig och gillar att anpassa system',
-      characteristics: ['API-integrations', 'Anpassade inställningar', 'Teknisk felsökning']
-    }
-  ];
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -97,9 +76,6 @@ export function IntegrationAssessmentStep({ data, onChange, onNext, onBack }: In
       newErrors.pos_system = 'Välj ditt kassasystem';
     }
 
-    if (!data.tech_comfort_level) {
-      newErrors.tech_comfort_level = 'Välj din tekniska komfortnivå';
-    }
 
     if (!data.verification_method_preference) {
       newErrors.verification_method_preference = 'Välj verifieringsmetod';
@@ -159,7 +135,7 @@ export function IntegrationAssessmentStep({ data, onChange, onNext, onBack }: In
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 p-8">
-        <div className="space-y-8">
+        <div className="space-y-12">
           {/* POS System Selection */}
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
@@ -170,7 +146,7 @@ export function IntegrationAssessmentStep({ data, onChange, onNext, onBack }: In
               Vilket kassasystem använder du för att registrera försäljning?
             </p>
             
-            <div className="space-y-3">
+            <div className="space-y-4">
               {posSystemOptions.map(option => {
                 const Icon = option.icon;
                 const isSelected = data.pos_system === option.value;
@@ -178,7 +154,7 @@ export function IntegrationAssessmentStep({ data, onChange, onNext, onBack }: In
                 return (
                   <label 
                     key={option.value}
-                    className={`relative flex items-start p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                    className={`relative flex items-start p-8 rounded-lg border-2 cursor-pointer transition-colors ${
                       isSelected
                         ? 'border-primary-500 bg-primary-50'
                         : 'border-gray-200 hover:border-gray-300'
@@ -205,7 +181,7 @@ export function IntegrationAssessmentStep({ data, onChange, onNext, onBack }: In
                           {option.label}
                         </div>
                         {option.integrationLevel === 'automatic' && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs bg-green-100 text-green-800">
                             <Zap className="w-3 h-3 mr-1" />
                             Automatisk
                           </span>
@@ -224,65 +200,6 @@ export function IntegrationAssessmentStep({ data, onChange, onNext, onBack }: In
             )}
           </div>
 
-          {/* Tech Comfort Level */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <HelpCircle className="w-5 h-5 mr-2" />
-              Teknisk komfortnivå *
-            </h3>
-            <p className="text-gray-600 mb-4">
-              Hur bekväm känner du dig med tekniska lösningar och inställningar?
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {techComfortLevels.map(level => {
-                const isSelected = data.tech_comfort_level === level.value;
-                
-                return (
-                  <label 
-                    key={level.value}
-                    className={`relative flex flex-col p-4 rounded-lg border-2 cursor-pointer transition-colors ${
-                      isSelected
-                        ? 'border-primary-500 bg-primary-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="tech_comfort_level"
-                      value={level.value}
-                      checked={isSelected}
-                      onChange={(e) => updateData('tech_comfort_level', e.target.value as any)}
-                      className="sr-only"
-                    />
-                    
-                    <div className="text-center mb-3">
-                      <div className={`font-semibold mb-2 ${
-                        isSelected ? 'text-primary-900' : 'text-gray-900'
-                      }`}>
-                        {level.label}
-                      </div>
-                      <p className="text-gray-600 text-sm mb-3">
-                        {level.description}
-                      </p>
-                    </div>
-                    
-                    <div className="space-y-1">
-                      {level.characteristics.map((char, index) => (
-                        <div key={index} className="flex items-center text-xs text-gray-500">
-                          <CheckCircle className="w-3 h-3 mr-1 text-green-500" />
-                          {char}
-                        </div>
-                      ))}
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-            {errors.tech_comfort_level && (
-              <p className="mt-2 text-sm text-red-600">{errors.tech_comfort_level}</p>
-            )}
-          </div>
 
           {/* Verification Method */}
           <div>
@@ -294,57 +211,44 @@ export function IntegrationAssessmentStep({ data, onChange, onNext, onBack }: In
               Hur vill du verifiera att kundernas feedback kommer från äkta köp?
             </p>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Automatic Verification */}
               <div 
-                className={`relative p-6 rounded-lg border-2 transition-colors ${
+                className={`relative p-6 rounded-lg border-2 transition-colors shadow-lg ${
                   data.verification_method_preference === 'automatic'
-                    ? 'border-primary-500 bg-primary-50'
-                    : canUseAutomatic
-                      ? 'border-gray-200 hover:border-gray-300 cursor-pointer'
-                      : 'border-gray-200 bg-gray-50 opacity-50'
+                    ? 'border-gray-300 bg-gray-100 opacity-60'
+                    : 'border-gray-300 bg-gray-100 opacity-60'
                 }`}
               >
-                {canUseAutomatic && (
-                  <input
-                    type="radio"
-                    name="verification_method"
-                    value="automatic"
-                    checked={data.verification_method_preference === 'automatic'}
-                    onChange={(e) => updateData('verification_method_preference', e.target.value as any)}
-                    className="sr-only"
-                  />
-                )}
                 
                 <div className="text-center">
                   <div className="flex items-center justify-center mb-4">
-                    <div className={`p-3 rounded-full ${
-                      canUseAutomatic ? 'bg-green-100' : 'bg-gray-100'
-                    }`}>
-                      <Zap className={`w-6 h-6 ${
-                        canUseAutomatic ? 'text-green-600' : 'text-gray-400'
-                      }`} />
+                    <div className="p-3 rounded-full bg-gray-100">
+                      <Zap className="w-6 h-6 text-gray-400" />
                     </div>
                   </div>
                   
-                  <h4 className="font-semibold text-gray-900 mb-2">
+                  <h4 className="font-semibold text-gray-500 mb-2">
                     Automatisk verifiering
+                    <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
+                      Kommer senare
+                    </span>
                   </h4>
-                  <p className="text-gray-600 text-sm mb-4">
+                  <p className="text-gray-500 text-sm mb-4">
                     Kassasystemet verifierar köp automatiskt. Belöningar utbetalas direkt efter godkänd feedback.
                   </p>
                   
-                  <div className="space-y-2 text-xs text-gray-500">
+                  <div className="space-y-2 text-xs text-gray-400">
                     <div className="flex items-center justify-center">
-                      <CheckCircle className="w-3 h-3 mr-1 text-green-500" />
+                      <CheckCircle className="w-3 h-3 mr-1 text-gray-400" />
                       Ingen manuell hantering
                     </div>
                     <div className="flex items-center justify-center">
-                      <CheckCircle className="w-3 h-3 mr-1 text-green-500" />
+                      <CheckCircle className="w-3 h-3 mr-1 text-gray-400" />
                       Direktutbetalning
                     </div>
                     <div className="flex items-center justify-center">
-                      <CheckCircle className="w-3 h-3 mr-1 text-green-500" />
+                      <CheckCircle className="w-3 h-3 mr-1 text-gray-400" />
                       Realtidsanalyser
                     </div>
                   </div>
@@ -357,12 +261,6 @@ export function IntegrationAssessmentStep({ data, onChange, onNext, onBack }: In
                   )}
                 </div>
                 
-                {canUseAutomatic && (
-                  <label 
-                    htmlFor="verification_method_automatic"
-                    className="absolute inset-0 cursor-pointer"
-                  />
-                )}
               </div>
 
               {/* Simple Verification */}
@@ -429,7 +327,7 @@ export function IntegrationAssessmentStep({ data, onChange, onNext, onBack }: In
               {data.verification_method_preference === 'automatic' ? (
                 <div className="space-y-2">
                   <p className="text-blue-800 text-sm">
-                    ✅ <strong>Automatisk verifiering</strong> rekommenderas baserat på ditt kassasystem ({selectedPOS?.label}).
+                    <strong>Automatisk verifiering</strong> rekommenderas baserat på ditt kassasystem ({selectedPOS?.label}).
                   </p>
                   <p className="text-blue-700 text-sm">
                     <strong>Nästa steg:</strong> Vi kommer guida dig genom att koppla ditt {selectedPOS?.label}-konto 
@@ -439,7 +337,7 @@ export function IntegrationAssessmentStep({ data, onChange, onNext, onBack }: In
               ) : (
                 <div className="space-y-2">
                   <p className="text-blue-800 text-sm">
-                    ✅ <strong>Enkel verifiering</strong> passar bra för ditt kassasystem och tekniska nivå.
+                    <strong>Enkel verifiering</strong> passar bra för ditt kassasystem och tekniska nivå.
                   </p>
                   <p className="text-blue-700 text-sm">
                     <strong>Nästa steg:</strong> Vi kommer skapa lokala QR-koder och visa dig hur du verifierar 

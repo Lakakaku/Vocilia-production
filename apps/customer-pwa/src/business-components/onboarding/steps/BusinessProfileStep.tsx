@@ -4,8 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Building2, 
   MapPin, 
-  Users, 
-  TrendingUp,
+ 
   Store,
   Globe,
   DollarSign,
@@ -73,9 +72,6 @@ export function BusinessProfileStep({ data, onChange, onNext, onBack }: Business
       newErrors.avg_transaction_value_range = 'Välj genomsnittligt transaktionsvärde';
     }
 
-    if (!data.daily_customer_volume || data.daily_customer_volume < 1) {
-      newErrors.daily_customer_volume = 'Ange dagligt kundflöde (minst 1)';
-    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -118,10 +114,10 @@ export function BusinessProfileStep({ data, onChange, onNext, onBack }: Business
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 p-8">
-        <div className="space-y-8">
+        <div className="space-y-20">
           {/* Business Type */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-5">
               <Store className="w-4 h-4 inline mr-2" />
               Verksamhetstyp *
             </label>
@@ -149,10 +145,10 @@ export function BusinessProfileStep({ data, onChange, onNext, onBack }: Business
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
             {/* Store Count */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+              <label className="block text-sm font-medium text-gray-700 mb-5">
                 <Building2 className="w-4 h-4 inline mr-2" />
                 Antal butiker/platser *
               </label>
@@ -174,7 +170,7 @@ export function BusinessProfileStep({ data, onChange, onNext, onBack }: Business
 
             {/* Geographic Coverage */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+              <label className="block text-sm font-medium text-gray-700 mb-5">
                 <Globe className="w-4 h-4 inline mr-2" />
                 Geografisk täckning *
               </label>
@@ -206,15 +202,15 @@ export function BusinessProfileStep({ data, onChange, onNext, onBack }: Business
 
           {/* Transaction Value Range */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-5">
               <DollarSign className="w-4 h-4 inline mr-2" />
               Genomsnittligt transaktionsvärde *
             </label>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {transactionRanges.map(range => (
                 <label 
                   key={range.value}
-                  className={`relative flex flex-col p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                  className={`relative flex flex-col p-6 rounded-lg border-2 cursor-pointer transition-colors ${
                     data.avg_transaction_value_range === range.value
                       ? 'border-primary-500 bg-primary-50'
                       : 'border-gray-200 hover:border-gray-300'
@@ -246,82 +242,7 @@ export function BusinessProfileStep({ data, onChange, onNext, onBack }: Business
             )}
           </div>
 
-          {/* Daily Customer Volume */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              <Users className="w-4 h-4 inline mr-2" />
-              Dagligt kundflöde (per butik) *
-            </label>
-            <div className="space-y-4">
-              <input
-                type="range"
-                min="1"
-                max="500"
-                step="5"
-                value={data.daily_customer_volume || 50}
-                onChange={(e) => updateData('daily_customer_volume', parseInt(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-              />
-              <div className="flex justify-between items-center">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-primary-600">
-                    {data.daily_customer_volume || 50}
-                  </div>
-                  <div className="text-sm text-gray-500">kunder per dag</div>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-xs text-gray-500">
-                  <div className="text-center">
-                    <div>1-50</div>
-                    <div>Liten</div>
-                  </div>
-                  <div className="text-center">
-                    <div>51-200</div>
-                    <div>Medel</div>
-                  </div>
-                  <div className="text-center">
-                    <div>200+</div>
-                    <div>Stor</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            {errors.daily_customer_volume && (
-              <p className="mt-2 text-sm text-red-600">{errors.daily_customer_volume}</p>
-            )}
-          </div>
 
-          {/* Projected Impact */}
-          {data.daily_customer_volume && (
-            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-              <h4 className="font-medium text-blue-900 mb-2">
-                <TrendingUp className="w-4 h-4 inline mr-2" />
-                Beräknad påverkan
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div className="text-center">
-                  <div className="text-lg font-bold text-blue-600">
-                    {Math.round(data.daily_customer_volume * 0.1)} - {Math.round(data.daily_customer_volume * 0.2)}
-                  </div>
-                  <div className="text-blue-800">Feedback per dag</div>
-                  <div className="text-xs text-blue-600">(10-20% av kunder)</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold text-blue-600">
-                    {Math.round(data.daily_customer_volume * 0.1 * 7)} - {Math.round(data.daily_customer_volume * 0.2 * 7)}
-                  </div>
-                  <div className="text-blue-800">Feedback per vecka</div>
-                  <div className="text-xs text-blue-600">(alla butiker)</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold text-blue-600">
-                    {Math.round(data.daily_customer_volume * 0.1 * 7 * 15 * 0.2)} - {Math.round(data.daily_customer_volume * 0.2 * 7 * 25 * 0.2)} SEK
-                  </div>
-                  <div className="text-blue-800">Veckolig intäkt</div>
-                  <div className="text-xs text-blue-600">(20% provision)</div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Navigation */}

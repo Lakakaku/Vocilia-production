@@ -122,9 +122,6 @@ export function GoalsExpectationsStep({ data, onChange, onNext, onBack }: GoalsE
       newErrors.improvement_areas = 'Välj minst ett förbättringsområde';
     }
 
-    if (!data.expected_feedback_volume || data.expected_feedback_volume < 1) {
-      newErrors.expected_feedback_volume = 'Ange förväntad feedbackvolym';
-    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -204,7 +201,7 @@ export function GoalsExpectationsStep({ data, onChange, onNext, onBack }: GoalsE
                 return (
                   <label 
                     key={goal.value}
-                    className={`relative flex items-start p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                    className={`relative flex items-start p-6 rounded-lg border-2 cursor-pointer transition-colors ${
                       isSelected
                         ? 'border-primary-500 bg-primary-50'
                         : 'border-gray-200 hover:border-gray-300'
@@ -262,7 +259,7 @@ export function GoalsExpectationsStep({ data, onChange, onNext, onBack }: GoalsE
                 return (
                   <label 
                     key={area.value}
-                    className={`relative flex items-start p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                    className={`relative flex items-start p-6 rounded-lg border-2 cursor-pointer transition-colors ${
                       isSelected
                         ? 'border-primary-500 bg-primary-50'
                         : 'border-gray-200 hover:border-gray-300'
@@ -302,83 +299,6 @@ export function GoalsExpectationsStep({ data, onChange, onNext, onBack }: GoalsE
             )}
           </div>
 
-          {/* Expected Feedback Volume */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <MessageSquare className="w-5 h-5 mr-2" />
-              Förväntad feedbackvolym per vecka *
-            </h3>
-            <p className="text-gray-600 mb-4">
-              Hur många feedback förväntade dig att ta emot per vecka från alla dina butiker?
-            </p>
-            
-            <div className="space-y-4">
-              <input
-                type="range"
-                min="1"
-                max="200"
-                step="1"
-                value={data.expected_feedback_volume || 10}
-                onChange={(e) => updateData('expected_feedback_volume', parseInt(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-              />
-              
-              <div className="flex justify-between items-center">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-primary-600">
-                    {data.expected_feedback_volume || 10}
-                  </div>
-                  <div className="text-sm text-gray-500">feedback per vecka</div>
-                </div>
-                
-                <div className="grid grid-cols-4 gap-2 text-xs text-gray-500">
-                  <div className="text-center">
-                    <div>1-10</div>
-                    <div>Liten</div>
-                  </div>
-                  <div className="text-center">
-                    <div>11-30</div>
-                    <div>Medel</div>
-                  </div>
-                  <div className="text-center">
-                    <div>31-100</div>
-                    <div>Stor</div>
-                  </div>
-                  <div className="text-center">
-                    <div>100+</div>
-                    <div>Mycket stor</div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Volume impact indicator */}
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-blue-600">
-                      ~{Math.round((data.expected_feedback_volume || 10) * 15)} SEK
-                    </div>
-                    <div className="text-blue-800">Genomsnittlig kundbelöning/vecka</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-blue-600">
-                      ~{Math.round((data.expected_feedback_volume || 10) * 15 * 0.2)} SEK
-                    </div>
-                    <div className="text-blue-800">Din provision/vecka</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-blue-600">
-                      ~{Math.round((data.expected_feedback_volume || 10) * 15 * 0.2 * 4.33)} SEK
-                    </div>
-                    <div className="text-blue-800">Månadsintäkt</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            {errors.expected_feedback_volume && (
-              <p className="mt-2 text-sm text-red-600">{errors.expected_feedback_volume}</p>
-            )}
-          </div>
 
           {/* Staff Training */}
           <div>
@@ -391,7 +311,7 @@ export function GoalsExpectationsStep({ data, onChange, onNext, onBack }: GoalsE
             </p>
             
             <div className="space-y-4">
-              <label className="flex items-start gap-4 p-4 rounded-lg border border-gray-200 cursor-pointer hover:border-primary-200 transition-colors">
+              <label className="flex items-start gap-4 p-6 rounded-lg border border-gray-200 cursor-pointer hover:border-primary-200 transition-colors">
                 <input
                   type="checkbox"
                   checked={data.staff_training_required}
