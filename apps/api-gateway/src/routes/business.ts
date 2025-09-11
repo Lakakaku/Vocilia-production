@@ -1370,6 +1370,11 @@ router.get('/:businessId/feedback/released',
   }
 );
 
+// Simple test endpoint to debug routing issues
+router.get('/test', async (req: Request, res: Response) => {
+  res.json({ success: true, message: 'Test endpoint working' });
+});
+
 // Get business context data  
 router.get('/:businessId/context',
   [param('businessId').isUUID('4').withMessage('Valid business ID required')],
