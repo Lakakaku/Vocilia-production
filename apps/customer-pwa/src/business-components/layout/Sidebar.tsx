@@ -13,11 +13,13 @@ import {
   ChevronRight,
   Gift,
   FileText,
-  Printer
+  Printer,
+  Database
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/business/dashboard', icon: BarChart3 },
+  { name: 'Kontext', href: '/business/context', icon: Database },
   { name: 'Feedback', href: '/business/feedback', icon: MessageSquare },
   { name: 'Locations', href: '/business/locations', icon: MapPin },
   { name: 'Rapporter', href: '/business/reports', icon: Printer },
