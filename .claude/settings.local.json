@@ -135,7 +135,18 @@
       "mcp__vercel__deploy_to_vercel",
       "WebFetch(domain:supabase.com)",
       "mcp__supabase__list_migrations",
-      "Bash(git cherry-pick:*)"
+      "Bash(git cherry-pick:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(git log:*)",
+      "Bash(npm ls:*)",
+      "mcp__playwright__browser_evaluate",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__search_docs",
+      "Bash(npx @supabase/mcp-server-supabase:*)",
+      "Bash(SUPABASE_URL=\"https://ybrbeejvjbccqmewczte.supabase.co\" SUPABASE_SERVICE_ROLE_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicmJlZWp2amJjY3FtZXdjenRlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzE4OTU2NiwiZXhwIjoyMDcyNzY1NTY2fQ.VRKosTVyyW0Bb_PfVT_yMpFExVm3lvZ5R-GRzpYe6mk\" claude mcp add supabase npx @supabase/mcp-server-supabase)"
     ],
     "deny": [],
     "additionalDirectories": [

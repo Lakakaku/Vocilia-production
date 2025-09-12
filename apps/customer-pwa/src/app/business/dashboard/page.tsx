@@ -93,64 +93,20 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Business Dashboard</h1>
-            {user && (
-              <p className="text-gray-600 mt-2">
-                Välkommen tillbaka, {user.business?.name || user.email}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={handleLogout}
-            className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
-          >
-            Logga ut
-          </button>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="card">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Total Feedback</h3>
-            <p className="text-3xl font-bold text-blue-600">-</p>
-            <p className="text-sm text-gray-500">Kommer snart</p>
-          </div>
-          
-          <div className="card">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Average Quality</h3>
-            <p className="text-3xl font-bold text-green-600">-</p>
-            <p className="text-sm text-gray-500">Kommer snart</p>
-          </div>
-          
-          <div className="card">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Total Rewards</h3>
-            <p className="text-3xl font-bold text-purple-600">-</p>
-            <p className="text-sm text-gray-500">Kommer snart</p>
-          </div>
-        </div>
-
-        <div className="mt-8 card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Kom igång</h3>
-          <div className="space-y-4">
-            <p className="text-gray-700">
-              Ditt företagskonto är nu skapat! Här kan du snart:
-            </p>
-            <ul className="list-disc list-inside space-y-2 text-gray-600">
-              <li>Se all kundåterkomst från dina butiker</li>
-              <li>Hantera QR-koder för feedback-insamling</li>
-              <li>Analysera kvalitetspoäng och trends</li>
-              <li>Exportera data för rapporter</li>
-            </ul>
-            <div className="mt-6 p-4 bg-blue-50 rounded-md">
-              <p className="text-blue-800 font-medium">
-                Kontakta oss på support@vocilia.com för att aktivera alla funktioner.
-              </p>
-            </div>
-          </div>
-        </div>
+    <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="flex flex-col gap-4">
+        <button
+          onClick={() => router.push('/business/context')}
+          className="px-6 py-3 bg-black text-white rounded hover:bg-gray-800 transition-colors"
+        >
+          Context
+        </button>
+        <button
+          onClick={handleLogout}
+          className="px-6 py-3 bg-black text-white rounded hover:bg-gray-800 transition-colors"
+        >
+          Logout
+        </button>
       </div>
     </div>
   );

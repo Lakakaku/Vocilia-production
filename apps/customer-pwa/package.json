@@ -31,7 +31,8 @@
     "zod": "^3.22.4",
     "@supabase/supabase-js": "^2.39.1",
     "@supabase/auth-helpers-nextjs": "^0.8.7",
-    "axios": "^1.6.2"
+    "axios": "^1.6.2",
+    "openai": "^4.63.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",

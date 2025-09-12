@@ -155,42 +155,67 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Simple test - return success without database call for now
+    // Fetch business context data from Supabase
+    const { data: business, error } = await supabase
+      .from('businesses')
+      .select('id, name, context_data, updated_at')
+      .eq('id', businessId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching business context:', error);
+      if (error.code === 'PGRST116') {
+        // Business not found
+        return NextResponse.json(
+          { success: false, error: 'Business not found' },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch context data' },
+        { status: 500 }
+      );
+    }
+
+    // Return the context data, or empty structure if none exists
+    const contextData = business?.context_data || {
+      layout: {
+        departments: [],
+        checkouts: 1,
+        selfCheckout: false,
+        specialAreas: []
+      },
+      staff: { employees: [] },
+      products: { categories: [], seasonal: [], notOffered: [], popularItems: [] },
+      operations: {
+        hours: {
+          monday: { open: '', close: '', closed: false },
+          tuesday: { open: '', close: '', closed: false },
+          wednesday: { open: '', close: '', closed: false },
+          thursday: { open: '', close: '', closed: false },
+          friday: { open: '', close: '', closed: false },
+          saturday: { open: '', close: '', closed: false },
+          sunday: { open: '', close: '', closed: true }
+        },
+        peakTimes: [],
+        challenges: [],
+        improvements: [],
+        commonProcedures: []
+      },
+      customerPatterns: {
+        commonQuestions: [],
+        frequentComplaints: [],
+        seasonalPatterns: [],
+        positivePatterns: [],
+        customerDemographics: []
+      }
+    };
+
     return NextResponse.json({
       success: true,
-      data: {
-        layout: {
-          departments: ["Test Department"],
-          checkouts: 1,
-          selfCheckout: false,
-          specialAreas: []
-        },
-        staff: { employees: [] },
-        products: { categories: [], seasonal: [], notOffered: [], popularItems: [] },
-        operations: {
-          hours: {
-            monday: { open: '09:00', close: '17:00', closed: false },
-            tuesday: { open: '09:00', close: '17:00', closed: false },
-            wednesday: { open: '09:00', close: '17:00', closed: false },
-            thursday: { open: '09:00', close: '17:00', closed: false },
-            friday: { open: '09:00', close: '17:00', closed: false },
-            saturday: { open: '10:00', close: '16:00', closed: false },
-            sunday: { open: '', close: '', closed: true }
-          },
-          peakTimes: [],
-          challenges: [],
-          improvements: [],
-          commonProcedures: []
-        },
-        customerPatterns: {
-          commonQuestions: [],
-          frequentComplaints: [],
-          seasonalPatterns: [],
-          positivePatterns: [],
-          customerDemographics: []
-        }
-      },
-      message: `Test data for business ${businessId}`
+      data: contextData,
+      businessName: business?.name,
+      lastUpdated: business?.updated_at
     });
 
   } catch (error) {

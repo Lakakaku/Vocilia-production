@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { ContextManager } from '../../../business-components/context/ContextManager';
 import { ContextImportExport } from '../../../business-components/context/ContextImportExport';
+import { ContextAIAssistant } from '../../../business-components/context/ContextAIAssistant';
 import { BusinessContextData } from '../../../business-types/context';
 import { contextService } from '../../../business-services/context-service';
 
@@ -136,6 +137,40 @@ export default function ContextPage() {
     setContextData(importedData);
     setHasUnsavedChanges(false);
     setLastSaved(new Date());
+  };
+
+  const handleApplySuggestion = (suggestion: any) => {
+    // This will be called by the AI assistant when applying suggestions
+    if (!contextData) return;
+    
+    const newContext = { ...contextData };
+    const fieldParts = suggestion.field.split('.');
+    
+    // Navigate to the field and apply the suggestion
+    let target: any = newContext;
+    for (let i = 0; i < fieldParts.length - 1; i++) {
+      target = target[fieldParts[i]];
+    }
+    
+    const lastField = fieldParts[fieldParts.length - 1];
+    
+    if (suggestion.type === 'add') {
+      if (Array.isArray(target[lastField])) {
+        target[lastField] = [...target[lastField], ...suggestion.value];
+      } else {
+        target[lastField] = suggestion.value;
+      }
+    } else if (suggestion.type === 'remove') {
+      if (Array.isArray(target[lastField])) {
+        target[lastField] = target[lastField].filter((item: any) => item !== suggestion.value);
+      } else {
+        target[lastField] = null;
+      }
+    } else if (suggestion.type === 'modify') {
+      target[lastField] = suggestion.value;
+    }
+    
+    handleContextChange(newContext);
   };
 
   const getCompletionScore = (): number => {
@@ -268,6 +303,15 @@ export default function ContextPage() {
           contextData={contextData}
           onChange={handleContextChange}
           completionScore={completionScore}
+        />
+      )}
+
+      {/* AI Assistant - floating component */}
+      {contextData && (
+        <ContextAIAssistant
+          contextData={contextData}
+          onApplySuggestion={handleApplySuggestion}
+          onChange={handleContextChange}
         />
       )}
     </div>
