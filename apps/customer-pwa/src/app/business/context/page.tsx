@@ -8,7 +8,8 @@ import {
   CheckCircle, 
   AlertCircle,
   Info,
-  Loader2
+  Loader2,
+  ArrowLeft
 } from 'lucide-react';
 import { ContextManager } from '../../../business-components/context/ContextManager';
 import { ContextImportExport } from '../../../business-components/context/ContextImportExport';
@@ -267,6 +268,15 @@ export default function ContextPage() {
 
   return (
     <div className="space-y-6">
+      {/* Back button */}
+      <button
+        onClick={() => router.push('/business/dashboard')}
+        className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
+      >
+        <ArrowLeft className="w-5 h-5" />
+        <span>Tillbaka till Dashboard</span>
+      </button>
+
       {/* Page header */}
       <div className="flex justify-between items-start">
         <div>
