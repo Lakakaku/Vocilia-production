@@ -29,16 +29,40 @@ export default function ContextPage() {
     const checkAuth = async () => {
       try {
         const accessToken = localStorage.getItem('ai-feedback-access-token');
-        if (!accessToken) {
+        const isDemoMode = localStorage.getItem('demo-mode') === 'true';
+        
+        if (!accessToken && !isDemoMode) {
           router.push('/business/login');
           return;
         }
 
-        // Verify authentication and load context data
+        // If in demo mode, set up demo data
+        if (isDemoMode && !accessToken) {
+          const demoUser = {
+            id: 'demo-user-001',
+            email: 'demo@vocilia.com',
+            business: {
+              id: 'demo-business-001',
+              name: 'Demo Business - Vocilia'
+            }
+          };
+          
+          localStorage.setItem('ai-feedback-user', JSON.stringify(demoUser));
+          localStorage.setItem('businessId', demoUser.business.id);
+        }
+
+        // Load context data (will work with demo mode too)
         await loadContextData();
       } catch (error) {
         console.error('Auth check failed:', error);
-        router.push('/business/login');
+        
+        // Check if we should use demo mode on error
+        const isDemoMode = localStorage.getItem('demo-mode') === 'true';
+        if (isDemoMode) {
+          await loadContextData();
+        } else {
+          router.push('/business/login');
+        }
       } finally {
         setLoading(false);
       }
