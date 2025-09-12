@@ -11,16 +11,36 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const { updateAvailable, isApplying, applyUpdate } = useServiceWorkerUpdate();
 
   useEffect(() => {
-    // Register service worker for PWA
-    if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
-      navigator.serviceWorker
-        .register('/sw.js')
-        .then((registration) => {
-          console.log('SW registered: ', registration);
-        })
-        .catch((registrationError) => {
-          console.log('SW registration failed: ', registrationError);
+    // Handle service worker based on environment
+    if ('serviceWorker' in navigator) {
+      if (process.env.NODE_ENV === 'production') {
+        // Register service worker for PWA in production
+        navigator.serviceWorker
+          .register('/sw.js')
+          .then((registration) => {
+            console.log('SW registered: ', registration);
+          })
+          .catch((registrationError) => {
+            console.log('SW registration failed: ', registrationError);
+          });
+      } else {
+        // In development, unregister any existing service workers to prevent caching issues
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for(let registration of registrations) {
+            registration.unregister().then(function(success) {
+              if (success) {
+                console.log('SW unregistered in development mode');
+                // Also clear all caches
+                caches.keys().then(function(cacheNames) {
+                  cacheNames.forEach(function(cacheName) {
+                    caches.delete(cacheName);
+                  });
+                });
+              }
+            });
+          }
         });
+      }
     }
   }, []);
 

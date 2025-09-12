@@ -116,20 +116,20 @@ export function ContextManager({ contextData, onChange, completionScore }: Conte
       case 'layout':
         const layout = contextData.layout;
         let score = 0;
-        if (layout.departments.length > 0) score += 40;
+        if (layout.departments && layout.departments.length > 0) score += 40;
         if (layout.checkouts > 0) score += 20;
-        if (layout.specialAreas.length > 0) score += 40;
+        if (layout.specialAreas && layout.specialAreas.length > 0) score += 40;
         return score;
 
       case 'staff':
-        return contextData.staff.employees.length > 0 ? 100 : 0;
+        return contextData.staff.employees && contextData.staff.employees.length > 0 ? 100 : 0;
 
       case 'products':
         const products = contextData.products;
         let prodScore = 0;
-        if (products.categories.length > 0) prodScore += 50;
-        if (products.popularItems.length > 0) prodScore += 30;
-        if (products.notOffered.length > 0) prodScore += 20;
+        if (products.categories && products.categories.length > 0) prodScore += 50;
+        if (products.popularItems && products.popularItems.length > 0) prodScore += 30;
+        if (products.notOffered && products.notOffered.length > 0) prodScore += 20;
         return prodScore;
 
       case 'operations':
@@ -137,16 +137,16 @@ export function ContextManager({ contextData, onChange, completionScore }: Conte
         let opsScore = 0;
         const hasHours = Object.values(ops.hours).some(h => h.open || h.close);
         if (hasHours) opsScore += 50;
-        if (ops.peakTimes.length > 0) opsScore += 30;
-        if (ops.challenges.length > 0) opsScore += 20;
+        if (ops.peakTimes && ops.peakTimes.length > 0) opsScore += 30;
+        if (ops.challenges && ops.challenges.length > 0) opsScore += 20;
         return opsScore;
 
       case 'customerPatterns':
         const patterns = contextData.customerPatterns;
         let patternScore = 0;
-        if (patterns.commonQuestions.length > 0) patternScore += 50;
-        if (patterns.frequentComplaints.length > 0) patternScore += 30;
-        if (patterns.seasonalPatterns.length > 0) patternScore += 20;
+        if (patterns.commonQuestions && patterns.commonQuestions.length > 0) patternScore += 50;
+        if (patterns.frequentComplaints && patterns.frequentComplaints.length > 0) patternScore += 30;
+        if (patterns.seasonalPatterns && patterns.seasonalPatterns.length > 0) patternScore += 20;
         return patternScore;
 
       default:
@@ -164,7 +164,7 @@ export function ContextManager({ contextData, onChange, completionScore }: Conte
     <div>
       <h4 className="text-sm font-medium text-gray-900 mb-2">{title}</h4>
       <div className="space-y-2">
-        {items.map((item, index) => (
+        {(items || []).map((item, index) => (
           <div key={index} className="flex items-center space-x-2">
             <input
               type="text"
@@ -195,7 +195,7 @@ export function ContextManager({ contextData, onChange, completionScore }: Conte
   const renderLayoutSection = () => (
     <div className="space-y-6">
       {/* Departments */}
-      {renderArrayEditor('layout', 'departments', contextData.layout.departments, 'Avdelningar', 'T.ex. Frukt & Grönt')}
+      {renderArrayEditor('layout', 'departments', contextData.layout.departments || [], 'Avdelningar', 'T.ex. Frukt & Grönt')}
 
       {/* Checkouts */}
       <div>
@@ -223,7 +223,7 @@ export function ContextManager({ contextData, onChange, completionScore }: Conte
       </div>
 
       {/* Special areas */}
-      {renderArrayEditor('layout', 'specialAreas', contextData.layout.specialAreas, 'Specialområden', 'T.ex. Apotek, Deli')}
+      {renderArrayEditor('layout', 'specialAreas', contextData.layout.specialAreas || [], 'Specialområden', 'T.ex. Apotek, Deli')}
     </div>
   );
 
@@ -240,7 +240,7 @@ export function ContextManager({ contextData, onChange, completionScore }: Conte
               department: ''
             };
             updateContextData('staff', { 
-              employees: [...contextData.staff.employees, newEmployee] 
+              employees: [...(contextData.staff.employees || []), newEmployee] 
             });
           }}
           className="flex items-center space-x-2 px-3 py-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
@@ -251,7 +251,7 @@ export function ContextManager({ contextData, onChange, completionScore }: Conte
       </div>
 
       <div className="space-y-4">
-        {contextData.staff.employees.map((employee, index) => (
+        {(contextData.staff.employees || []).map((employee, index) => (
           <div key={employee.id} className="bg-gray-50 p-4 rounded-lg">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
@@ -298,7 +298,7 @@ export function ContextManager({ contextData, onChange, completionScore }: Conte
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">Välj avdelning</option>
-                    {contextData.layout.departments.map(dept => (
+                    {(contextData.layout.departments || []).map(dept => (
                       <option key={dept} value={dept}>{dept}</option>
                     ))}
                   </select>
@@ -317,7 +317,7 @@ export function ContextManager({ contextData, onChange, completionScore }: Conte
           </div>
         ))}
 
-        {contextData.staff.employees.length === 0 && (
+        {(!contextData.staff.employees || contextData.staff.employees.length === 0) && (
           <div className="text-center py-8 text-gray-500">
             <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
             <p>Inga anställda tillagda ännu</p>
@@ -329,10 +329,10 @@ export function ContextManager({ contextData, onChange, completionScore }: Conte
 
   const renderProductsSection = () => (
     <div className="space-y-6">
-      {renderArrayEditor('products', 'categories', contextData.products.categories, 'Huvudkategorier', 'T.ex. Livsmedel')}
-      {renderArrayEditor('products', 'popularItems', contextData.products.popularItems, 'Populära produkter', 'T.ex. Färsk fisk')}
-      {renderArrayEditor('products', 'seasonal', contextData.products.seasonal, 'Säsongsprodukter', 'T.ex. Julmat')}
-      {renderArrayEditor('products', 'notOffered', contextData.products.notOffered, 'Erbjuds INTE', 'T.ex. Alkohol')}
+      {renderArrayEditor('products', 'categories', contextData.products.categories || [], 'Huvudkategorier', 'T.ex. Livsmedel')}
+      {renderArrayEditor('products', 'popularItems', contextData.products.popularItems || [], 'Populära produkter', 'T.ex. Färsk fisk')}
+      {renderArrayEditor('products', 'seasonal', contextData.products.seasonal || [], 'Säsongsprodukter', 'T.ex. Julmat')}
+      {renderArrayEditor('products', 'notOffered', contextData.products.notOffered || [], 'Erbjuds INTE', 'T.ex. Alkohol')}
     </div>
   );
 
@@ -359,12 +359,12 @@ export function ContextManager({ contextData, onChange, completionScore }: Conte
                   <label className="flex items-center">
                     <input
                       type="checkbox"
-                      checked={!contextData.operations.hours[day.key]?.closed}
+                      checked={!contextData.operations.hours?.[day.key]?.closed}
                       onChange={(e) => updateContextData('operations', {
                         hours: {
                           ...contextData.operations.hours,
                           [day.key]: {
-                            ...contextData.operations.hours[day.key],
+                            ...contextData.operations.hours?.[day.key],
                             closed: !e.target.checked
                           }
                         }
@@ -374,16 +374,16 @@ export function ContextManager({ contextData, onChange, completionScore }: Conte
                     <span className="text-sm text-gray-700">{day.label}</span>
                   </label>
                 </div>
-                {!contextData.operations.hours[day.key]?.closed && (
+                {!contextData.operations.hours?.[day.key]?.closed && (
                   <>
                     <input
                       type="time"
-                      value={contextData.operations.hours[day.key]?.open || ''}
+                      value={contextData.operations.hours?.[day.key]?.open || ''}
                       onChange={(e) => updateContextData('operations', {
                         hours: {
                           ...contextData.operations.hours,
                           [day.key]: {
-                            ...contextData.operations.hours[day.key],
+                            ...contextData.operations.hours?.[day.key],
                             open: e.target.value
                           }
                         }
@@ -393,12 +393,12 @@ export function ContextManager({ contextData, onChange, completionScore }: Conte
                     <span className="text-gray-500">till</span>
                     <input
                       type="time"
-                      value={contextData.operations.hours[day.key]?.close || ''}
+                      value={contextData.operations.hours?.[day.key]?.close || ''}
                       onChange={(e) => updateContextData('operations', {
                         hours: {
                           ...contextData.operations.hours,
                           [day.key]: {
-                            ...contextData.operations.hours[day.key],
+                            ...contextData.operations.hours?.[day.key],
                             close: e.target.value
                           }
                         }
@@ -412,19 +412,19 @@ export function ContextManager({ contextData, onChange, completionScore }: Conte
           </div>
         </div>
 
-        {renderArrayEditor('operations', 'peakTimes', contextData.operations.peakTimes, 'Topptider', 'T.ex. Lunch 12-13')}
-        {renderArrayEditor('operations', 'challenges', contextData.operations.challenges, 'Kända utmaningar', 'T.ex. Långa köer på fredag')}
-        {renderArrayEditor('operations', 'improvements', contextData.operations.improvements, 'Pågående förbättringar', 'T.ex. Ny kassasystem')}
+        {renderArrayEditor('operations', 'peakTimes', contextData.operations.peakTimes || [], 'Topptider', 'T.ex. Lunch 12-13')}
+        {renderArrayEditor('operations', 'challenges', contextData.operations.challenges || [], 'Kända utmaningar', 'T.ex. Långa köer på fredag')}
+        {renderArrayEditor('operations', 'improvements', contextData.operations.improvements || [], 'Pågående förbättringar', 'T.ex. Ny kassasystem')}
       </div>
     );
   };
 
   const renderCustomerPatternsSection = () => (
     <div className="space-y-6">
-      {renderArrayEditor('customerPatterns', 'commonQuestions', contextData.customerPatterns.commonQuestions, 'Vanliga frågor', 'T.ex. Var finns mjölken?')}
-      {renderArrayEditor('customerPatterns', 'frequentComplaints', contextData.customerPatterns.frequentComplaints, 'Vanliga klagomål', 'T.ex. Långa köer')}
-      {renderArrayEditor('customerPatterns', 'seasonalPatterns', contextData.customerPatterns.seasonalPatterns, 'Säsongsmönster', 'T.ex. Mer kött före helger')}
-      {renderArrayEditor('customerPatterns', 'positivePatterns', contextData.customerPatterns.positivePatterns, 'Positiva mönster', 'T.ex. Beröm för service')}
+      {renderArrayEditor('customerPatterns', 'commonQuestions', contextData.customerPatterns.commonQuestions || [], 'Vanliga frågor', 'T.ex. Var finns mjölken?')}
+      {renderArrayEditor('customerPatterns', 'frequentComplaints', contextData.customerPatterns.frequentComplaints || [], 'Vanliga klagomål', 'T.ex. Långa köer')}
+      {renderArrayEditor('customerPatterns', 'seasonalPatterns', contextData.customerPatterns.seasonalPatterns || [], 'Säsongsmönster', 'T.ex. Mer kött före helger')}
+      {renderArrayEditor('customerPatterns', 'positivePatterns', contextData.customerPatterns.positivePatterns || [], 'Positiva mönster', 'T.ex. Beröm för service')}
     </div>
   );
 
