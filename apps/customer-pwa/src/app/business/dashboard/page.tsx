@@ -16,46 +16,74 @@ export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Force service worker update on mount
+  useEffect(() => {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.getRegistration().then((reg) => {
+        if (reg) {
+          reg.update().catch(console.error);
+        }
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const accessToken = localStorage.getItem('ai-feedback-access-token');
         
-        // Check for demo mode or if we should bypass auth
-        const isDemoMode = window.location.hostname === 'localhost' || 
-                          window.location.search.includes('demo=true') ||
-                          localStorage.getItem('demo-mode') === 'true';
-        
-        if (!accessToken && !isDemoMode) {
-          router.push('/business/login');
+        // Immediately activate demo mode if no token
+        if (!accessToken) {
+          // Set demo mode immediately
+          const demoUser = {
+            id: 'demo-user-001',
+            email: 'demo@vocilia.com',
+            business: {
+              id: 'demo-business-001',
+              name: 'Demo Business - Vocilia'
+            }
+          };
+          
+          setUser(demoUser);
+          localStorage.setItem('ai-feedback-user', JSON.stringify(demoUser));
+          localStorage.setItem('businessId', demoUser.business.id);
+          localStorage.setItem('demo-mode', 'true');
+          localStorage.setItem('ai-feedback-onboarding-completed', 'true');
+          setLoading(false);
           return;
         }
 
-        // If we have a token, try to verify it
-        if (accessToken) {
-          try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/me`, {
-              headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-              },
-            });
+        // Try to verify the token with a timeout
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+          
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/me`, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
 
-            if (response.ok) {
-              const data = await response.json();
-              if (data.success) {
-                setUser(data.data.user);
-                
-                // Store user data and business ID in localStorage for context service
-                if (data.data.user) {
-                  localStorage.setItem('ai-feedback-user', JSON.stringify(data.data.user));
-                  
-                  // Store business ID separately for easy access
-                  if (data.data.user.business?.id) {
-                    localStorage.setItem('businessId', data.data.user.business.id);
-                  }
-                }
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.data?.user) {
+              setUser(data.data.user);
+              
+              // Store user data and business ID in localStorage for context service
+              localStorage.setItem('ai-feedback-user', JSON.stringify(data.data.user));
+              
+              // Store business ID separately for easy access
+              if (data.data.user.business?.id) {
+                localStorage.setItem('businessId', data.data.user.business.id);
+              }
+              
+              // Clear demo mode if real auth succeeded
+              localStorage.removeItem('demo-mode');
                 
                 // Check if user has completed onboarding
                 const onboardingCompleted = localStorage.getItem('ai-feedback-onboarding-completed');
@@ -84,19 +112,18 @@ export default function DashboardPage() {
                   }
                 }
                 
-                setLoading(false);
-                return; // Successfully authenticated
-              }
+              setLoading(false);
+              return; // Successfully authenticated
+            } else {
+              throw new Error('Invalid auth response');
             }
-          } catch (authError) {
-            console.error('Auth verification failed:', authError);
-            // Fall through to demo mode check
+          } else {
+            throw new Error('Auth failed');
           }
-        }
-        
-        // If auth failed or we're in demo mode, use demo data
-        if (isDemoMode || !accessToken) {
-          // Use demo/fallback user data
+        } catch (authError) {
+          console.error('Auth verification failed:', authError);
+          
+          // Auth failed, use demo mode
           const demoUser = {
             id: 'demo-user-001',
             email: 'demo@vocilia.com',
@@ -111,13 +138,12 @@ export default function DashboardPage() {
           localStorage.setItem('businessId', demoUser.business.id);
           localStorage.setItem('demo-mode', 'true');
           localStorage.setItem('ai-feedback-onboarding-completed', 'true');
-        } else {
-          // Token invalid and not in demo mode, redirect to login
+          
+          // Clear invalid token
           localStorage.removeItem('ai-feedback-access-token');
           localStorage.removeItem('ai-feedback-refresh-token');
-          localStorage.removeItem('ai-feedback-user');
-          localStorage.removeItem('businessId');
-          router.push('/business/login');
+          
+          setLoading(false);
         }
       } catch (error) {
         console.error('Auth check failed:', error);

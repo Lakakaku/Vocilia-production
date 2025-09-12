@@ -31,6 +31,8 @@ export const metadata: Metadata = {
     'mobile-web-app-status-bar-style': 'default',
     'mobile-web-app-title': 'Feedback',
     'msapplication-tap-highlight': 'no',
+    'app-version': '2.1.0',
+    'cache-control': 'no-cache, no-store, must-revalidate',
   },
   icons: {
     icon: [
