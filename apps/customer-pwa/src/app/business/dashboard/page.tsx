@@ -21,72 +21,129 @@ export default function DashboardPage() {
     const checkAuth = async () => {
       try {
         const accessToken = localStorage.getItem('ai-feedback-access-token');
-        if (!accessToken) {
+        
+        // Check for demo mode or if we should bypass auth
+        const isDemoMode = window.location.hostname === 'localhost' || 
+                          window.location.search.includes('demo=true') ||
+                          localStorage.getItem('demo-mode') === 'true';
+        
+        if (!accessToken && !isDemoMode) {
           router.push('/business/login');
           return;
         }
 
-        // Verify token with backend
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/me`, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-        });
+        // If we have a token, try to verify it
+        if (accessToken) {
+          try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/me`, {
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+            });
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            setUser(data.data.user);
-            
-            // Store user data and business ID in localStorage for context service
-            if (data.data.user) {
-              localStorage.setItem('ai-feedback-user', JSON.stringify(data.data.user));
-              
-              // Store business ID separately for easy access
-              if (data.data.user.business?.id) {
-                localStorage.setItem('businessId', data.data.user.business.id);
-              }
-            }
-            
-            // Check if user has completed onboarding
-            const onboardingCompleted = localStorage.getItem('ai-feedback-onboarding-completed');
-            if (!onboardingCompleted) {
-              // Check with backend if onboarding is needed
-              const onboardingResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/business/onboarding/status`, {
-                headers: {
-                  'Authorization': `Bearer ${accessToken}`,
-                  'Content-Type': 'application/json',
-                },
-              });
-              
-              if (onboardingResponse.ok) {
-                const onboardingData = await onboardingResponse.json();
-                if (!onboardingData.completed) {
-                  router.push('/business/onboarding');
-                  return;
-                } else {
-                  localStorage.setItem('ai-feedback-onboarding-completed', 'true');
+            if (response.ok) {
+              const data = await response.json();
+              if (data.success) {
+                setUser(data.data.user);
+                
+                // Store user data and business ID in localStorage for context service
+                if (data.data.user) {
+                  localStorage.setItem('ai-feedback-user', JSON.stringify(data.data.user));
+                  
+                  // Store business ID separately for easy access
+                  if (data.data.user.business?.id) {
+                    localStorage.setItem('businessId', data.data.user.business.id);
+                  }
                 }
-              } else {
-                // If we can't verify onboarding status, redirect to onboarding to be safe
-                router.push('/business/onboarding');
-                return;
+                
+                // Check if user has completed onboarding
+                const onboardingCompleted = localStorage.getItem('ai-feedback-onboarding-completed');
+                if (!onboardingCompleted) {
+                  // Check with backend if onboarding is needed
+                  try {
+                    const onboardingResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/business/onboarding/status`, {
+                      headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                      },
+                    });
+                    
+                    if (onboardingResponse.ok) {
+                      const onboardingData = await onboardingResponse.json();
+                      if (!onboardingData.completed) {
+                        router.push('/business/onboarding');
+                        return;
+                      } else {
+                        localStorage.setItem('ai-feedback-onboarding-completed', 'true');
+                      }
+                    }
+                  } catch (onboardingError) {
+                    // If onboarding check fails, continue anyway
+                    console.log('Onboarding check failed, continuing...');
+                  }
+                }
+                
+                setLoading(false);
+                return; // Successfully authenticated
               }
             }
-          } else {
-            router.push('/business/login');
+          } catch (authError) {
+            console.error('Auth verification failed:', authError);
+            // Fall through to demo mode check
           }
+        }
+        
+        // If auth failed or we're in demo mode, use demo data
+        if (isDemoMode || !accessToken) {
+          // Use demo/fallback user data
+          const demoUser = {
+            id: 'demo-user-001',
+            email: 'demo@vocilia.com',
+            business: {
+              id: 'demo-business-001',
+              name: 'Demo Business - Vocilia'
+            }
+          };
+          
+          setUser(demoUser);
+          localStorage.setItem('ai-feedback-user', JSON.stringify(demoUser));
+          localStorage.setItem('businessId', demoUser.business.id);
+          localStorage.setItem('demo-mode', 'true');
+          localStorage.setItem('ai-feedback-onboarding-completed', 'true');
         } else {
-          // Token invalid, redirect to login
+          // Token invalid and not in demo mode, redirect to login
           localStorage.removeItem('ai-feedback-access-token');
           localStorage.removeItem('ai-feedback-refresh-token');
           localStorage.removeItem('ai-feedback-user');
+          localStorage.removeItem('businessId');
           router.push('/business/login');
         }
       } catch (error) {
         console.error('Auth check failed:', error);
-        router.push('/business/login');
+        
+        // In case of any error, check if we should use demo mode
+        const isDemoMode = window.location.hostname === 'localhost' || 
+                          window.location.search.includes('demo=true') ||
+                          localStorage.getItem('demo-mode') === 'true';
+        
+        if (isDemoMode) {
+          const demoUser = {
+            id: 'demo-user-001',
+            email: 'demo@vocilia.com',
+            business: {
+              id: 'demo-business-001',
+              name: 'Demo Business - Vocilia'
+            }
+          };
+          
+          setUser(demoUser);
+          localStorage.setItem('ai-feedback-user', JSON.stringify(demoUser));
+          localStorage.setItem('businessId', demoUser.business.id);
+          localStorage.setItem('demo-mode', 'true');
+        } else {
+          router.push('/business/login');
+        }
       } finally {
         setLoading(false);
       }
@@ -128,8 +185,28 @@ export default function DashboardPage() {
     );
   }
 
+  const isDemoMode = localStorage.getItem('demo-mode') === 'true';
+
   return (
     <div className="min-h-screen bg-white">
+      {/* Demo mode indicator */}
+      {isDemoMode && (
+        <div className="bg-yellow-100 border-b border-yellow-300 px-4 py-2 text-center">
+          <p className="text-sm text-yellow-800">
+            Demo Mode - To use with real data, please{' '}
+            <button
+              onClick={() => {
+                localStorage.removeItem('demo-mode');
+                router.push('/business/login');
+              }}
+              className="underline font-semibold hover:text-yellow-900"
+            >
+              log in
+            </button>
+          </p>
+        </div>
+      )}
+      
       {/* Header with business name */}
       <div className="p-6">
         <h1 className="text-2xl font-bold text-gray-900">
