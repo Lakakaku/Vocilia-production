@@ -51,8 +51,49 @@ export default function ContextPage() {
       const result = await contextService.getContext();
       
       if (result.success && result.data) {
-        setContextData(result.data);
-        setLastSaved(result.data?.lastUpdated ? new Date(result.data.lastUpdated) : null);
+        // Ensure all arrays are initialized even if they're missing from the API response
+        const sanitizedData: BusinessContextData = {
+          layout: {
+            departments: result.data.layout?.departments || [],
+            checkouts: result.data.layout?.checkouts || 1,
+            selfCheckout: result.data.layout?.selfCheckout || false,
+            specialAreas: result.data.layout?.specialAreas || []
+          },
+          staff: {
+            employees: result.data.staff?.employees || []
+          },
+          products: {
+            categories: result.data.products?.categories || [],
+            seasonal: result.data.products?.seasonal || [],
+            notOffered: result.data.products?.notOffered || [],
+            popularItems: result.data.products?.popularItems || []
+          },
+          operations: {
+            hours: result.data.operations?.hours || {
+              monday: { open: '', close: '', closed: false },
+              tuesday: { open: '', close: '', closed: false },
+              wednesday: { open: '', close: '', closed: false },
+              thursday: { open: '', close: '', closed: false },
+              friday: { open: '', close: '', closed: false },
+              saturday: { open: '', close: '', closed: false },
+              sunday: { open: '', close: '', closed: true }
+            },
+            peakTimes: result.data.operations?.peakTimes || [],
+            challenges: result.data.operations?.challenges || [],
+            improvements: result.data.operations?.improvements || [],
+            commonProcedures: result.data.operations?.commonProcedures || []
+          },
+          customerPatterns: {
+            commonQuestions: result.data.customerPatterns?.commonQuestions || [],
+            frequentComplaints: result.data.customerPatterns?.frequentComplaints || [],
+            seasonalPatterns: result.data.customerPatterns?.seasonalPatterns || [],
+            positivePatterns: result.data.customerPatterns?.positivePatterns || [],
+            customerDemographics: result.data.customerPatterns?.customerDemographics || []
+          }
+        };
+        
+        setContextData(sanitizedData);
+        setLastSaved(new Date());
       } else {
         console.error('Failed to load context data:', result.error);
         // Initialize empty context data
@@ -181,32 +222,32 @@ export default function ContextPage() {
 
     // Count layout fields
     totalFields += 4;
-    if (contextData.layout.departments.length > 0) completedFields++;
-    if (contextData.layout.checkouts > 0) completedFields++;
-    if (contextData.layout.specialAreas.length > 0) completedFields++;
-    completedFields++; // selfCheckout is always set
+    if (contextData.layout?.departments?.length > 0) completedFields++;
+    if (contextData.layout?.checkouts > 0) completedFields++;
+    if (contextData.layout?.specialAreas?.length > 0) completedFields++;
+    if (contextData.layout?.selfCheckout !== undefined) completedFields++;
 
     // Count staff fields
     totalFields += 1;
-    if (contextData.staff.employees.length > 0) completedFields++;
+    if (contextData.staff?.employees?.length > 0) completedFields++;
 
     // Count products fields
     totalFields += 3;
-    if (contextData.products.categories.length > 0) completedFields++;
-    if (contextData.products.popularItems.length > 0) completedFields++;
-    if (contextData.products.notOffered.length > 0) completedFields++;
+    if (contextData.products?.categories?.length > 0) completedFields++;
+    if (contextData.products?.popularItems?.length > 0) completedFields++;
+    if (contextData.products?.notOffered?.length > 0) completedFields++;
 
     // Count operations fields
     totalFields += 3;
-    const hasHours = Object.values(contextData.operations.hours).some(h => h.open || h.close);
+    const hasHours = contextData.operations?.hours && Object.values(contextData.operations.hours).some(h => h?.open || h?.close);
     if (hasHours) completedFields++;
-    if (contextData.operations.peakTimes.length > 0) completedFields++;
-    if (contextData.operations.challenges.length > 0) completedFields++;
+    if (contextData.operations?.peakTimes?.length > 0) completedFields++;
+    if (contextData.operations?.challenges?.length > 0) completedFields++;
 
     // Count customer patterns fields
     totalFields += 2;
-    if (contextData.customerPatterns.commonQuestions.length > 0) completedFields++;
-    if (contextData.customerPatterns.frequentComplaints.length > 0) completedFields++;
+    if (contextData.customerPatterns?.commonQuestions?.length > 0) completedFields++;
+    if (contextData.customerPatterns?.frequentComplaints?.length > 0) completedFields++;
 
     return Math.round((completedFields / totalFields) * 100);
   };
