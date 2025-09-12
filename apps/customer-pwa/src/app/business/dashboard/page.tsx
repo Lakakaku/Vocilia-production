@@ -38,6 +38,32 @@ export default function DashboardPage() {
           const data = await response.json();
           if (data.success) {
             setUser(data.data.user);
+            
+            // Check if user has completed onboarding
+            const onboardingCompleted = localStorage.getItem('ai-feedback-onboarding-completed');
+            if (!onboardingCompleted) {
+              // Check with backend if onboarding is needed
+              const onboardingResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/business/onboarding/status`, {
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                },
+              });
+              
+              if (onboardingResponse.ok) {
+                const onboardingData = await onboardingResponse.json();
+                if (!onboardingData.completed) {
+                  router.push('/business/onboarding');
+                  return;
+                } else {
+                  localStorage.setItem('ai-feedback-onboarding-completed', 'true');
+                }
+              } else {
+                // If we can't verify onboarding status, redirect to onboarding to be safe
+                router.push('/business/onboarding');
+                return;
+              }
+            }
           } else {
             router.push('/business/login');
           }

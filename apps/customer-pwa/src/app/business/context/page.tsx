@@ -93,6 +93,57 @@ export default function ContextPage() {
           }
         };
         
+        // Check for onboarding data and merge if available
+        const onboardingDataString = localStorage.getItem('ai-feedback-onboarding-data');
+        if (onboardingDataString) {
+          try {
+            const onboardingData = JSON.parse(onboardingDataString);
+            
+            // Merge onboarding data into context
+            if (onboardingData.businessProfile) {
+              // Add business type to operations
+              if (onboardingData.businessProfile.business_type) {
+                sanitizedData.operations.commonProcedures.push(
+                  `Business Type: ${onboardingData.businessProfile.business_type}`
+                );
+              }
+              
+              // Add store count info
+              if (onboardingData.businessProfile.store_count > 1) {
+                sanitizedData.layout.specialAreas.push(
+                  `Multi-location business with ${onboardingData.businessProfile.store_count} stores`
+                );
+              }
+            }
+            
+            if (onboardingData.goalsExpectations) {
+              // Add primary goals to operations improvements
+              if (onboardingData.goalsExpectations.primary_goals?.length > 0) {
+                sanitizedData.operations.improvements = [
+                  ...sanitizedData.operations.improvements,
+                  ...onboardingData.goalsExpectations.primary_goals.map(goal => `Goal: ${goal}`)
+                ];
+              }
+              
+              // Add improvement areas to challenges
+              if (onboardingData.goalsExpectations.improvement_areas?.length > 0) {
+                sanitizedData.operations.challenges = [
+                  ...sanitizedData.operations.challenges,
+                  ...onboardingData.goalsExpectations.improvement_areas.map(area => `Improvement needed: ${area}`)
+                ];
+              }
+            }
+            
+            // Clear onboarding data from localStorage after merging
+            localStorage.removeItem('ai-feedback-onboarding-data');
+            
+            // Mark that we should save this merged data
+            setHasUnsavedChanges(true);
+          } catch (error) {
+            console.error('Error merging onboarding data:', error);
+          }
+        }
+        
         setContextData(sanitizedData);
         setLastSaved(new Date());
       } else {
@@ -107,7 +158,7 @@ export default function ContextPage() {
   };
 
   const initializeEmptyContext = () => {
-    setContextData({
+    const emptyContext: BusinessContextData = {
       layout: {
         departments: [],
         checkouts: 1,
@@ -145,7 +196,50 @@ export default function ContextPage() {
         positivePatterns: [],
         customerDemographics: []
       }
-    });
+    };
+    
+    // Check for onboarding data and merge if available
+    const onboardingDataString = localStorage.getItem('ai-feedback-onboarding-data');
+    if (onboardingDataString) {
+      try {
+        const onboardingData = JSON.parse(onboardingDataString);
+        
+        // Merge onboarding data into empty context
+        if (onboardingData.businessProfile) {
+          if (onboardingData.businessProfile.business_type) {
+            emptyContext.operations.commonProcedures.push(
+              `Business Type: ${onboardingData.businessProfile.business_type}`
+            );
+          }
+          
+          if (onboardingData.businessProfile.store_count > 1) {
+            emptyContext.layout.specialAreas.push(
+              `Multi-location business with ${onboardingData.businessProfile.store_count} stores`
+            );
+          }
+        }
+        
+        if (onboardingData.goalsExpectations) {
+          if (onboardingData.goalsExpectations.primary_goals?.length > 0) {
+            emptyContext.operations.improvements = onboardingData.goalsExpectations.primary_goals.map(goal => `Goal: ${goal}`);
+          }
+          
+          if (onboardingData.goalsExpectations.improvement_areas?.length > 0) {
+            emptyContext.operations.challenges = onboardingData.goalsExpectations.improvement_areas.map(area => `Improvement needed: ${area}`);
+          }
+        }
+        
+        // Clear onboarding data from localStorage after merging
+        localStorage.removeItem('ai-feedback-onboarding-data');
+        
+        // Mark that we should save this merged data
+        setHasUnsavedChanges(true);
+      } catch (error) {
+        console.error('Error merging onboarding data:', error);
+      }
+    }
+    
+    setContextData(emptyContext);
   };
 
   const handleContextChange = (newContextData: BusinessContextData) => {

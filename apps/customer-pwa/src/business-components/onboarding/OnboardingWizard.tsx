@@ -171,6 +171,10 @@ export function OnboardingWizard() {
     setIsCompleting(true);
     
     try {
+      // Save onboarding data to localStorage for context page
+      localStorage.setItem('ai-feedback-onboarding-data', JSON.stringify(data));
+      localStorage.setItem('ai-feedback-onboarding-completed', 'true');
+      
       // Try to save onboarding data to API/Supabase
       const response = await fetch('/api/business/onboarding/complete', {
         method: 'POST',

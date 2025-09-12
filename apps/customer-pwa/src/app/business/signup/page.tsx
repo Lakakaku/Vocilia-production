@@ -88,7 +88,7 @@ export default function SignupPage() {
             localStorage.setItem('ai-feedback-refresh-token', loginData.data.tokens.refresh_token);
             localStorage.setItem('ai-feedback-user', JSON.stringify(loginData.data.user));
           }
-          router.push('/business/dashboard');
+          router.push('/business/onboarding');
         } else {
           // Business created but login failed - redirect to login page
           router.push('/business/login?message=Account created successfully, please log in');
