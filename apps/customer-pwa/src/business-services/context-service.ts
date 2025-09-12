@@ -13,9 +13,34 @@ class ContextService {
 
   async getContext(): Promise<ContextApiResponse> {
     try {
-      // Get business ID from localStorage for now (temporary solution)
-      // Using test business UUID for development
-      const businessId = localStorage.getItem('business-id') || '11111111-1111-1111-1111-111111111111';
+      // Get business ID from user data or businessId in localStorage
+      let businessId = localStorage.getItem('businessId');
+      
+      // If no businessId in localStorage, try to get from user data
+      if (!businessId) {
+        const userData = localStorage.getItem('ai-feedback-user');
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            businessId = user?.business?.id || user?.businessId;
+            if (businessId) {
+              localStorage.setItem('businessId', businessId);
+            }
+          } catch (e) {
+            console.error('Failed to parse user data:', e);
+          }
+        }
+      }
+      
+      // If still no businessId, we need to authenticate first
+      if (!businessId) {
+        console.error('No business ID found. User needs to authenticate.');
+        return {
+          success: false,
+          error: 'No business ID found. Please log in again.'
+        };
+      }
+      
       const url = `${this.baseUrl}?business_id=${encodeURIComponent(businessId)}`;
       
       const response = await fetch(url, {
@@ -41,9 +66,34 @@ class ContextService {
 
   async updateContext(payload: UpdateContextPayload): Promise<ContextApiResponse> {
     try {
-      // Get business ID from localStorage for now (temporary solution)
-      // Using test business UUID for development
-      const businessId = localStorage.getItem('business-id') || '11111111-1111-1111-1111-111111111111';
+      // Get business ID from user data or businessId in localStorage
+      let businessId = localStorage.getItem('businessId');
+      
+      // If no businessId in localStorage, try to get from user data
+      if (!businessId) {
+        const userData = localStorage.getItem('ai-feedback-user');
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            businessId = user?.business?.id || user?.businessId;
+            if (businessId) {
+              localStorage.setItem('businessId', businessId);
+            }
+          } catch (e) {
+            console.error('Failed to parse user data:', e);
+          }
+        }
+      }
+      
+      // If still no businessId, we need to authenticate first
+      if (!businessId) {
+        console.error('No business ID found. User needs to authenticate.');
+        return {
+          success: false,
+          error: 'No business ID found. Please log in again.'
+        };
+      }
+      
       const url = `${this.baseUrl}?business_id=${encodeURIComponent(businessId)}`;
       
       const response = await fetch(url, {
@@ -85,9 +135,34 @@ class ContextService {
 
   async validateContext(contextData: Partial<BusinessContextData>): Promise<ContextApiResponse> {
     try {
-      // Get business ID from localStorage for now (temporary solution)
-      // Using test business UUID for development
-      const businessId = localStorage.getItem('business-id') || '11111111-1111-1111-1111-111111111111';
+      // Get business ID from user data or businessId in localStorage
+      let businessId = localStorage.getItem('businessId');
+      
+      // If no businessId in localStorage, try to get from user data
+      if (!businessId) {
+        const userData = localStorage.getItem('ai-feedback-user');
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            businessId = user?.business?.id || user?.businessId;
+            if (businessId) {
+              localStorage.setItem('businessId', businessId);
+            }
+          } catch (e) {
+            console.error('Failed to parse user data:', e);
+          }
+        }
+      }
+      
+      // If still no businessId, we need to authenticate first
+      if (!businessId) {
+        console.error('No business ID found. User needs to authenticate.');
+        return {
+          success: false,
+          error: 'No business ID found. Please log in again.'
+        };
+      }
+      
       const url = `${this.baseUrl}?business_id=${encodeURIComponent(businessId)}`;
       
       const response = await fetch(url, {
@@ -117,9 +192,34 @@ class ContextService {
 
   async importContext(importData: ContextImport): Promise<ContextApiResponse> {
     try {
-      // Get business ID from localStorage for now (temporary solution)
-      // Using test business UUID for development
-      const businessId = localStorage.getItem('business-id') || '11111111-1111-1111-1111-111111111111';
+      // Get business ID from user data or businessId in localStorage
+      let businessId = localStorage.getItem('businessId');
+      
+      // If no businessId in localStorage, try to get from user data
+      if (!businessId) {
+        const userData = localStorage.getItem('ai-feedback-user');
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            businessId = user?.business?.id || user?.businessId;
+            if (businessId) {
+              localStorage.setItem('businessId', businessId);
+            }
+          } catch (e) {
+            console.error('Failed to parse user data:', e);
+          }
+        }
+      }
+      
+      // If still no businessId, we need to authenticate first
+      if (!businessId) {
+        console.error('No business ID found. User needs to authenticate.');
+        return {
+          success: false,
+          error: 'No business ID found. Please log in again.'
+        };
+      }
+      
       const url = `${this.baseUrl}?business_id=${encodeURIComponent(businessId)}`;
       
       const response = await fetch(url, {

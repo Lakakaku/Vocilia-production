@@ -3,23 +3,32 @@
 import { useState } from 'react';
 import { Bell, Search, User, LogOut, Settings } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { useBusinessContext } from '@/contexts/BusinessContext';
 
 export function Header() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const { user, logout } = useAuth();
+  const { businessName } = useBusinessContext();
 
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-4">
       <div className="flex items-center justify-between">
-        {/* Search */}
-        <div className="flex-1 max-w-lg">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Sök feedback, kunder..."
-              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
+        {/* Business Name */}
+        <div className="flex items-center space-x-6">
+          <h1 className="text-xl font-semibold text-gray-900">
+            {businessName || 'Ultrathink'}
+          </h1>
+          
+          {/* Search */}
+          <div className="w-96">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Sök feedback, kunder..."
+                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+            </div>
           </div>
         </div>
 

@@ -39,6 +39,16 @@ export default function DashboardPage() {
           if (data.success) {
             setUser(data.data.user);
             
+            // Store user data and business ID in localStorage for context service
+            if (data.data.user) {
+              localStorage.setItem('ai-feedback-user', JSON.stringify(data.data.user));
+              
+              // Store business ID separately for easy access
+              if (data.data.user.business?.id) {
+                localStorage.setItem('businessId', data.data.user.business.id);
+              }
+            }
+            
             // Check if user has completed onboarding
             const onboardingCompleted = localStorage.getItem('ai-feedback-onboarding-completed');
             if (!onboardingCompleted) {
@@ -119,20 +129,30 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center">
-      <div className="flex flex-col gap-4">
-        <button
-          onClick={() => router.push('/business/context')}
-          className="px-6 py-3 bg-black text-white rounded hover:bg-gray-800 transition-colors"
-        >
-          Context
-        </button>
-        <button
-          onClick={handleLogout}
-          className="px-6 py-3 bg-black text-white rounded hover:bg-gray-800 transition-colors"
-        >
-          Logout
-        </button>
+    <div className="min-h-screen bg-white">
+      {/* Header with business name */}
+      <div className="p-6">
+        <h1 className="text-2xl font-bold text-gray-900">
+          {user?.business?.name || 'Loading...'}
+        </h1>
+      </div>
+      
+      {/* Main content */}
+      <div className="flex items-center justify-center" style={{ minHeight: 'calc(100vh - 100px)' }}>
+        <div className="flex flex-col gap-4">
+          <button
+            onClick={() => router.push('/business/context')}
+            className="px-6 py-3 bg-black text-white rounded hover:bg-gray-800 transition-colors"
+          >
+            Context
+          </button>
+          <button
+            onClick={handleLogout}
+            className="px-6 py-3 bg-black text-white rounded hover:bg-gray-800 transition-colors"
+          >
+            Logout
+          </button>
+        </div>
       </div>
     </div>
   );
