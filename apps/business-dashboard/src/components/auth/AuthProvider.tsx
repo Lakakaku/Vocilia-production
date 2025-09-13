@@ -1,8 +1,9 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createBrowserClient } from '@supabase/supabase-js';
 import { User } from '@supabase/supabase-js';
+import { useRouter } from 'next/navigation';
 
 interface BusinessUser {
   id: string;
@@ -46,6 +47,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<BusinessUser | null>(null);
   const [supabaseUser, setSupabaseUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+  
+  // Create Supabase client with proper session persistence
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ybrbeejvjbccqmewczte.supabase.co',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicmJlZWp2amJjY3FtZXdjenRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxODk1NjYsImV4cCI6MjA3Mjc2NTU2Nn0.HYaafhJJwhOJxJ38xQTQzRfZNiJaJUNjrqO9LnGVUFA'
+  );
 
   useEffect(() => {
     // Check for existing Supabase session on mount
@@ -90,36 +98,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        setSupabaseUser(session.user);
-        
-        // Fetch business data
-        const { data: businessData } = await supabase
-          .from('businesses')
-          .select('*')
-          .eq('auth_user_id', session.user.id)
-          .single();
-        
-        if (businessData) {
-          const businessUser: BusinessUser = {
-            id: businessData.id,
-            email: businessData.email || session.user.email || '',
-            name: businessData.name,
-            businessName: businessData.name,
-            location: businessData.address?.city || ''
-          };
-          setUser(businessUser);
+      console.log('🔄 Auth state changed:', event, session?.user?.email);
+      
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        if (session?.user) {
+          setSupabaseUser(session.user);
           
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('businessId', businessData.id);
+          // Fetch business data
+          const { data: businessData } = await supabase
+            .from('businesses')
+            .select('*')
+            .eq('auth_user_id', session.user.id)
+            .single();
+          
+          if (businessData) {
+            const businessUser: BusinessUser = {
+              id: businessData.id,
+              email: businessData.email || session.user.email || '',
+              name: businessData.name,
+              businessName: businessData.name,
+              location: businessData.address?.city || ''
+            };
+            setUser(businessUser);
+            
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('businessId', businessData.id);
+            }
           }
         }
-      } else {
+        
+        // Refresh the router to update server components
+        router.refresh();
+      } else if (event === 'SIGNED_OUT') {
         setSupabaseUser(null);
         setUser(null);
         if (typeof window !== 'undefined') {
           localStorage.removeItem('businessId');
         }
+        router.refresh();
       }
     });
 

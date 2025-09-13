@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient } from '@supabase/supabase-js';
 
 // Routes that don't require onboarding check
 const PUBLIC_ROUTES = [
@@ -25,7 +25,13 @@ const PROTECTED_ROUTES = [
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const res = NextResponse.next();
+  
+  // Create a NextResponse so we can modify cookies
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
   
   // Skip middleware for static files and API routes (except onboarding API)
   if (
@@ -35,16 +41,60 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/icons/') ||
     (pathname.startsWith('/api/') && !pathname.startsWith('/api/business/onboarding'))
   ) {
-    return res;
+    return response;
   }
 
   // Allow public routes
   if (PUBLIC_ROUTES.some(route => pathname.startsWith(route))) {
-    return res;
+    return response;
   }
 
   // Create Supabase client to check session
-  const supabase = createMiddlewareClient({ req: request, res });
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ybrbeejvjbccqmewczte.supabase.co',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicmJlZWp2amJjY3FtZXdjenRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxODk1NjYsImV4cCI6MjA3Mjc2NTU2Nn0.HYaafhJJwhOJxJ38xQTQzRfZNiJaJUNjrqO9LnGVUFA',
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value;
+        },
+        set(name: string, value: string, options?: any) {
+          request.cookies.set({
+            name,
+            value,
+            ...options,
+          });
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          });
+          response.cookies.set({
+            name,
+            value,
+            ...options,
+          });
+        },
+        remove(name: string, options?: any) {
+          request.cookies.set({
+            name,
+            value: '',
+            ...options,
+          });
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          });
+          response.cookies.set({
+            name,
+            value: '',
+            ...options,
+          });
+        },
+      },
+    }
+  );
   
   // Check if we have a session
   const { data: { session } } = await supabase.auth.getSession();
@@ -58,7 +108,7 @@ export async function middleware(request: NextRequest) {
 
   // If user is authenticated but trying to access protected routes,
   // the component-level checks will handle onboarding redirect
-  return res;
+  return response;
 }
 
 export const config = {
