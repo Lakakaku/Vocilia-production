@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import { supabase } from '../../../lib/supabase';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -18,27 +19,42 @@ export default function LoginPage() {
     setIsLoading(true);
     
     try {
-      // Use real Railway API for authentication
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
+      // Use Supabase authentication
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
       });
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        // Save tokens and user data
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('ai-feedback-access-token', data.data.accessToken);
-          localStorage.setItem('ai-feedback-refresh-token', data.data.refreshToken);
-          localStorage.setItem('ai-feedback-user', JSON.stringify(data.data.user));
+      if (error) {
+        setError(error.message || 'Invalid credentials');
+      } else if (data.session) {
+        // Fetch business data for the user
+        const { data: businessData, error: businessError } = await supabase
+          .from('businesses')
+          .select('*')
+          .eq('email', email)
+          .single();
+        
+        if (businessError || !businessData) {
+          // If no business exists, create one
+          const { data: newBusiness, error: createError } = await supabase
+            .from('businesses')
+            .insert({
+              email: email,
+              name: email.split('@')[0], // Use email prefix as default name
+              user_id: data.user.id
+            })
+            .select()
+            .single();
+          
+          if (!createError && newBusiness) {
+            localStorage.setItem('businessId', newBusiness.id);
+          }
+        } else {
+          localStorage.setItem('businessId', businessData.id);
         }
+        
         router.push('/business/dashboard');
-      } else {
-        setError(data.error?.message || 'Invalid credentials');
       }
     } catch (error) {
       setError('Ett fel uppstod vid inloggning. Kontrollera din anslutning.');
