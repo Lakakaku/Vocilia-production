@@ -6,10 +6,12 @@ import { useRouter } from 'next/navigation';
 interface User {
   id: string;
   email: string;
-  business: {
-    id: string;
-    name: string;
-  };
+  businessName: string;
+  name: string;
+  location?: string;
+  status?: string;
+  trialFeedbacksRemaining?: number;
+  createdAt?: string;
 }
 
 export default function DashboardPage() {
@@ -39,15 +41,13 @@ export default function DashboardPage() {
           const demoUser = {
             id: 'demo-user-001',
             email: 'demo@vocilia.com',
-            business: {
-              id: 'demo-business-001',
-              name: 'Demo Business - Vocilia'
-            }
+            businessName: 'Demo Business - Vocilia',
+            name: 'Demo Business - Vocilia'
           };
           
           setUser(demoUser);
           localStorage.setItem('ai-feedback-user', JSON.stringify(demoUser));
-          localStorage.setItem('businessId', demoUser.business.id);
+          localStorage.setItem('businessId', demoUser.id);
           localStorage.setItem('demo-mode', 'true');
           localStorage.setItem('ai-feedback-onboarding-completed', 'true');
           setLoading(false);
@@ -78,8 +78,8 @@ export default function DashboardPage() {
               localStorage.setItem('ai-feedback-user', JSON.stringify(data.data.user));
               
               // Store business ID separately for easy access
-              if (data.data.user.business?.id) {
-                localStorage.setItem('businessId', data.data.user.business.id);
+              if (data.data.user.id) {
+                localStorage.setItem('businessId', data.data.user.id);
               }
               
               // Clear demo mode if real auth succeeded
@@ -127,15 +127,13 @@ export default function DashboardPage() {
           const demoUser = {
             id: 'demo-user-001',
             email: 'demo@vocilia.com',
-            business: {
-              id: 'demo-business-001',
-              name: 'Demo Business - Vocilia'
-            }
+            businessName: 'Demo Business - Vocilia',
+            name: 'Demo Business - Vocilia'
           };
           
           setUser(demoUser);
           localStorage.setItem('ai-feedback-user', JSON.stringify(demoUser));
-          localStorage.setItem('businessId', demoUser.business.id);
+          localStorage.setItem('businessId', demoUser.id);
           localStorage.setItem('demo-mode', 'true');
           localStorage.setItem('ai-feedback-onboarding-completed', 'true');
           
@@ -157,15 +155,13 @@ export default function DashboardPage() {
           const demoUser = {
             id: 'demo-user-001',
             email: 'demo@vocilia.com',
-            business: {
-              id: 'demo-business-001',
-              name: 'Demo Business - Vocilia'
-            }
+            businessName: 'Demo Business - Vocilia',
+            name: 'Demo Business - Vocilia'
           };
           
           setUser(demoUser);
           localStorage.setItem('ai-feedback-user', JSON.stringify(demoUser));
-          localStorage.setItem('businessId', demoUser.business.id);
+          localStorage.setItem('businessId', demoUser.id);
           localStorage.setItem('demo-mode', 'true');
         } else {
           router.push('/business/login');
@@ -236,7 +232,7 @@ export default function DashboardPage() {
       {/* Header with business name */}
       <div className="p-6">
         <h1 className="text-2xl font-bold text-gray-900">
-          {user?.business?.name || 'Loading...'}
+          {user?.businessName || 'Loading...'}
         </h1>
       </div>
       
