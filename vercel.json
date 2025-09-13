@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
-  "buildCommand": "cd apps/customer-pwa && npm run build",
+  "buildCommand": "npm run build --workspace=customer-pwa",
   "outputDirectory": "apps/customer-pwa/.next",
-  "installCommand": "cd apps/customer-pwa && npm install"
+  "installCommand": "npm install"
 }
