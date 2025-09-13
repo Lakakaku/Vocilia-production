@@ -148,7 +148,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             .insert({
               email: email,
               name: email.split('@')[0], // Use email prefix as default name
-              user_id: data.user.id
+              auth_user_id: data.user.id // Correct column name
             })
             .select()
             .single();

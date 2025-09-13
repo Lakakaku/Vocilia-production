@@ -77,7 +77,7 @@ export default function DashboardPage() {
             .insert({
               email: session.user.email,
               name: session.user.email?.split('@')[0] || 'Business',
-              user_id: session.user.id
+              auth_user_id: session.user.id // Correct column name
             })
             .select()
             .single();
@@ -123,9 +123,9 @@ export default function DashboardPage() {
           localStorage.setItem('businessId', businessData.id);
           localStorage.removeItem('demo-mode');
           
-          // Check onboarding
+          // Check onboarding (stored in context_data JSONB field)
           const onboardingCompleted = localStorage.getItem('ai-feedback-onboarding-completed') || 
-                                     businessData.onboarding_completed;
+                                     businessData.context_data?.onboarding_completed;
           if (!onboardingCompleted) {
             router.push('/business/onboarding');
             return;

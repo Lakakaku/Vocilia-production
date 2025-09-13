@@ -75,10 +75,9 @@ export default function SignupPage() {
           .insert({
             email: formData.email,
             name: formData.businessName,
-            user_id: authData.user.id,
+            auth_user_id: authData.user.id, // Correct column name for Supabase auth reference
             status: 'trial',
-            trial_feedbacks_remaining: 30,
-            onboarding_completed: false
+            trial_feedbacks_remaining: 30
           })
           .select()
           .single();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Rocket,
@@ -8,6 +8,7 @@ import {
   Settings, 
   Target
 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 // Import step components
 import { WelcomeStep } from './steps/WelcomeStep';
@@ -175,20 +176,50 @@ export function OnboardingWizard() {
       localStorage.setItem('ai-feedback-onboarding-data', JSON.stringify(data));
       localStorage.setItem('ai-feedback-onboarding-completed', 'true');
       
-      // Try to save onboarding data to API/Supabase
-      const response = await fetch('/api/business/onboarding/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          onboardingData: data,
-          completedAt: new Date().toISOString()
-        })
-      });
-
-      if (response.ok) {
-        console.log('Onboarding data saved successfully');
+      // Get current session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        // Update business profile in Supabase with onboarding data
+        const businessId = localStorage.getItem('businessId');
+        
+        if (businessId) {
+          // Store onboarding data in context_data JSONB field
+          const { error } = await supabase
+            .from('businesses')
+            .update({
+              context_data: {
+                onboarding_completed: true,
+                onboarding_data: data,
+                business_type: data.businessProfile.business_type,
+                store_count: data.businessProfile.store_count,
+                geographic_coverage: data.businessProfile.geographic_coverage,
+                avg_transaction_value_range: data.businessProfile.avg_transaction_value_range,
+                daily_customer_volume: data.businessProfile.daily_customer_volume,
+                pos_system: data.integrationAssessment.pos_system,
+                tech_comfort_level: data.integrationAssessment.tech_comfort_level,
+                verification_method_preference: data.integrationAssessment.verification_method_preference,
+                primary_goals: data.goalsExpectations.primary_goals,
+                improvement_areas: data.goalsExpectations.improvement_areas,
+                expected_feedback_volume: data.goalsExpectations.expected_feedback_volume,
+                staff_training_required: data.goalsExpectations.staff_training_required
+              },
+              verification_method: data.integrationAssessment.verification_method_preference === 'automatic' ? 'pos_integration' : 'simple_verification',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', businessId);
+          
+          if (error) {
+            console.error('Failed to save onboarding data to Supabase:', error);
+            // Don't block the user, continue anyway
+          } else {
+            console.log('Onboarding data saved to Supabase successfully');
+          }
+        } else {
+          console.warn('No business ID found, skipping Supabase update');
+        }
       } else {
-        console.warn('Failed to save onboarding data, but continuing anyway');
+        console.warn('No active session, skipping Supabase update');
       }
     } catch (error) {
       console.warn('Error saving onboarding data:', error);
