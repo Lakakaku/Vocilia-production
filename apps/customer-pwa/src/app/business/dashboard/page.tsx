@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { supabase } from '../../../lib/supabase';
 
 interface User {
   id: string;
@@ -33,116 +34,105 @@ export default function DashboardPage() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const accessToken = localStorage.getItem('ai-feedback-access-token');
+        // Check Supabase session
+        const { data: { session } } = await supabase.auth.getSession();
         
-        // Immediately activate demo mode if no token
-        if (!accessToken) {
-          // Set demo mode immediately
-          const demoUser = {
-            id: 'demo-user-001',
-            email: 'demo@vocilia.com',
-            businessName: 'Demo Business - Vocilia',
-            name: 'Demo Business - Vocilia'
-          };
+        if (!session) {
+          // No session, check if demo mode
+          const isDemoMode = window.location.hostname === 'localhost' || 
+                            window.location.search.includes('demo=true') ||
+                            localStorage.getItem('demo-mode') === 'true';
           
-          setUser(demoUser);
-          localStorage.setItem('ai-feedback-user', JSON.stringify(demoUser));
-          localStorage.setItem('businessId', demoUser.id);
-          localStorage.setItem('demo-mode', 'true');
-          localStorage.setItem('ai-feedback-onboarding-completed', 'true');
-          setLoading(false);
+          if (isDemoMode) {
+            const demoUser = {
+              id: 'demo-user-001',
+              email: 'demo@vocilia.com',
+              businessName: 'Demo Business - Vocilia',
+              name: 'Demo Business - Vocilia'
+            };
+            
+            setUser(demoUser);
+            localStorage.setItem('ai-feedback-user', JSON.stringify(demoUser));
+            localStorage.setItem('businessId', demoUser.id);
+            localStorage.setItem('demo-mode', 'true');
+            localStorage.setItem('ai-feedback-onboarding-completed', 'true');
+            setLoading(false);
+          } else {
+            router.push('/business/login');
+          }
           return;
         }
 
-        // Try to verify the token with a timeout
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
-          
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/me`, {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
+        // Session exists, get business data
+        const { data: businessData, error: businessError } = await supabase
+          .from('businesses')
+          .select('*')
+          .eq('email', session.user.email)
+          .single();
 
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.data?.user) {
-              setUser(data.data.user);
-              
-              // Store user data and business ID in localStorage for context service
-              localStorage.setItem('ai-feedback-user', JSON.stringify(data.data.user));
-              
-              // Store business ID separately for easy access
-              if (data.data.user.id) {
-                localStorage.setItem('businessId', data.data.user.id);
-              }
-              
-              // Clear demo mode if real auth succeeded
-              localStorage.removeItem('demo-mode');
-                
-                // Check if user has completed onboarding
-                const onboardingCompleted = localStorage.getItem('ai-feedback-onboarding-completed');
-                if (!onboardingCompleted) {
-                  // Check with backend if onboarding is needed
-                  try {
-                    const onboardingResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/business/onboarding/status`, {
-                      headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json',
-                      },
-                    });
-                    
-                    if (onboardingResponse.ok) {
-                      const onboardingData = await onboardingResponse.json();
-                      if (!onboardingData.completed) {
-                        router.push('/business/onboarding');
-                        return;
-                      } else {
-                        localStorage.setItem('ai-feedback-onboarding-completed', 'true');
-                      }
-                    }
-                  } catch (onboardingError) {
-                    // If onboarding check fails, continue anyway
-                    console.log('Onboarding check failed, continuing...');
-                  }
-                }
-                
-              setLoading(false);
-              return; // Successfully authenticated
-            } else {
-              throw new Error('Invalid auth response');
-            }
-          } else {
-            throw new Error('Auth failed');
-          }
-        } catch (authError) {
-          console.error('Auth verification failed:', authError);
+        if (businessError || !businessData) {
+          // If no business exists, create one
+          const { data: newBusiness, error: createError } = await supabase
+            .from('businesses')
+            .insert({
+              email: session.user.email,
+              name: session.user.email?.split('@')[0] || 'Business',
+              user_id: session.user.id
+            })
+            .select()
+            .single();
           
-          // Auth failed, use demo mode
-          const demoUser = {
-            id: 'demo-user-001',
-            email: 'demo@vocilia.com',
-            businessName: 'Demo Business - Vocilia',
-            name: 'Demo Business - Vocilia'
+          if (createError) {
+            console.error('Failed to create business profile:', createError);
+            router.push('/business/signup');
+            return;
+          }
+          
+          const userData = {
+            id: newBusiness.id,
+            email: session.user.email || '',
+            businessName: newBusiness.name || '',
+            name: newBusiness.name || ''
           };
           
-          setUser(demoUser);
-          localStorage.setItem('ai-feedback-user', JSON.stringify(demoUser));
-          localStorage.setItem('businessId', demoUser.id);
-          localStorage.setItem('demo-mode', 'true');
-          localStorage.setItem('ai-feedback-onboarding-completed', 'true');
+          setUser(userData);
+          localStorage.setItem('ai-feedback-user', JSON.stringify(userData));
+          localStorage.setItem('businessId', newBusiness.id);
           
-          // Clear invalid token
-          localStorage.removeItem('ai-feedback-access-token');
-          localStorage.removeItem('ai-feedback-refresh-token');
+          // Check onboarding
+          const onboardingCompleted = localStorage.getItem('ai-feedback-onboarding-completed');
+          if (!onboardingCompleted) {
+            router.push('/business/onboarding');
+            return;
+          }
+        } else {
+          // Business exists, use it
+          const userData = {
+            id: businessData.id,
+            email: session.user.email || '',
+            businessName: businessData.name || '',
+            name: businessData.name || '',
+            location: businessData.location || '',
+            status: businessData.status || '',
+            trialFeedbacksRemaining: businessData.trial_feedbacks_remaining,
+            createdAt: businessData.created_at
+          };
           
-          setLoading(false);
+          setUser(userData);
+          localStorage.setItem('ai-feedback-user', JSON.stringify(userData));
+          localStorage.setItem('businessId', businessData.id);
+          localStorage.removeItem('demo-mode');
+          
+          // Check onboarding
+          const onboardingCompleted = localStorage.getItem('ai-feedback-onboarding-completed') || 
+                                     businessData.onboarding_completed;
+          if (!onboardingCompleted) {
+            router.push('/business/onboarding');
+            return;
+          }
         }
+        
+        setLoading(false);
       } catch (error) {
         console.error('Auth check failed:', error);
         
@@ -172,26 +162,30 @@ export default function DashboardPage() {
     };
 
     checkAuth();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        router.push('/business/login');
+      } else if (event === 'SIGNED_IN' && session) {
+        checkAuth();
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [router]);
 
   const handleLogout = async () => {
     try {
-      const accessToken = localStorage.getItem('ai-feedback-access-token');
-      if (accessToken) {
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-        });
-      }
+      await supabase.auth.signOut();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
       localStorage.removeItem('ai-feedback-access-token');
       localStorage.removeItem('ai-feedback-refresh-token');
       localStorage.removeItem('ai-feedback-user');
+      localStorage.removeItem('businessId');
+      localStorage.removeItem('demo-mode');
       router.push('/business/login');
     }
   };
