@@ -9,12 +9,12 @@ interface BusinessContextType {
   isLoading: boolean;
 }
 
-const const BusinessContext = createContext<BusinessContextType>({
+const BusinessContext = createContext<BusinessContextType>({
   businessId: null,
   businessName: null,
   setBusinessId: () => {},
   isLoading: true,
-});;
+});
 
 export function useBusinessContext() {
   const context = useContext(BusinessContext);
