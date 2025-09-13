@@ -1,9 +1,10 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { apiService } from '../../services/api';
+import { supabase } from '@/lib/supabase';
+import { User } from '@supabase/supabase-js';
 
-interface User {
+interface BusinessUser {
   id: string;
   email: string;
   name: string;
@@ -18,7 +19,8 @@ interface SignupData {
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: BusinessUser | null;
+  supabaseUser: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (data: SignupData) => Promise<void>;
@@ -41,32 +43,40 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<BusinessUser | null>(null);
+  const [supabaseUser, setSupabaseUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing session on mount
+    // Check for existing Supabase session on mount
     const checkAuth = async () => {
       try {
-        const userData = localStorage.getItem('ai-feedback-user');
-        const accessToken = localStorage.getItem('ai-feedback-access-token');
+        const { data: { session } } = await supabase.auth.getSession();
         
-        if (userData && accessToken) {
-          // Try to verify the token is still valid
-          try {
-            const response = await apiService.getCurrentUser();
-            if (response.success) {
-              setUser(response.data.user);
-            } else {
-              // Token invalid, clear localStorage
-              localStorage.removeItem('ai-feedback-user');
-              localStorage.removeItem('ai-feedback-access-token');
-              localStorage.removeItem('ai-feedback-refresh-token');
+        if (session?.user) {
+          setSupabaseUser(session.user);
+          
+          // Fetch business data from database
+          const { data: businessData, error } = await supabase
+            .from('businesses')
+            .select('*')
+            .eq('auth_user_id', session.user.id)
+            .single();
+          
+          if (businessData && !error) {
+            const businessUser: BusinessUser = {
+              id: businessData.id,
+              email: businessData.email || session.user.email || '',
+              name: businessData.name,
+              businessName: businessData.name,
+              location: businessData.address?.city || ''
+            };
+            setUser(businessUser);
+            
+            // Set business ID in localStorage for compatibility
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('businessId', businessData.id);
             }
-          } catch (error) {
-            // API call failed, but keep local user data if available
-            // This allows offline functionality
-            setUser(JSON.parse(userData));
           }
         }
       } catch (error) {
@@ -77,25 +87,91 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
 
     checkAuth();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        setSupabaseUser(session.user);
+        
+        // Fetch business data
+        const { data: businessData } = await supabase
+          .from('businesses')
+          .select('*')
+          .eq('auth_user_id', session.user.id)
+          .single();
+        
+        if (businessData) {
+          const businessUser: BusinessUser = {
+            id: businessData.id,
+            email: businessData.email || session.user.email || '',
+            name: businessData.name,
+            businessName: businessData.name,
+            location: businessData.address?.city || ''
+          };
+          setUser(businessUser);
+          
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('businessId', businessData.id);
+          }
+        }
+      } else {
+        setSupabaseUser(null);
+        setUser(null);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('businessId');
+        }
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
     
     try {
-      const response = await apiService.login(email, password);
+      // Sign in with Supabase Auth
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
       
-      if (response.success) {
-        const userData = response.data.user;
-        setUser(userData);
+      if (error) {
+        throw new Error(error.message || 'Inloggning misslyckades');
+      }
+      
+      if (data.user) {
+        setSupabaseUser(data.user);
         
-        // Set business ID in localStorage for BusinessContext
-        if (typeof window !== 'undefined' && userData.id) {
-          localStorage.setItem('businessId', userData.id);
-          console.log(`✅ Business ID set in context: ${userData.id}`);
+        // Fetch business data
+        const { data: businessData, error: bizError } = await supabase
+          .from('businesses')
+          .select('*')
+          .eq('auth_user_id', data.user.id)
+          .single();
+        
+        if (bizError) {
+          throw new Error('Kunde inte hämta företagsdata');
         }
-      } else {
-        throw new Error(response.error?.message || 'Inloggning misslyckades');
+        
+        if (businessData) {
+          const businessUser: BusinessUser = {
+            id: businessData.id,
+            email: businessData.email || data.user.email || '',
+            name: businessData.name,
+            businessName: businessData.name,
+            location: businessData.address?.city || ''
+          };
+          setUser(businessUser);
+          
+          // Set business ID in localStorage for BusinessContext
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('businessId', businessData.id);
+            console.log(`✅ Business ID set in context: ${businessData.id}`);
+          }
+        }
       }
     } catch (error) {
       throw error;
@@ -109,29 +185,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(true);
     
     try {
-      // Create business via Railway backend API
-      const businessData = {
-        name: data.name,
+      // Create Supabase Auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password
-      };
-
-      console.log('📡 Calling Railway API at:', `${process.env.NEXT_PUBLIC_API_URL || 'localhost:3001'}/api/business`);
-      const response = await apiService.createBusiness(businessData);
-      console.log('📥 API Response:', response);
-
-      if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to create business account');
+      });
+      
+      if (authError) {
+        throw new Error(authError.message || 'Failed to create account');
       }
-
-      const business = response.data.business;
-      console.log(`✅ REAL Business created successfully: ${business.name} (ID: ${business.id})`);
       
-      // Automatically login after successful signup
-      console.log('🔐 Auto-logging in after signup...');
-      await login(data.email, data.password);
-      console.log('✅ Auto-login successful, user is now authenticated');
-      
+      if (authData.user) {
+        // Create business record in database
+        const { data: businessData, error: bizError } = await supabase
+          .from('businesses')
+          .insert({
+            name: data.name,
+            email: data.email,
+            auth_user_id: authData.user.id,
+            status: 'pending',
+            trial_feedbacks_remaining: 30,
+            trial_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+          })
+          .select()
+          .single();
+        
+        if (bizError) {
+          // If business creation fails, log the error
+          console.error('Failed to create business record:', bizError);
+          throw new Error('Failed to create business record: ' + bizError.message);
+        }
+        
+        console.log(`✅ Business created successfully: ${businessData.name} (ID: ${businessData.id})`);
+        
+        // Automatically login after successful signup
+        console.log('🔐 Auto-logging in after signup...');
+        await login(data.email, data.password);
+        console.log('✅ Auto-login successful, user is now authenticated');
+      }
     } catch (error) {
       console.error('❌ Signup error:', error);
       throw error;
@@ -144,11 +235,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(true);
     
     try {
-      await apiService.logout();
+      await supabase.auth.signOut();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
       setUser(null);
+      setSupabaseUser(null);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('businessId');
+      }
       setIsLoading(false);
       window.location.href = '/login';
     }
@@ -156,11 +251,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const value: AuthContextType = {
     user,
+    supabaseUser,
     isLoading,
     login,
     signup,
     logout,
-    isAuthenticated: !!user,
+    isAuthenticated: !!user && !!supabaseUser,
   };
 
   return (

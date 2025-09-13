@@ -150,7 +150,10 @@
       "Bash(git pull:*)",
       "Bash(npx playwright:*)",
       "mcp__playwright__browser_install",
-      "Read(//Users/**)"
+      "Read(//Users/**)",
+      "Bash(npx turbo run build:*)",
+      "Bash(npx next dev:*)",
+      "Bash(npx next:*)"
     ],
     "deny": [],
     "additionalDirectories": [

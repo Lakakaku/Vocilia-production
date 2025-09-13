@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 
 // Routes that don't require onboarding check
 const PUBLIC_ROUTES = [
@@ -22,8 +23,9 @@ const PROTECTED_ROUTES = [
   '/trial'
 ];
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const res = NextResponse.next();
   
   // Skip middleware for static files and API routes (except onboarding API)
   if (
@@ -33,18 +35,22 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/icons/') ||
     (pathname.startsWith('/api/') && !pathname.startsWith('/api/business/onboarding'))
   ) {
-    return NextResponse.next();
+    return res;
   }
 
   // Allow public routes
   if (PUBLIC_ROUTES.some(route => pathname.startsWith(route))) {
-    return NextResponse.next();
+    return res;
   }
 
-  // For protected routes, check if user is authenticated
-  const accessToken = request.cookies.get('ai-feedback-access-token');
+  // Create Supabase client to check session
+  const supabase = createMiddlewareClient({ req: request, res });
   
-  if (!accessToken && PROTECTED_ROUTES.includes(pathname)) {
+  // Check if we have a session
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  // For protected routes, check if user is authenticated
+  if (!session && PROTECTED_ROUTES.includes(pathname)) {
     // Redirect unauthenticated users to login
     const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
@@ -52,7 +58,7 @@ export function middleware(request: NextRequest) {
 
   // If user is authenticated but trying to access protected routes,
   // the component-level checks will handle onboarding redirect
-  return NextResponse.next();
+  return res;
 }
 
 export const config = {
