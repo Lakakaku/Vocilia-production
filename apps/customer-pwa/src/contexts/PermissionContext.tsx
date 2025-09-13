@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, UserRole, Permission, hasPermission, canAccessLocation } from '../business-types/roles';
+import { User, UserRole, Permission, hasPermission, canAccessLocation } from '@/types/roles';
 
 interface PermissionContextType {
   user: User | null;
