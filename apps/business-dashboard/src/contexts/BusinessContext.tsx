@@ -84,8 +84,4 @@ export function BusinessProvider({ children }: BusinessProviderProps) {
       {children}
     </BusinessContext.Provider>
   );
-}>
-      {children}
-    </BusinessContext.Provider>
-  );
 }
