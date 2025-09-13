@@ -84,8 +84,8 @@ export default function SignupPage() {
         if (loginResponse.ok && loginData.success) {
           // Save tokens and user data
           if (typeof window !== 'undefined') {
-            localStorage.setItem('ai-feedback-access-token', loginData.data.tokens.access_token);
-            localStorage.setItem('ai-feedback-refresh-token', loginData.data.tokens.refresh_token);
+            localStorage.setItem('ai-feedback-access-token', loginData.data.accessToken);
+            localStorage.setItem('ai-feedback-refresh-token', loginData.data.refreshToken);
             localStorage.setItem('ai-feedback-user', JSON.stringify(loginData.data.user));
           }
           router.push('/business/onboarding');

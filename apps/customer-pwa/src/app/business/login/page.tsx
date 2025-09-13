@@ -32,8 +32,8 @@ export default function LoginPage() {
       if (response.ok && data.success) {
         // Save tokens and user data
         if (typeof window !== 'undefined') {
-          localStorage.setItem('ai-feedback-access-token', data.data.tokens.access_token);
-          localStorage.setItem('ai-feedback-refresh-token', data.data.tokens.refresh_token);
+          localStorage.setItem('ai-feedback-access-token', data.data.accessToken);
+          localStorage.setItem('ai-feedback-refresh-token', data.data.refreshToken);
           localStorage.setItem('ai-feedback-user', JSON.stringify(data.data.user));
         }
         router.push('/business/dashboard');
